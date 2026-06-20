@@ -1,0 +1,6 @@
+{
+  "name": "Eletroflow",
+  "description": "Aplicativo de alta performance para gestão de frotas, locações e recargas, integrado com controle financeiro, caução e planejamento de despesas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

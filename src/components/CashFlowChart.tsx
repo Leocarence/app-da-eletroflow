@@ -1,0 +1,956 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Transaction } from '../types';
+import { Calendar, TrendingUp, TrendingDown, Wallet, ArrowUpRight, ArrowDownRight, Info } from 'lucide-react';
+
+interface CashFlowChartProps {
+  transactions: Transaction[];
+}
+
+interface ChartPoint {
+  date: string;
+  formattedDate: string;
+  receitas: number;
+  despesas: number;
+  caucao: number; // Net caução
+  saldoDia: number;
+  acumulado: number;
+  acumuladoCentral: number; // Cumulative Caixa Central
+  acumuladoCaucao: number; // Cumulative Depósito Caução
+}
+
+export default function CashFlowChart({ transactions }: CashFlowChartProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dimensions, setDimensions] = useState({ width: 600, height: 280 });
+  const [hoveredPoint, setHoveredPoint] = useState<ChartPoint | null>(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const [chartMode, setChartMode] = useState<'acumulado' | 'diario'>('acumulado');
+  const [timeFrame, setTimeFrame] = useState<'semanal' | 'mensal'>('semanal');
+
+  // Interactive visibility toggles for the chart lines and bars
+  const [showReceitas, setShowReceitas] = useState(true);
+  const [showDespesas, setShowDespesas] = useState(true);
+  const [showCaucao, setShowCaucao] = useState(true);
+
+  // Track parent div resize
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (let entry of entries) {
+        const { width, height } = entry.contentRect;
+        setDimensions({
+          width: Math.max(width, 300),
+          height: Math.max(height, 220)
+        });
+      }
+    });
+    resizeObserver.observe(containerRef.current);
+    return () => resizeObserver.disconnect();
+  }, []);
+
+  // Compute aggregated data points of weekly/monthly cash flow
+  const points: ChartPoint[] = React.useMemo(() => {
+    if (transactions.length === 0) return [];
+
+    // Sort transactions chronologically
+    const sorted = [...transactions].sort((a, b) => a.date.localeCompare(b.date));
+
+    // Find date range
+    const minDateStr = sorted[0].date;
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    
+    // Choose active range limits
+    const maxDateStr = sorted[sorted.length - 1].date > todayStr ? sorted[sorted.length - 1].date : todayStr;
+
+    if (timeFrame === 'semanal') {
+      // Helper to find the Monday date (YYYY-MM-DD) for a given date string
+      const getMonday = (dateStr: string) => {
+        const d = new Date(dateStr + 'T00:00:00');
+        const day = d.getDay();
+        const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday adjustments
+        const mon = new Date(d.setDate(diff));
+        return mon.toISOString().split('T')[0];
+      };
+
+      const startMonStr = getMonday(minDateStr);
+      const endMonStr = getMonday(maxDateStr);
+
+      const weekMondays: string[] = [];
+      let curr = new Date(startMonStr + 'T00:00:00');
+      const last = new Date(endMonStr + 'T00:00:00');
+      let safety = 0;
+      while (curr <= last && safety < 1000) {
+        safety++;
+        weekMondays.push(curr.toISOString().split('T')[0]);
+        curr.setDate(curr.getDate() + 7);
+      }
+
+      // Aggregate transactions by Monday of the week
+      const aggWeekly: Record<string, { receitas: number; despesas: number; caucao: number }> = {};
+      weekMondays.forEach(m => {
+        aggWeekly[m] = { receitas: 0, despesas: 0, caucao: 0 };
+      });
+
+      transactions.forEach(t => {
+        const m = getMonday(t.date);
+        if (!aggWeekly[m]) {
+          aggWeekly[m] = { receitas: 0, despesas: 0, caucao: 0 };
+        }
+        if (t.type === 'receita') aggWeekly[m].receitas += t.value;
+        else if (t.type === 'despesa') aggWeekly[m].despesas += t.value;
+        else if (t.type === 'caucao_recebido') aggWeekly[m].caucao += t.value;
+        else if (t.type === 'caucao_devolvido') aggWeekly[m].caucao -= t.value;
+      });
+
+      let runningCentral = 0;
+      let runningEscrow = 0;
+      let runningTotal = 0;
+
+      const computedWeeks: ChartPoint[] = weekMondays.map(m => {
+        const data = aggWeekly[m] || { receitas: 0, despesas: 0, caucao: 0 };
+        const netCaucao = data.caucao;
+        
+        runningCentral += (data.receitas - data.despesas);
+        runningEscrow += netCaucao;
+        runningTotal = runningCentral + runningEscrow;
+
+        const parts = m.split('-');
+        const formattedDate = `${parts[2]}/${parts[1]}`;
+
+        return {
+          date: m,
+          formattedDate,
+          receitas: data.receitas,
+          despesas: data.despesas,
+          caucao: netCaucao,
+          saldoDia: data.receitas + netCaucao - data.despesas,
+          acumulado: runningTotal,
+          acumuladoCentral: runningCentral,
+          acumuladoCaucao: runningEscrow
+        };
+      });
+
+      // Show the last 16 weeks max to keep visually clear layout
+      if (computedWeeks.length > 16) {
+        return computedWeeks.slice(-16);
+      }
+      return computedWeeks;
+    } else {
+      // Monthly mode
+      const getYearMonth = (dateStr: string) => dateStr.substring(0, 7); // "YYYY-MM"
+      const startYM = getYearMonth(minDateStr);
+      const endYM = getYearMonth(maxDateStr);
+
+      const monthYMs: string[] = [];
+      let [startYear, startMonth] = startYM.split('-').map(Number);
+      const [endYear, endMonth] = endYM.split('-').map(Number);
+
+      let curY = startYear;
+      let curM = startMonth;
+      let safety = 0;
+      while ((curY < endYear || (curY === endYear && curM <= endMonth)) && safety < 1000) {
+        safety++;
+        monthYMs.push(`${curY}-${String(curM).padStart(2, '0')}`);
+        curM++;
+        if (curM > 12) {
+          curM = 1;
+          curY++;
+        }
+      }
+
+      // Aggregate transactions by year-month
+      const aggMonthly: Record<string, { receitas: number; despesas: number; caucao: number }> = {};
+      monthYMs.forEach(ym => {
+        aggMonthly[ym] = { receitas: 0, despesas: 0, caucao: 0 };
+      });
+
+      transactions.forEach(t => {
+        const ym = t.date.substring(0, 7);
+        if (!aggMonthly[ym]) {
+          aggMonthly[ym] = { receitas: 0, despesas: 0, caucao: 0 };
+        }
+        if (t.type === 'receita') aggMonthly[ym].receitas += t.value;
+        else if (t.type === 'despesa') aggMonthly[ym].despesas += t.value;
+        else if (t.type === 'caucao_recebido') aggMonthly[ym].caucao += t.value;
+        else if (t.type === 'caucao_devolvido') aggMonthly[ym].caucao -= t.value;
+      });
+
+      let runningCentral = 0;
+      let runningEscrow = 0;
+      let runningTotal = 0;
+
+      const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+      const computedMonths: ChartPoint[] = monthYMs.map(ym => {
+        const data = aggMonthly[ym] || { receitas: 0, despesas: 0, caucao: 0 };
+        const netCaucao = data.caucao;
+        
+        runningCentral += (data.receitas - data.despesas);
+        runningEscrow += netCaucao;
+        runningTotal = runningCentral + runningEscrow;
+
+        const [year, month] = ym.split('-');
+        const monthIndex = Number(month);
+        const formattedDate = `${MONTH_NAMES[monthIndex - 1]}/${year.substring(2)}`;
+
+        return {
+          date: ym,
+          formattedDate,
+          receitas: data.receitas,
+          despesas: data.despesas,
+          caucao: netCaucao,
+          saldoDia: data.receitas + netCaucao - data.despesas,
+          acumulado: runningTotal,
+          acumuladoCentral: runningCentral,
+          acumuladoCaucao: runningEscrow
+        };
+      });
+
+      // Show the last 12 months max to keep visually clear layout
+      if (computedMonths.length > 12) {
+        return computedMonths.slice(-12);
+      }
+      return computedMonths;
+    }
+  }, [transactions, timeFrame, showReceitas, showDespesas, showCaucao]);
+
+  // Calculate SVG Drawing coordinates
+  const paddingLeft = 60;
+  const paddingRight = 20;
+  const paddingTop = 25;
+  const paddingBottom = 40;
+
+  const chartWidth = dimensions.width - paddingLeft - paddingRight;
+  const chartHeight = dimensions.height - paddingTop - paddingBottom;
+
+  // Max and min values for cumulative scale based on toggled inputs
+  const minCum = React.useMemo(() => {
+    if (points.length === 0) return 0;
+    const values: number[] = [0];
+    points.forEach(p => {
+      if (showReceitas || showDespesas) {
+        values.push(p.acumuladoCentral);
+      }
+      if (showCaucao) {
+        values.push(p.acumuladoCaucao);
+      }
+      if ((showReceitas || showDespesas) && showCaucao) {
+        values.push(p.acumulado);
+      }
+    });
+    return Math.min(...values);
+  }, [points, showReceitas, showDespesas, showCaucao]);
+
+  const maxCum = React.useMemo(() => {
+    if (points.length === 0) return 1000;
+    const values: number[] = [1000];
+    points.forEach(p => {
+      if (showReceitas || showDespesas) {
+        values.push(p.acumuladoCentral);
+      }
+      if (showCaucao) {
+        values.push(p.acumuladoCaucao);
+      }
+      if ((showReceitas || showDespesas) && showCaucao) {
+        values.push(p.acumulado);
+      }
+    });
+    return Math.max(...values);
+  }, [points, showReceitas, showDespesas, showCaucao]);
+
+  // If there are no points, render placeholder
+  if (points.length === 0) {
+    return (
+      <div className="h-64 flex flex-col items-center justify-center bg-white rounded-2xl border border-slate-100 p-6 shadow-premium transition-all">
+        <Wallet className="h-10 w-10 text-slate-300 stroke-[1.5] mb-2" />
+        <p className="text-slate-500 font-medium text-sm text-center">Nenhum dado financeiro para exibir o gráfico.</p>
+        <p className="text-slate-400 text-xs mt-1 text-center">Insira receitas, despesas ou cauções para gerar o fluxo.</p>
+      </div>
+    );
+  }
+
+  const deltaCum = maxCum - minCum === 0 ? 1 : maxCum - minCum;
+
+  // Max daily values for bar scale (Receitas & Despesas indicator)
+  const maxDaily = Math.max(...points.map(p => {
+    const vals: number[] = [];
+    if (showReceitas) vals.push(p.receitas);
+    if (showDespesas) vals.push(p.despesas);
+    if (showCaucao) vals.push(Math.abs(p.caucao));
+    return vals.length > 0 ? Math.max(...vals) : 0;
+  }), 200);
+
+  // SVG coordinates converter
+  const getX = (index: number) => {
+    if (points.length <= 1) return paddingLeft + chartWidth / 2;
+    return paddingLeft + (index / (points.length - 1)) * chartWidth;
+  };
+
+  const getY = (val: number) => {
+    const ratio = (val - minCum) / deltaCum;
+    return paddingTop + chartHeight - ratio * chartHeight;
+  };
+
+  const getBarHeight = (val: number) => {
+    return (val / maxDaily) * (chartHeight * 0.7); // limit bar height to 70% of chart
+  };
+
+  // Generate paths for cumulative charts
+  let lineCentralPath = '';
+  let areaCentralPath = '';
+  let lineCaucaoPath = '';
+  let areaCaucaoPath = '';
+  let lineTotalPath = '';
+  let areaTotalPath = '';
+
+  if (points.length > 0) {
+    points.forEach((p, idx) => {
+      const x = getX(idx);
+      
+      // Caixa Central
+      const yCentral = getY(p.acumuladoCentral);
+      if (idx === 0) {
+        lineCentralPath = `M ${x} ${yCentral}`;
+        areaCentralPath = `M ${x} ${paddingTop + chartHeight} L ${x} ${yCentral}`;
+      } else {
+        lineCentralPath += ` L ${x} ${yCentral}`;
+        areaCentralPath += ` L ${x} ${yCentral}`;
+      }
+      if (idx === points.length - 1) {
+        areaCentralPath += ` L ${x} ${paddingTop + chartHeight} Z`;
+      }
+
+      // Depósito Caução
+      const yCaucao = getY(p.acumuladoCaucao);
+      if (idx === 0) {
+        lineCaucaoPath = `M ${x} ${yCaucao}`;
+        areaCaucaoPath = `M ${x} ${paddingTop + chartHeight} L ${x} ${yCaucao}`;
+      } else {
+        lineCaucaoPath += ` L ${x} ${yCaucao}`;
+        areaCaucaoPath += ` L ${x} ${yCaucao}`;
+      }
+      if (idx === points.length - 1) {
+        areaCaucaoPath += ` L ${x} ${paddingTop + chartHeight} Z`;
+      }
+
+      // Total Balance (Saldo Geral)
+      const yTotal = getY(p.acumulado);
+      if (idx === 0) {
+        lineTotalPath = `M ${x} ${yTotal}`;
+        areaTotalPath = `M ${x} ${paddingTop + chartHeight} L ${x} ${yTotal}`;
+      } else {
+        lineTotalPath += ` L ${x} ${yTotal}`;
+        areaTotalPath += ` L ${x} ${yTotal}`;
+      }
+      if (idx === points.length - 1) {
+        areaTotalPath += ` L ${x} ${paddingTop + chartHeight} Z`;
+      }
+    });
+  }
+
+  // Handle Mouse Hover/Move for Tooltip
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement, MouseEvent>) => {
+    if (!containerRef.current) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left - paddingLeft;
+    
+    if (mouseX < 0 || mouseX > chartWidth) {
+      setHoveredPoint(null);
+      return;
+    }
+
+    const pct = mouseX / chartWidth;
+    const index = Math.min(Math.max(Math.round(pct * (points.length - 1)), 0), points.length - 1);
+    const point = points[index];
+
+    if (point) {
+      setHoveredPoint(point);
+      
+      const activeYVal = (showReceitas || showDespesas) && showCaucao ? point.acumulado :
+                          (showReceitas || showDespesas) ? point.acumuladoCentral :
+                          point.acumuladoCaucao;
+
+      setTooltipPos({
+        x: getX(index) + rect.left - containerRef.current.getBoundingClientRect().left,
+        y: getY(activeYVal) - 10
+      });
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setHoveredPoint(null);
+  };
+
+  // Helper to format currency values nicely
+  const formatCurrency = (val: number) => {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+  };
+
+  // Generate grid values (Y-axis markers)
+  const numGridLines = 4;
+  const gridLines = Array.from({ length: numGridLines }).map((_, i) => {
+    const val = minCum + (i * deltaCum) / (numGridLines - 1);
+    return {
+      value: val,
+      y: getY(val)
+    };
+  });
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-premium flex flex-col h-full relative">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+        <div>
+          <h3 className="font-display font-semibold text-slate-800 text-lg flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-brand-500" />
+            Fluxo de Caixa
+          </h3>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 self-start sm:self-auto">
+          {/* Semanal vs Mensal Switcher */}
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+            <button
+              onClick={() => setTimeFrame('semanal')}
+              className={`px-3 py-1 text-xs font-semibold rounded-md transition-all-custom ${
+                timeFrame === 'semanal'
+                  ? 'bg-white text-slate-800 shadow-sm font-bold'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Semanal
+            </button>
+            <button
+              onClick={() => setTimeFrame('mensal')}
+              className={`px-3 py-1 text-xs font-semibold rounded-md transition-all-custom ${
+                timeFrame === 'mensal'
+                  ? 'bg-white text-slate-800 shadow-sm font-bold'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Mensal
+            </button>
+          </div>
+
+          {/* Acumulado vs Periodo Switcher */}
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg font-sans">
+            <button
+              onClick={() => setChartMode('acumulado')}
+              className={`px-3 py-1 text-xs font-semibold rounded-md transition-all-custom ${
+                chartMode === 'acumulado'
+                  ? 'bg-white text-slate-800 shadow-sm font-bold'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Saldo Acumulado
+            </button>
+            <button
+              onClick={() => setChartMode('diario')}
+              className={`px-3 py-1 text-xs font-semibold rounded-md transition-all-custom ${
+                chartMode === 'diario'
+                  ? 'bg-white text-slate-800 shadow-sm font-bold'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              {timeFrame === 'semanal' ? 'Lançamentos Semanais' : 'Lançamentos Mensais'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div ref={containerRef} className="relative flex-1 min-h-[220px] select-none">
+        {/* Render SVG content */}
+        <svg
+          width="100%"
+          height={dimensions.height}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
+          className="overflow-visible cursor-crosshair"
+        >
+          {/* Definitions for beautiful gradients */}
+          <defs>
+            <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#3b42c4" stopOpacity="0.22" />
+              <stop offset="100%" stopColor="#3b42c4" stopOpacity="0.00" />
+            </linearGradient>
+            <linearGradient id="caucaoGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.18" />
+              <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.00" />
+            </linearGradient>
+            <linearGradient id="totalGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#10b981" stopOpacity="0.18" />
+              <stop offset="100%" stopColor="#10b981" stopOpacity="0.00" />
+            </linearGradient>
+            <linearGradient id="barGreen" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#10b981" />
+              <stop offset="100%" stopColor="#059669" />
+            </linearGradient>
+            <linearGradient id="barRed" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#f43f5e" />
+              <stop offset="100%" stopColor="#e11d48" />
+            </linearGradient>
+            <linearGradient id="barOrange" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#f59e0b" />
+              <stop offset="100%" stopColor="#d97706" />
+            </linearGradient>
+          </defs>
+
+          {/* Grid lines & Y-axis labels */}
+          {gridLines.map((line, i) => (
+            <g key={i} className="opacity-70">
+              <line
+                x1={paddingLeft}
+                y1={line.y}
+                x2={dimensions.width - paddingRight}
+                y2={line.y}
+                stroke="#f1f5f9"
+                strokeWidth={1}
+                strokeDasharray="4,4"
+              />
+              <text
+                x={paddingLeft - 10}
+                y={line.y + 4}
+                fill="#1e293b"
+                fontSize={10}
+                className="font-mono text-right font-semibold"
+                textAnchor="end"
+              >
+                {formatCurrency(line.value).replace('R$', '').trim()}
+              </text>
+            </g>
+          ))}
+
+          {/* X axis line */}
+          <line
+            x1={paddingLeft}
+            y1={paddingTop + chartHeight}
+            x2={dimensions.width - paddingRight}
+            y2={paddingTop + chartHeight}
+            stroke="#e2e8f0"
+            strokeWidth={1}
+          />
+
+          {/* X-axis custom labels */}
+          {points.length > 0 &&
+            points.map((p, idx) => {
+              // Only draw every N labels to prevent overlap
+              const labelInterval = Math.ceil(points.length / 6);
+              if (idx % labelInterval !== 0 && idx !== points.length - 1) return null;
+
+              return (
+                <text
+                  key={idx}
+                  x={getX(idx)}
+                  y={paddingTop + chartHeight + 18}
+                  fill="#1e293b"
+                  fontSize={10}
+                  textAnchor="middle"
+                  className="font-mono font-bold"
+                >
+                  {p.formattedDate}
+                </text>
+              );
+            })}
+
+          {chartMode === 'acumulado' ? (
+            <>
+              {/* 1. CAIXA CENTRAL LINE & AREA (BLUE/INDIGO) */}
+              {(showReceitas || showDespesas) && (
+                <>
+                  {areaCentralPath && (
+                    <path
+                      d={areaCentralPath}
+                      fill="url(#chartGradient)"
+                      className="transition-all duration-300"
+                    />
+                  )}
+                  {lineCentralPath && (
+                    <path
+                      d={lineCentralPath}
+                      fill="none"
+                      stroke="#3b42c4"
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="transition-all duration-300 pointer-events-none"
+                    />
+                  )}
+                </>
+              )}
+
+              {/* 2. SECURITY DEPOSIT ESCROW LINE & AREA (ORANGE/AMBER) */}
+              {showCaucao && (
+                <>
+                  {areaCaucaoPath && (
+                    <path
+                      d={areaCaucaoPath}
+                      fill="url(#caucaoGradient)"
+                      className="transition-all duration-300"
+                    />
+                  )}
+                  {lineCaucaoPath && (
+                    <path
+                      d={lineCaucaoPath}
+                      fill="none"
+                      stroke="#f59e0b"
+                      strokeWidth={2.5}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="transition-all duration-300 pointer-events-none"
+                    />
+                  )}
+                </>
+              )}
+
+              {/* 3. SALDO GERAL LINE & AREA (EMERALD GREEN) */}
+              {(showReceitas || showDespesas) && showCaucao && (
+                <>
+                  {areaTotalPath && (
+                    <path
+                      d={areaTotalPath}
+                      fill="url(#totalGradient)"
+                      className="transition-all duration-300"
+                      opacity={0.3}
+                    />
+                  )}
+                  {lineTotalPath && (
+                    <path
+                      d={lineTotalPath}
+                      fill="none"
+                      stroke="#10b981"
+                      strokeWidth={2.5}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="transition-all duration-300 pointer-events-none"
+                    />
+                  )}
+                </>
+              )}
+
+              {/* Data points markers (circles for active lines) */}
+              {points.length <= 16 && points.map((p, idx) => {
+                const cx = getX(idx);
+                return (
+                  <g key={idx} className="pointer-events-none select-none">
+                    {/* Caixa Central dot */}
+                    {(showReceitas || showDespesas) && (
+                      <circle
+                        cx={cx}
+                        cy={getY(p.acumuladoCentral)}
+                        r={3}
+                        fill="#ffffff"
+                        stroke="#3b42c4"
+                        strokeWidth={1.5}
+                        className="transition-all duration-300 pointer-events-none"
+                      />
+                    )}
+                    {/* Depósito Caução dot */}
+                    {showCaucao && (
+                      <circle
+                        cx={cx}
+                        cy={getY(p.acumuladoCaucao)}
+                        r={3}
+                        fill="#ffffff"
+                        stroke="#f59e0b"
+                        strokeWidth={1.5}
+                        className="transition-all duration-300 pointer-events-none"
+                      />
+                    )}
+                    {/* Saldo Geral dot */}
+                    {(showReceitas || showDespesas) && showCaucao && (
+                      <circle
+                        cx={cx}
+                        cy={getY(p.acumulado)}
+                        r={3.5}
+                        fill="#ffffff"
+                        stroke="#10b981"
+                        strokeWidth={1.5}
+                        className="transition-all duration-300 pointer-events-none"
+                      />
+                    )}
+                  </g>
+                );
+              })}
+            </>
+          ) : (
+            <>
+              {/* Daily bars for revenues/expenses */}
+              {points.map((p, idx) => {
+                const x = getX(idx);
+                const baselineY = paddingTop + chartHeight;
+                const barWidth = Math.max(Math.min(chartWidth / points.length * 0.45, 12), 4);
+
+                const hasReceitas = p.receitas > 0;
+                const hasDespesas = p.despesas > 0;
+                const hasCaucao = Math.abs(p.caucao) > 0;
+
+                // Draw bars side by side, or stacked. Let's draw them beautifully!
+                return (
+                  <g key={idx} className="transition-all duration-300">
+                    {/* Receitas Bar (Green) */}
+                    {hasReceitas && showReceitas && (
+                      <rect
+                        x={x - barWidth - 1}
+                        y={baselineY - getBarHeight(p.receitas)}
+                        width={barWidth}
+                        height={getBarHeight(p.receitas)}
+                        fill="url(#barGreen)"
+                        rx={1.5}
+                      />
+                    )}
+
+                    {/* Despesas Bar (Red) */}
+                    {hasDespesas && showDespesas && (
+                      <rect
+                        x={x + 1}
+                        y={baselineY - getBarHeight(p.despesas)}
+                        width={barWidth}
+                        height={getBarHeight(p.despesas)}
+                        fill="url(#barRed)"
+                        rx={1.5}
+                      />
+                    )}
+
+                    {/* Caução Bar (Orange - if positive, or empty if negative) */}
+                    {hasCaucao && p.caucao > 0 && showCaucao && (
+                      <rect
+                        x={x - barWidth / 2}
+                        y={baselineY - getBarHeight(p.caucao)}
+                        width={barWidth}
+                        height={getBarHeight(p.caucao)}
+                        fill="url(#barOrange)"
+                        opacity={0.8}
+                        rx={1}
+                      />
+                    )}
+                  </g>
+                );
+              })}
+            </>
+          )}
+
+          {/* Active Hover vertical line and circles */}
+          {hoveredPoint && (
+            <g className="pointer-events-none">
+              <line
+                x1={tooltipPos.x + paddingLeft - (hoveredPoint ? getX(points.indexOf(hoveredPoint)) : 0) + getX(points.indexOf(hoveredPoint))}
+                y1={paddingTop}
+                x2={getX(points.indexOf(hoveredPoint))}
+                y2={paddingTop + chartHeight}
+                stroke="#475569"
+                strokeWidth={1}
+                strokeDasharray="3,3"
+              />
+              
+              {/* Hover circles for each active curve */}
+              {chartMode === 'acumulado' ? (
+                <>
+                  {(showReceitas || showDespesas) && (
+                    <circle
+                      cx={getX(points.indexOf(hoveredPoint))}
+                      cy={getY(hoveredPoint.acumuladoCentral)}
+                      r={5}
+                      fill="#3b42c4"
+                      stroke="#ffffff"
+                      strokeWidth={1.5}
+                      className="shadow-premium"
+                    />
+                  )}
+                  {showCaucao && (
+                    <circle
+                      cx={getX(points.indexOf(hoveredPoint))}
+                      cy={getY(hoveredPoint.acumuladoCaucao)}
+                      r={5}
+                      fill="#f59e0b"
+                      stroke="#ffffff"
+                      strokeWidth={1.5}
+                      className="shadow-premium"
+                    />
+                  )}
+                  {(showReceitas || showDespesas) && showCaucao && (
+                    <circle
+                      cx={getX(points.indexOf(hoveredPoint))}
+                      cy={getY(hoveredPoint.acumulado)}
+                      r={6}
+                      fill="#10b981"
+                      stroke="#ffffff"
+                      strokeWidth={2}
+                      className="shadow-premium"
+                    />
+                  )}
+                </>
+              ) : (
+                <circle
+                  cx={getX(points.indexOf(hoveredPoint))}
+                  cy={getY(hoveredPoint.acumulado)}
+                  r={6}
+                  fill="#3b42c4"
+                  stroke="#ffffff"
+                  strokeWidth={2}
+                  className="shadow-premium"
+                />
+              )}
+            </g>
+          )}
+        </svg>
+
+        {/* Dynamic HTML Tooltip */}
+        {hoveredPoint && (
+          <div
+            className="absolute z-10 bg-slate-900/95 backdrop-blur-md text-white rounded-xl p-3 shadow-xl border border-slate-800 text-xs text-left pointer-events-none min-w-[190px]"
+            style={{
+              left: Math.min(tooltipPos.x, dimensions.width - 200),
+              top: Math.max(tooltipPos.y - 145, 5)
+            }}
+          >
+            <div className="flex items-center gap-1.5 text-slate-400 font-mono font-semibold pb-1.5 mb-1.5 border-b border-slate-800">
+              <Calendar className="h-3.5 w-3.5" />
+              {timeFrame === 'semanal' ? (
+                `Semana de ${new Date(hoveredPoint.date + 'T00:00:00').toLocaleDateString('pt-BR', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric'
+                })}`
+              ) : (
+                (() => {
+                  const [year, month] = hoveredPoint.date.split('-');
+                  const monthNamesFull = [
+                    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+                  ];
+                  return `${monthNamesFull[Number(month) - 1]} / ${year}`;
+                })()
+              )}
+            </div>
+
+            <div className="space-y-1 font-sans">
+              {chartMode === 'acumulado' ? (
+                <>
+                  {(showReceitas || showDespesas) && showCaucao && (
+                    <div className="flex justify-between gap-4">
+                      <span className="text-slate-400 font-medium">Saldo Geral:</span>
+                      <span className={`font-bold font-mono ${hoveredPoint.acumulado >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {formatCurrency(hoveredPoint.acumulado)}
+                      </span>
+                    </div>
+                  )}
+                  {(showReceitas || showDespesas) && (
+                    <div className="flex justify-between gap-4">
+                      <span className="text-slate-400 flex items-center gap-1 font-medium">
+                        <span className="w-1.5 h-1.5 rounded-full bg-brand-500"></span>
+                        Caixa Central:
+                      </span>
+                      <span className={`font-semibold font-mono ${hoveredPoint.acumuladoCentral >= 0 ? 'text-brand-500' : 'text-red-400'}`}>
+                        {formatCurrency(hoveredPoint.acumuladoCentral)}
+                      </span>
+                    </div>
+                  )}
+                  {showCaucao && (
+                    <div className="flex justify-between gap-4">
+                      <span className="text-slate-400 flex items-center gap-1 font-medium">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                        Cauções Custodiados:
+                      </span>
+                      <span className="font-semibold font-mono text-amber-300">
+                        {formatCurrency(hoveredPoint.acumuladoCaucao)}
+                      </span>
+                    </div>
+                  )}
+                  
+                  <div className="border-t border-slate-800 my-1.5 opacity-40"></div>
+                  <div className="text-[10px] text-slate-400 font-medium italic pb-0.5">Movimentações do Período:</div>
+                </>
+              ) : null}
+
+              <div className="flex justify-between gap-4">
+                <span className="text-slate-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  Receitas:
+                </span>
+                <span className="font-medium font-mono text-emerald-400">
+                  {formatCurrency(hoveredPoint.receitas)}
+                </span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-slate-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                  Despesas:
+                </span>
+                <span className="font-medium font-mono text-rose-300">
+                  {formatCurrency(hoveredPoint.despesas)}
+                </span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-slate-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                  Caução Líquido:
+                </span>
+                <span className={`font-medium font-mono ${hoveredPoint.caucao >= 0 ? 'text-amber-300' : 'text-orange-400'}`}>
+                  {formatCurrency(hoveredPoint.caucao)}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Legend below the chart - Interactive toggles */}
+      <div className="flex flex-wrap items-center justify-center gap-4 mt-3 pt-3 border-t border-slate-100 text-xs font-semibold select-none">
+        <button
+          onClick={() => setShowReceitas(!showReceitas)}
+          className={`flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all cursor-pointer ${
+            showReceitas
+              ? 'bg-emerald-50 text-emerald-800 border-emerald-200 shadow-sm'
+              : 'bg-slate-50 text-slate-400 border-slate-150 line-through opacity-50'
+          }`}
+          title="Clique para ocultar/exibir receitas"
+        >
+          <span className={`h-2.5 w-2.5 rounded-full ${showReceitas ? 'bg-emerald-500' : 'bg-slate-350'}`}></span>
+          <span>Receitas</span>
+        </button>
+        <button
+          onClick={() => setShowDespesas(!showDespesas)}
+          className={`flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all cursor-pointer ${
+            showDespesas
+              ? 'bg-rose-50 text-rose-800 border-rose-200 shadow-sm'
+              : 'bg-slate-50 text-slate-400 border-slate-150 line-through opacity-50'
+          }`}
+          title="Clique para ocultar/exibir despesas"
+        >
+          <span className={`h-2.5 w-2.5 rounded-full ${showDespesas ? 'bg-rose-500' : 'bg-slate-350'}`}></span>
+          <span>Despesas</span>
+        </button>
+        <button
+          onClick={() => setShowCaucao(!showCaucao)}
+          className={`flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all cursor-pointer ${
+            showCaucao
+              ? 'bg-amber-50 text-amber-800 border-amber-200 shadow-sm'
+              : 'bg-slate-50 text-slate-400 border-slate-150 line-through opacity-50'
+          }`}
+          title="Clique para ocultar/exibir depósitos caução"
+        >
+          <span className={`h-2.5 w-2.5 rounded-full ${showCaucao ? 'bg-amber-500' : 'bg-slate-350'}`}></span>
+          <span>Depósito Caução</span>
+        </button>
+        <div className="flex flex-wrap items-center gap-3 pl-2 border-l border-slate-200">
+          {(showReceitas || showDespesas) && (
+            <div className="flex items-center gap-1 text-slate-500">
+              <span className="h-0.5 w-3 bg-brand-500 inline-block relative -top-px"></span>
+              <span className="text-[10px]">Evolução Caixa Central</span>
+            </div>
+          )}
+          {showCaucao && (
+            <div className="flex items-center gap-1 text-slate-500">
+              <span className="h-0.5 w-3 bg-amber-500 inline-block relative -top-px"></span>
+              <span className="text-[10px]">Evolução Caução</span>
+            </div>
+          )}
+          {(showReceitas || showDespesas) && showCaucao && (
+            <div className="flex items-center gap-1 text-slate-400 font-medium">
+              <span className="h-0.5 w-3 bg-emerald-500 inline-block relative -top-px"></span>
+              <span className="text-[10px]">Evolução Saldo Geral</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
