@@ -21,9 +21,10 @@ interface UsersTabProps {
   currentUser: AppUser | null;
   onAddUser: (user: Omit<AppUser, 'id'>) => boolean;
   onDeleteUser: (id: string) => void;
+  onChangePasswordClick?: () => void;
 }
 
-export function UsersTab({ users, currentUser, onAddUser, onDeleteUser }: UsersTabProps) {
+export function UsersTab({ users, currentUser, onAddUser, onDeleteUser, onChangePasswordClick }: UsersTabProps) {
   const [searchTerm, setSearchTerm] = useState('');
   
   // Create User Form States
@@ -349,6 +350,18 @@ export function UsersTab({ users, currentUser, onAddUser, onDeleteUser }: UsersT
               Apenas os usuários raiz principais ou usuários de nível <strong>Administrador Pleno</strong> podem cadastrar novos funcionários ou remover operadores secundários do painel.
             </p>
           </div>
+
+          {onChangePasswordClick && (
+            <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end">
+              <button
+                onClick={onChangePasswordClick}
+                className="w-full sm:w-auto px-5 py-2.5 bg-slate-900 hover:bg-slate-850 text-white font-sans text-xs font-bold rounded-xl shadow-premium hover:shadow-premium-lg active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Lock className="h-4 w-4 text-amber-500 shrink-0" />
+                <span>Alterar Minha Senha de Acesso</span>
+              </button>
+            </div>
+          )}
         </div>
 
       </div>

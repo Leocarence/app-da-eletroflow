@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Vehicle, Rental, Transaction, FutureExpense, FutureExpenseInstallment } from './types';
+import { getBrasiliaDateStr, toLocalDateStr, getBrasiliaUiDateStr } from './utils/dateUtils';
 import {
   INITIAL_VEHICLES,
   INITIAL_RENTALS,
@@ -119,6 +120,51 @@ export default function App() {
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importText, setImportText] = useState('');
   const [showDbDiagnosticsModal, setShowDbDiagnosticsModal] = useState(false);
+
+  // Change password modal state variables
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [currentPasswordInput, setCurrentPasswordInput] = useState('');
+  const [newPasswordInput, setNewPasswordInput] = useState('');
+  const [confirmNewPasswordInput, setConfirmNewPasswordInput] = useState('');
+
+  const handleChangePassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser) return;
+
+    if (currentPasswordInput !== currentUser.password) {
+      showNotification('A senha atual está incorreta.', 'error');
+      return;
+    }
+    if (newPasswordInput.length < 4) {
+      showNotification('A nova senha deve ter pelo menos 4 caracteres.', 'error');
+      return;
+    }
+    if (newPasswordInput !== confirmNewPasswordInput) {
+      showNotification('As novas senhas não coincidem.', 'error');
+      return;
+    }
+
+    // Update inside the users array
+    const updatedUsers = users.map(u => {
+      if (u.id === currentUser.id) {
+        return { ...u, password: newPasswordInput };
+      }
+      return u;
+    });
+
+    // Update current user so current state/session stays in sync
+    const updatedUser = { ...currentUser, password: newPasswordInput };
+    setCurrentUser(updatedUser);
+    syncAndSetUsers(updatedUsers);
+
+    showNotification('Sua senha foi alterada com sucesso!', 'success');
+    
+    // Clear state inputs
+    setCurrentPasswordInput('');
+    setNewPasswordInput('');
+    setConfirmNewPasswordInput('');
+    setShowChangePasswordModal(false);
+  };
 
   // Initial Seed check and state hydration
   const persistToBackend = async (
@@ -253,7 +299,7 @@ export default function App() {
       }
 
       // Auto-realize future installments if their due date is reached or passed
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = getBrasiliaDateStr();
       let hasChanges = false;
       const autoTransactions: Transaction[] = [];
 
@@ -404,7 +450,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `locacash_backup_${new Date().toISOString().split('T')[0]}.json`;
+    link.download = `locacash_backup_${getBrasiliaDateStr()}.json`;
     link.click();
     URL.revokeObjectURL(url);
     showNotification('Backup exportado e baixado no seu computador!', 'success');
@@ -672,7 +718,7 @@ export default function App() {
     if (refundDeposit && refundValue > 0) {
       const refundTrans: Transaction = {
         id: 't_refund_' + Math.random().toString(36).substr(2, 9),
-        date: new Date().toISOString().split('T')[0],
+        date: getBrasiliaDateStr(),
         type: 'caucao_devolvido',
         value: refundValue,
         vehicleId: targetRental.vehicleId,
@@ -748,7 +794,7 @@ export default function App() {
        const maxDays = new Date(dateCopy.getFullYear(), dateCopy.getMonth() + 1, 0).getDate();
        dateCopy.setDate(Math.min(theoreticalDay, maxDays));
        
-       const dueDateStr = dateCopy.toISOString().split('T')[0];
+       const dueDateStr = toLocalDateStr(dateCopy);
        
        installments.push({
          id: 'fei_' + Math.random().toString(36).substr(2, 9),
@@ -835,7 +881,7 @@ export default function App() {
 
     const newPayment: Transaction = {
       id: 't_quick_rent_' + Math.random().toString(36).substr(2, 9),
-      date: new Date().toISOString().split('T')[0],
+      date: getBrasiliaDateStr(),
       type: 'receita',
       value: Number(quickRentPaymentValue),
       vehicleId: rental.vehicleId,
@@ -859,7 +905,7 @@ export default function App() {
 
     const newMaintenance: Transaction = {
       id: 't_quick_maint_' + Math.random().toString(36).substr(2, 9),
-      date: new Date().toISOString().split('T')[0],
+      date: getBrasiliaDateStr(),
       type: 'despesa',
       value: Number(quickMaintenanceCost),
       vehicleId: quickMaintenanceVehicleId,
@@ -982,7 +1028,7 @@ export default function App() {
             <nav className="flex-1 flex items-center justify-center gap-1 xl:gap-2 px-2">
               <button
                 onClick={() => setActiveTab('dashboard')}
-                className={`flex items-center gap-1 px-2.5 xl:px-3 py-2 rounded-lg lg:text-[11px] xl:text-xs font-bold transition-all shrink-0 ${
+                className={`flex items-center gap-1 px-2.5 xl:px-3 py-2 rounded-lg lg:text-[11px] xl:text-xs font-bold transition-all hover:scale-105 active:scale-95 duration-200 cursor-pointer shrink-0 ${
                   activeTab === 'dashboard'
                     ? 'bg-emerald-500 text-white shadow-inner font-semibold'
                     : 'text-brand-100 hover:bg-brand-600 hover:text-white'
@@ -993,7 +1039,7 @@ export default function App() {
               </button>
               <button
                 onClick={() => setActiveTab('financials')}
-                className={`flex items-center gap-1 px-2.5 xl:px-3 py-2 rounded-lg lg:text-[11px] xl:text-xs font-bold transition-all shrink-0 ${
+                className={`flex items-center gap-1 px-2.5 xl:px-3 py-2 rounded-lg lg:text-[11px] xl:text-xs font-bold transition-all hover:scale-105 active:scale-95 duration-200 cursor-pointer shrink-0 ${
                   activeTab === 'financials'
                     ? 'bg-emerald-500 text-white shadow-inner font-semibold'
                     : 'text-brand-100 hover:bg-brand-600 hover:text-white'
@@ -1004,7 +1050,7 @@ export default function App() {
               </button>
               <button
                 onClick={() => setActiveTab('transactions')}
-                className={`flex items-center gap-1 px-2.5 xl:px-3 py-2 rounded-lg lg:text-[11px] xl:text-xs font-bold transition-all shrink-0 ${
+                className={`flex items-center gap-1 px-2.5 xl:px-3 py-2 rounded-lg lg:text-[11px] xl:text-xs font-bold transition-all hover:scale-105 active:scale-95 duration-200 cursor-pointer shrink-0 ${
                   activeTab === 'transactions'
                     ? 'bg-emerald-500 text-white shadow-inner font-semibold'
                     : 'text-brand-100 hover:bg-brand-600 hover:text-white'
@@ -1015,7 +1061,7 @@ export default function App() {
               </button>
               <button
                 onClick={() => setActiveTab('vehicles')}
-                className={`flex items-center gap-1 px-2.5 xl:px-3 py-2 rounded-lg lg:text-[11px] xl:text-xs font-bold transition-all shrink-0 ${
+                className={`flex items-center gap-1 px-2.5 xl:px-3 py-2 rounded-lg lg:text-[11px] xl:text-xs font-bold transition-all hover:scale-105 active:scale-95 duration-200 cursor-pointer shrink-0 ${
                   activeTab === 'vehicles'
                     ? 'bg-emerald-500 text-white shadow-inner font-semibold'
                     : 'text-brand-100 hover:bg-brand-600 hover:text-white'
@@ -1026,7 +1072,7 @@ export default function App() {
               </button>
               <button
                 onClick={() => setActiveTab('rentals')}
-                className={`flex items-center gap-1 px-2.5 xl:px-3 py-2 rounded-lg lg:text-[11px] xl:text-xs font-bold transition-all shrink-0 ${
+                className={`flex items-center gap-1 px-2.5 xl:px-3 py-2 rounded-lg lg:text-[11px] xl:text-xs font-bold transition-all hover:scale-105 active:scale-95 duration-200 cursor-pointer shrink-0 ${
                   activeTab === 'rentals'
                     ? 'bg-emerald-500 text-white shadow-inner font-semibold'
                     : 'text-brand-100 hover:bg-brand-600 hover:text-white'
@@ -1038,7 +1084,7 @@ export default function App() {
               {currentUser?.role === 'admin' && (
                 <button
                   onClick={() => setActiveTab('users')}
-                  className={`flex items-center gap-1 px-2.5 xl:px-3 py-2 rounded-lg lg:text-[11px] xl:text-xs font-bold transition-all shrink-0 ${
+                  className={`flex items-center gap-1 px-2.5 xl:px-3 py-2 rounded-lg lg:text-[11px] xl:text-xs font-bold transition-all hover:scale-105 active:scale-95 duration-200 cursor-pointer shrink-0 ${
                     activeTab === 'users'
                       ? 'bg-emerald-500 text-white shadow-inner font-semibold'
                       : 'text-brand-100 hover:bg-brand-600 hover:text-white'
@@ -1072,9 +1118,10 @@ export default function App() {
               <button
                 onClick={handleLogout}
                 title="Sair do Sistema"
-                className="p-2 bg-brand-600/50 hover:bg-rose-600 hover:text-white text-brand-100 rounded-lg border border-brand-700/60 transition-all flex items-center justify-center shrink-0 cursor-pointer"
+                className="px-3 py-2 bg-brand-600/50 hover:bg-rose-600 hover:text-white text-brand-100 rounded-lg border border-brand-700/60 transition-all hover:scale-105 active:scale-95 duration-200 flex items-center justify-center gap-1.5 shrink-0 cursor-pointer text-xs font-bold font-sans"
               >
                 <LogOut className="h-3.5 w-3.5" />
+                <span>Sair</span>
               </button>
 
               {/* MONGODB CLOUD CONFIG INDICATOR */}
@@ -1082,7 +1129,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setShowDbDiagnosticsModal(true)}
-                  className={`px-2.5 py-2 rounded-lg border font-mono text-[10px] xl:text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 hover:brightness-110 cursor-pointer shadow-sm ${
+                  className={`px-2.5 py-2 rounded-lg border font-mono text-[10px] xl:text-xs font-bold transition-all hover:scale-105 active:scale-95 duration-200 flex items-center gap-1.5 shrink-0 hover:brightness-110 cursor-pointer shadow-sm ${
                     dbStatus.connected
                       ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/35'
                       : 'bg-rose-500/20 text-rose-300 border-rose-500/35 animate-pulse'
@@ -1098,7 +1145,7 @@ export default function App() {
               <button
                 onClick={handleManualSave}
                 title="Salvar alterações no LocalStorage e Backup"
-                className="px-2.5 py-2.5 bg-sky-500 hover:bg-sky-400 font-bold text-[11px] xl:text-xs text-white rounded-lg transition-all flex items-center gap-1.5 shadow-md shadow-sky-500/15 group relative active:scale-95 cursor-pointer shrink-0"
+                className="px-2.5 py-2.5 bg-sky-500 hover:bg-sky-450 font-bold text-[11px] xl:text-xs text-white rounded-lg transition-all hover:scale-105 active:scale-95 duration-200 cursor-pointer shrink-0 shadow-md shadow-sky-500/15 group relative"
               >
                 <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
                 <span className="font-sans">Salvar</span>
@@ -1109,7 +1156,7 @@ export default function App() {
                 <button
                   onClick={() => setShowBackupMenu(!showBackupMenu)}
                   title="Exportar/Importar Banco de Dados ou Restaurar"
-                  className="px-2 py-2.5 bg-brand-600/50 hover:bg-brand-700 text-brand-100 hover:text-white rounded-lg border border-brand-700/60 transition-all text-[11px] xl:text-xs font-bold flex items-center gap-1 cursor-pointer shrink-0"
+                  className="px-2 py-2.5 bg-brand-600/50 hover:bg-brand-700 text-brand-100 hover:text-white rounded-lg border border-brand-700/60 transition-all hover:scale-105 active:scale-95 duration-200 text-[11px] xl:text-xs font-bold flex items-center gap-1 cursor-pointer shrink-0"
                 >
                   <RefreshCcw className={`h-3.5 w-3.5 ${showBackupMenu ? 'rotate-90' : ''} transition-transform`} />
                   <span>Backup</span>
@@ -1167,7 +1214,7 @@ export default function App() {
               {/* Auxiliary calendar indicator - shown only on wide xl screens to completely prevent overflow */}
               <div className="hidden xl:flex items-center gap-1.5 text-slate-400 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-100 font-mono text-xs font-medium shrink-0">
                 <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
-                <span>{new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })}</span>
+                <span>{getBrasiliaUiDateStr()}</span>
               </div>
             </div>
           </div>
@@ -1365,7 +1412,7 @@ export default function App() {
             <div className="space-y-4">
               
               {/* PRIMARY CASH CARD */}
-              <div className="bg-gradient-to-br from-emerald-700 to-emerald-900 rounded-2xl p-6 text-white shadow-premium relative overflow-hidden group">
+              <div className="bg-gradient-to-br from-emerald-700 to-emerald-900 rounded-2xl py-10 px-8 text-white shadow-premium relative overflow-hidden group">
                 {/* Decorative subtle background elements */}
                 <div className="absolute -right-8 -bottom-8 h-40 w-40 bg-white/5 rounded-full blur-xl group-hover:scale-115 transition-transform duration-500"></div>
                 <div className="absolute left-1/4 -top-12 h-36 w-36 bg-emerald-500/10 rounded-full blur-lg"></div>
@@ -1834,6 +1881,7 @@ export default function App() {
               currentUser={currentUser}
               onAddUser={handleAddUser}
               onDeleteUser={handleDeleteUser}
+              onChangePasswordClick={() => setShowChangePasswordModal(true)}
             />
           </div>
         )}
@@ -2074,6 +2122,105 @@ export default function App() {
                 Entendi, Fechar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ALTERAR SENHA DO USUÁRIO ATUAL */}
+      {showChangePasswordModal && currentUser && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-premium-lg border border-slate-100 transform scale-100 transition-all font-sans">
+            <div className="flex justify-between items-center mb-4 border-b border-slate-50 pb-3">
+              <h3 className="font-display font-bold text-slate-800 text-base flex items-center gap-2">
+                <Lock className="h-5 w-5 text-amber-500" />
+                Alterar Minha Senha
+              </h3>
+              <button
+                onClick={() => {
+                  setCurrentPasswordInput('');
+                  setNewPasswordInput('');
+                  setConfirmNewPasswordInput('');
+                  setShowChangePasswordModal(false);
+                }}
+                className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-all"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleChangePassword} className="space-y-4">
+              <div className="bg-slate-50 border border-slate-150 rounded-xl p-3 text-[11px] text-slate-600 leading-relaxed font-sans mb-3 flex items-start gap-2">
+                <span className="text-base select-none">ℹ️</span>
+                <span>
+                  Olá, <strong>{currentUser.name}</strong> (<span className="font-mono text-[10px] bg-slate-150 px-1 py-0.5 rounded text-slate-700">{currentUser.email}</span>). 
+                  Insira sua senha atual e a nova combinação abaixo para efetivar a mudança.
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-extrabold uppercase tracking-wide text-slate-500 mb-1 font-sans">
+                  Senha Atual
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={currentPasswordInput}
+                  onChange={(e) => setCurrentPasswordInput(e.target.value)}
+                  placeholder="Insera sua senha de acesso atual"
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-extrabold uppercase tracking-wide text-slate-500 mb-1 font-sans">
+                  Nova Senha (Mínimo 4 caracteres)
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={newPasswordInput}
+                  onChange={(e) => setNewPasswordInput(e.target.value)}
+                  placeholder="Nova senha robusta"
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-extrabold uppercase tracking-wide text-slate-500 mb-1 font-sans">
+                  Confirmar Nova Senha
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={confirmNewPasswordInput}
+                  onChange={(e) => setConfirmNewPasswordInput(e.target.value)}
+                  placeholder="Repita a nova senha criada"
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all"
+                />
+              </div>
+
+              <div className="border-t border-slate-100 pt-4 mt-5 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentPasswordInput('');
+                    setNewPasswordInput('');
+                    setConfirmNewPasswordInput('');
+                    setShowChangePasswordModal(false);
+                  }}
+                  className="px-4 py-2 hover:bg-slate-100 border border-slate-200 text-slate-600 rounded-lg text-xs font-bold font-sans transition-all cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-bold font-sans transition-all shadow-premium flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Lock className="h-3.5 w-3.5 text-white/80" />
+                  Atualizar Senha
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

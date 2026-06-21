@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Transaction, Vehicle, FutureExpense, FutureExpenseInstallment, Rental } from '../types';
+import { getBrasiliaDateStr } from '../utils/dateUtils';
 import { Plus, Search, Calendar, Landmark, ArrowUpCircle, ArrowDownCircle, ChevronDown, Check, X, Filter, Trash2, Edit3, DollarSign, Download, Upload, Pencil, ChevronUp, AlertCircle, Wrench, Shield, CreditCard, HelpCircle, FileText } from 'lucide-react';
 
 interface TransactionsTabProps {
@@ -48,7 +49,7 @@ export default function TransactionsTab({
   // Input States for New Transaction
   const [type, setType] = useState<Transaction['type']>('receita');
   const [value, setValue] = useState<number | ''>('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(getBrasiliaDateStr());
   const [vehicleId, setVehicleId] = useState<string>('');
   const [category, setCategory] = useState('Aluguel Semanal');
   const [description, setDescription] = useState('');
@@ -73,7 +74,7 @@ export default function TransactionsTab({
   const [feCategory, setFeCategory] = useState('Financiamento');
   const [feValue, setFeValue] = useState<number | ''>('');
   const [feInstallments, setFeInstallments] = useState<number | ''>(12);
-  const [feStartDate, setFeStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [feStartDate, setFeStartDate] = useState<string>(getBrasiliaDateStr());
   const [feDueDay, setFeDueDay] = useState<number>(10);
   const [feVehicleId, setFeVehicleId] = useState('');
 
@@ -132,7 +133,7 @@ export default function TransactionsTab({
       setFeCategory('Financiamento');
       setFeValue('');
       setFeInstallments(12);
-      setFeStartDate(new Date().toISOString().split('T')[0]);
+      setFeStartDate(getBrasiliaDateStr());
       setFeDueDay(10);
       setFeVehicleId('');
       setShowAddModal(false);
@@ -192,7 +193,7 @@ export default function TransactionsTab({
     setFeCategory('Financiamento');
     setFeValue('');
     setFeInstallments(12);
-    setFeStartDate(new Date().toISOString().split('T')[0]);
+    setFeStartDate(getBrasiliaDateStr());
     setFeDueDay(10);
     setFeVehicleId('');
     setShowAddFutureModal(false);
@@ -304,7 +305,7 @@ export default function TransactionsTab({
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `extrato_locas_veiculos_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute("download", `extrato_locas_veiculos_${getBrasiliaDateStr()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

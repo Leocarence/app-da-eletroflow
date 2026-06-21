@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Transaction } from '../types';
 import { Calendar, TrendingUp, TrendingDown, Wallet, ArrowUpRight, ArrowDownRight, Info } from 'lucide-react';
+import { getBrasiliaDateStr, toLocalDateStr } from '../utils/dateUtils';
 
 interface CashFlowChartProps {
   transactions: Transaction[];
@@ -56,8 +57,7 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
 
     // Find date range
     const minDateStr = sorted[0].date;
-    const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
+    const todayStr = getBrasiliaDateStr();
     
     // Choose active range limits
     const maxDateStr = sorted[sorted.length - 1].date > todayStr ? sorted[sorted.length - 1].date : todayStr;
@@ -69,7 +69,7 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
         const day = d.getDay();
         const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday adjustments
         const mon = new Date(d.setDate(diff));
-        return mon.toISOString().split('T')[0];
+        return toLocalDateStr(mon);
       };
 
       const startMonStr = getMonday(minDateStr);
@@ -81,7 +81,7 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
       let safety = 0;
       while (curr <= last && safety < 1000) {
         safety++;
-        weekMondays.push(curr.toISOString().split('T')[0]);
+        weekMondays.push(toLocalDateStr(curr));
         curr.setDate(curr.getDate() + 7);
       }
 

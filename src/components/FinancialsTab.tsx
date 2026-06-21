@@ -16,6 +16,7 @@ import {
   Clock
 } from 'lucide-react';
 import { Vehicle, FutureExpense, Transaction } from '../types';
+import { getBrasiliaDateStr } from '../utils/dateUtils';
 
 interface FinancialsTabProps {
   vehicles: Vehicle[];
@@ -76,10 +77,10 @@ export function FinancialsTab({
   const handleSaveEstimatedValue = (id: string) => {
     const numVal = parseFloat(editValue.replace(/[^\d.,]/g, '').replace(',', '.'));
     if (!isNaN(numVal) && numVal >= 0) {
-      onUpdateVehicle(id, {
-        estimatedValue: numVal,
-        estimatedValueDate: new Date().toISOString().split('T')[0]
-      });
+       onUpdateVehicle(id, {
+         estimatedValue: numVal,
+         estimatedValueDate: getBrasiliaDateStr()
+       });
     }
     setEditingVehicleId(null);
     setEditValue('');

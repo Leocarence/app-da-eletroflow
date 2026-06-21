@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Vehicle, Rental, Transaction } from '../types';
+import { getBrasiliaDateStr } from '../utils/dateUtils';
 import { 
   Plus, Car, User, Key, CheckCircle, AlertTriangle, Play, Calendar, 
   DollarSign, X, Check, Trash2, Milestone, ArrowLeft, TrendingUp, 
@@ -51,7 +52,7 @@ export default function VehiclesTab({
     setEditVehWeeklyRate(v.weeklyRate || 0);
     setEditVehDepositValue(v.depositValue || 0);
     setEditVehMileage(v.mileage || '');
-    setEditVehMileageDate(v.mileageDate || new Date().toISOString().split('T')[0]);
+    setEditVehMileageDate(v.mileageDate || getBrasiliaDateStr());
     setShowEditVehicle(true);
   };
 

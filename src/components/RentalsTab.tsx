@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Vehicle, Rental, Transaction } from '../types';
+import { getBrasiliaDateStr, toLocalDateStr } from '../utils/dateUtils';
 import { 
   Plus, Car, User, Key, CheckCircle, AlertTriangle, Calendar, 
   DollarSign, X, ShieldCheck, Heart, UserCheck, CalendarDays, 
@@ -77,7 +78,7 @@ export default function RentalsTab({
   const [rentVehicleId, setRentVehicleId] = useState('');
   const [tenantName, setTenantName] = useState('');
   const [tenantPhone, setTenantPhone] = useState('');
-  const [rentalStartDate, setRentalStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [rentalStartDate, setRentalStartDate] = useState(getBrasiliaDateStr());
   const [rentalWeeks, setRentalWeeks] = useState(4); // default 4 weeks
   const [rentWeeklyRate, setRentWeeklyRate] = useState(1300);
   const [rentDepositValue, setRentDepositValue] = useState(2600);
@@ -106,7 +107,7 @@ export default function RentalsTab({
     // Calculate end date based on strict initial 90-day duration
     const sDate = new Date(rentalStartDate + 'T00:00:00');
     sDate.setDate(sDate.getDate() + 90);
-    const endDateStr = sDate.toISOString().split('T')[0];
+    const endDateStr = toLocalDateStr(sDate);
 
     onStartRental({
       vehicleId: rentVehicleId,
@@ -123,7 +124,7 @@ export default function RentalsTab({
     setRentVehicleId('');
     setTenantName('');
     setTenantPhone('');
-    setRentalStartDate(new Date().toISOString().split('T')[0]);
+    setRentalStartDate(getBrasiliaDateStr());
     setRentalWeeks(4);
     setShowStartRental(false);
   };
