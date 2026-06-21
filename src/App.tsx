@@ -1100,15 +1100,15 @@ export default function App() {
             <div className="flex items-center gap-1.5 xl:gap-2 shrink-0">
               
               {/* PROMINENT USER BADGE IN THE UPPER RIGHT HAND SIDE */}
-              <div className="bg-emerald-600/70 border border-emerald-400 text-white px-2.5 py-1.5 rounded-xl select-none shadow-sm flex items-center gap-2 shrink-0 max-w-[150px] xl:max-w-[200px]">
-                <div className="h-5 w-5 rounded bg-white text-emerald-600 flex items-center justify-center font-black text-[10px] xl:text-[11px] uppercase font-mono shadow-sm shrink-0">
+              <div className="bg-emerald-600/70 border border-emerald-400 text-white px-3 py-1 rounded-lg select-none shadow-sm flex items-center gap-2 shrink-0 max-w-[180px] xl:max-w-[260px] h-[34px]">
+                <div className="h-4.5 w-4.5 rounded bg-white text-emerald-600 flex items-center justify-center font-black text-[9px] xl:text-[10px] uppercase font-mono shadow-sm shrink-0">
                   {currentUser?.name ? currentUser.name.charAt(0) : 'U'}
                 </div>
-                <div className="flex flex-col text-left truncate">
-                  <span className="text-[8px] xl:text-[9px] uppercase tracking-wider text-emerald-300 font-extrabold font-mono leading-none">
+                <div className="flex flex-col text-left truncate justify-center">
+                  <span className="text-[7.5px] xl:text-[8.5px] uppercase tracking-wider text-emerald-300 font-extrabold font-mono leading-none">
                     {currentUser?.role === 'admin' ? 'ADMIN' : currentUser?.role === 'socio' ? 'SÓCIO' : 'OP'}
                   </span>
-                  <span className="text-[11px] xl:text-xs text-white font-black tracking-wide leading-none mt-0.5 truncate" title={currentUser?.name}>
+                  <span className="text-[10px] xl:text-[11.5px] text-white font-black tracking-wide leading-none mt-0.5 truncate" title={currentUser?.name}>
                     {currentUser?.name || 'Acesso Ativo'}
                   </span>
                 </div>
@@ -1602,9 +1602,12 @@ export default function App() {
                           <option value="">Veículo...</option>
                           {vehicles.filter(v => !v.isDeleted).map(v => {
                             const activeRental = rentals.find(r => r.vehicleId === v.id && r.status === 'active' && !r.isDeleted);
+                            const label = activeRental 
+                              ? `${v.plate} - ${v.brandModel} (${activeRental.tenantName})`
+                              : `${v.plate} - ${v.brandModel} (${v.status === 'maintenance' ? 'Oficina' : 'S/ Contrato'})`;
                             return (
                               <option key={v.id} value={v.id}>
-                                {v.plate} - {v.brandModel.split(' ')[0]}{activeRental ? ` (${activeRental.tenantName})` : ''}
+                                {label}
                               </option>
                             );
                           })}
