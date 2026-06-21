@@ -15,6 +15,7 @@ interface TransactionsTabProps {
   onRealizeFutureInstallment: (expenseId: string, installmentId: string, customDate: string) => void;
   onDeleteFutureExpense: (expenseId: string) => void;
   onUpdateFutureInstallmentDate: (expenseId: string, installmentId: string, newDate: string) => void;
+  currentUser?: any;
 }
 
 export default function TransactionsTab({
@@ -28,8 +29,10 @@ export default function TransactionsTab({
   onAddFutureExpense,
   onRealizeFutureInstallment,
   onDeleteFutureExpense,
-  onUpdateFutureInstallmentDate
+  onUpdateFutureInstallmentDate,
+  currentUser
 }: TransactionsTabProps) {
+  const isSocio = currentUser?.role === 'socio';
   // Modal toggle state
   const [showAddModal, setShowAddModal] = useState(false);
   const [isFutureExpense, setIsFutureExpense] = useState(false);
@@ -328,16 +331,18 @@ export default function TransactionsTab({
             <Download className="h-4 w-4" />
             Exportar CSV
           </button>
-          <button
-            onClick={() => {
-              setIsFutureExpense(false);
-              setShowAddModal(true);
-            }}
-            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 hover:scale-[1.03] text-white px-5 py-2.5 rounded-xl text-xs font-bold font-sans transition-all shadow-lg shadow-emerald-600/20 active:scale-95 cursor-pointer"
-          >
-            <Plus className="h-4 w-4 animate-bounce" />
-            Lançar Transação
-          </button>
+          {!isSocio && (
+            <button
+              onClick={() => {
+                setIsFutureExpense(false);
+                setShowAddModal(true);
+              }}
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 hover:scale-[1.03] text-white px-5 py-2.5 rounded-xl text-xs font-bold font-sans transition-all shadow-lg shadow-emerald-600/20 active:scale-95 cursor-pointer"
+            >
+              <Plus className="h-4 w-4 animate-bounce" />
+              Lançar Transação
+            </button>
+          )}
         </div>
       </div>
 
@@ -427,11 +432,14 @@ export default function TransactionsTab({
               className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white text-black font-semibold focus:outline-none focus:ring-1 focus:ring-brand-500"
             >
               <option value="all">Qualquer Veículo</option>
-              {vehicles.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.isDeleted ? `[Excluído] ` : ''}{v.brandModel} ({v.plate})
-                </option>
-              ))}
+              {vehicles.map((v) => {
+                const activeRental = rentals.find(r => r.vehicleId === v.id && r.status === 'active' && !r.isDeleted);
+                return (
+                  <option key={v.id} value={v.id}>
+                    {v.isDeleted ? `[Excluído] ` : ''}{v.brandModel} ({v.plate}){activeRental ? ` - Locatário: ${activeRental.tenantName}` : ''}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -559,25 +567,29 @@ export default function TransactionsTab({
 
                     {/* Deletion / Removal trigger */}
                     <td className="px-6 py-4 text-center whitespace-nowrap">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <button
-                          onClick={() => openEditModal(t)}
-                          className="p-1 hover:bg-slate-100 hover:text-brand-600 text-slate-350 rounded transition-all"
-                          title="Editar Lançamento"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            setTransactionToDelete(t);
-                            setShowDeleteConfirm(true);
-                          }}
-                          className="p-1 hover:bg-rose-50 hover:text-rose-600 text-slate-350 rounded transition-all"
-                          title="Excluir Lançamento"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
+                      {!isSocio ? (
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => openEditModal(t)}
+                            className="p-1 hover:bg-slate-100 hover:text-brand-600 text-slate-350 rounded transition-all"
+                            title="Editar Lançamento"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setTransactionToDelete(t);
+                              setShowDeleteConfirm(true);
+                            }}
+                            className="p-1 hover:bg-rose-50 hover:text-rose-600 text-slate-350 rounded transition-all"
+                            title="Excluir Lançamento"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-slate-400 italic">Visualização</span>
+                      )}
                     </td>
                   </tr>
                 );
@@ -656,27 +668,29 @@ export default function TransactionsTab({
                 )}
 
                 {/* Line 4: Action buttons */}
-                <div className="flex justify-end items-center gap-3 pt-2 border-t border-slate-100/60">
-                  <button
-                    onClick={() => openEditModal(t)}
-                    className="p-1 px-3 bg-slate-100 hover:bg-brand-50 text-slate-650 hover:text-brand-600 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all"
-                    title="Editar"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                    <span>Editar</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setTransactionToDelete(t);
-                      setShowDeleteConfirm(true);
-                    }}
-                    className="p-1 px-3 bg-slate-100 hover:bg-rose-50 text-slate-650 hover:text-rose-600 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all"
-                    title="Excluir"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    <span>Excluir</span>
-                  </button>
-                </div>
+                {!isSocio && (
+                  <div className="flex justify-end items-center gap-3 pt-2 border-t border-slate-100/60">
+                    <button
+                      onClick={() => openEditModal(t)}
+                      className="p-1 px-3 bg-slate-100 hover:bg-brand-50 text-slate-650 hover:text-brand-600 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all"
+                      title="Editar"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      <span>Editar</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setTransactionToDelete(t);
+                        setShowDeleteConfirm(true);
+                      }}
+                      className="p-1 px-3 bg-slate-100 hover:bg-rose-50 text-slate-650 hover:text-rose-600 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all"
+                      title="Excluir"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      <span>Excluir</span>
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -986,14 +1000,16 @@ export default function TransactionsTab({
                                           {formatCurrency(fe.value)}
                                         </span>
                                         {!isRealized ? (
-                                          <button
-                                            type="button"
-                                            onClick={() => handleConfirmRealize(fe.id, inst)}
-                                            className="px-1.5 py-0.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded text-[9px] font-extrabold font-sans transition-all flex items-center gap-0.5 shadow-sm cursor-pointer"
-                                          >
-                                            <Check className="h-2.5 w-2.5" />
-                                            Efetivar
-                                          </button>
+                                          !isSocio && (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleConfirmRealize(fe.id, inst)}
+                                              className="px-1.5 py-0.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded text-[9px] font-extrabold font-sans transition-all flex items-center gap-0.5 shadow-sm cursor-pointer"
+                                            >
+                                              <Check className="h-2.5 w-2.5" />
+                                              Efetivar
+                                            </button>
+                                          )
                                         ) : (
                                           <span className="text-[9px] text-emerald-650 font-bold flex items-center bg-emerald-50 border border-emerald-100 px-1 py-0.5 rounded">
                                             <Check className="h-2.5 w-2.5" /> Pago
@@ -1006,16 +1022,18 @@ export default function TransactionsTab({
                               </div>
 
                               {/* Card Action footer */}
-                              <div className="p-2 bg-slate-50 border-t border-slate-100 flex justify-end">
-                                <button
-                                  type="button"
-                                  onClick={() => onDeleteFutureExpense(fe.id)}
-                                  className="text-[10px] font-bold text-rose-500 hover:text-rose-750 font-sans flex items-center gap-1 pointer-events-auto"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                  Excluir
-                                </button>
-                              </div>
+                              {!isSocio && (
+                                <div className="p-2 bg-slate-50 border-t border-slate-100 flex justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={() => onDeleteFutureExpense(fe.id)}
+                                    className="text-[10px] font-bold text-rose-500 hover:text-rose-750 font-sans flex items-center gap-1 pointer-events-auto"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                    Excluir
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           );
                         })}
@@ -1170,11 +1188,14 @@ export default function TransactionsTab({
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white text-black font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500"
                     >
                       <option value="">Não vinculado a veículo específico (Geral)</option>
-                      {vehicles.filter(v => !v.isDeleted).map((v) => (
-                        <option key={v.id} value={v.id}>
-                          {v.brandModel} ({v.plate})
-                        </option>
-                      ))}
+                      {vehicles.filter(v => !v.isDeleted).map((v) => {
+                        const activeRental = rentals.find(r => r.vehicleId === v.id && r.status === 'active' && !r.isDeleted);
+                        return (
+                          <option key={v.id} value={v.id}>
+                            {v.brandModel} ({v.plate}){activeRental ? ` - Locatário: ${activeRental.tenantName}` : ''}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
 
@@ -1281,11 +1302,14 @@ export default function TransactionsTab({
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white text-black font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500"
                     >
                       <option value="">Não vinculado a veículo específico (Geral)</option>
-                      {vehicles.filter(v => !v.isDeleted).map((v) => (
-                        <option key={v.id} value={v.id}>
-                          {v.brandModel} ({v.plate})
-                        </option>
-                      ))}
+                      {vehicles.filter(v => !v.isDeleted).map((v) => {
+                        const activeRental = rentals.find(r => r.vehicleId === v.id && r.status === 'active' && !r.isDeleted);
+                        return (
+                          <option key={v.id} value={v.id}>
+                            {v.brandModel} ({v.plate}){activeRental ? ` - Locatário: ${activeRental.tenantName}` : ''}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
 
@@ -1452,11 +1476,14 @@ export default function TransactionsTab({
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500"
                 >
                   <option value="">Não vinculado a veículo específico (Geral)</option>
-                  {vehicles.filter(v => !v.isDeleted).map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.brandModel} ({v.plate})
-                    </option>
-                  ))}
+                  {vehicles.filter(v => !v.isDeleted).map((v) => {
+                    const activeRental = rentals.find(r => r.vehicleId === v.id && r.status === 'active' && !r.isDeleted);
+                    return (
+                      <option key={v.id} value={v.id}>
+                        {v.brandModel} ({v.plate}){activeRental ? ` - Locatário: ${activeRental.tenantName}` : ''}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 

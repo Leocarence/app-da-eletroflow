@@ -44,10 +44,20 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
     if (!containerRef.current) return;
     const resizeObserver = new ResizeObserver((entries) => {
       for (let entry of entries) {
-        const { width, height } = entry.contentRect;
-        setDimensions({
-          width: Math.max(width, 100),
-          height: Math.max(height, 220)
+        // Floor or Round the values to prevent subpixel layout oscillations at fractional zoom levels
+        const roundedWidth = Math.round(entry.contentRect.width);
+        const roundedHeight = Math.round(entry.contentRect.height);
+        
+        setDimensions(prev => {
+          const nextWidth = Math.max(roundedWidth, 100);
+          const nextHeight = Math.max(roundedHeight, 220);
+          
+          // Only trigger state updates if the change is significant (>= 6px)
+          // this completely breaks infinite zoom/scrollbar oscillation feedback loops
+          if (Math.abs(prev.width - nextWidth) >= 6 || Math.abs(prev.height - nextHeight) >= 6) {
+            return { width: nextWidth, height: nextHeight };
+          }
+          return prev;
         });
       }
     });

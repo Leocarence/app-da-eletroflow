@@ -16,6 +16,7 @@ interface RentalsTabProps {
   onUpdateRental: (id: string, updatedFields: Partial<Rental>) => void;
   onTerminateRental: (id: string, returnDeposit: boolean, refundValue: number) => void;
   onDeleteRental: (id: string, purgeHistory: boolean) => void;
+  currentUser?: any;
 }
 
 export default function RentalsTab({
@@ -25,8 +26,10 @@ export default function RentalsTab({
   onStartRental,
   onUpdateRental,
   onTerminateRental,
-  onDeleteRental
+  onDeleteRental,
+  currentUser
 }: RentalsTabProps) {
+  const isSocio = currentUser?.role === 'socio';
   // Modal toggle states
   const [showStartRental, setShowStartRental] = useState(false);
   const [showEndRentalModal, setShowEndRentalModal] = useState<Rental | null>(null);
@@ -263,36 +266,40 @@ export default function RentalsTab({
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
-            {selectedRental.status === 'active' && (
+          {!isSocio ? (
+            <div className="flex items-center gap-2">
+              {selectedRental.status === 'active' && (
+                <button
+                  onClick={() => openEndRental(selectedRental)}
+                  className="flex items-center gap-2 bg-brand-50 hover:bg-brand-100 text-brand-500 px-4 py-2 rounded-lg text-xs font-semibold font-sans transition-all border border-brand-100"
+                >
+                  <CheckCircle className="h-4 w-4 text-brand-500" />
+                  Finalizar Contrato & Ajustar Caução
+                </button>
+              )}
               <button
-                onClick={() => openEndRental(selectedRental)}
-                className="flex items-center gap-2 bg-brand-50 hover:bg-brand-100 text-brand-500 px-4 py-2 rounded-lg text-xs font-semibold font-sans transition-all border border-brand-100"
+                onClick={() => openEditRentalModal(selectedRental)}
+                className="flex items-center gap-2 border border-slate-200 hover:bg-slate-50 text-slate-650 px-4 py-2 rounded-lg text-xs font-semibold font-sans transition-all"
+                title="Editar Contrato"
               >
-                <CheckCircle className="h-4 w-4 text-brand-500" />
-                Finalizar Contrato & Ajustar Caução
+                <Edit3 className="h-4 w-4 text-slate-550" />
+                <span>Editar Contrato</span>
               </button>
-            )}
-            <button
-              onClick={() => openEditRentalModal(selectedRental)}
-              className="flex items-center gap-2 border border-slate-200 hover:bg-slate-50 text-slate-650 px-4 py-2 rounded-lg text-xs font-semibold font-sans transition-all"
-              title="Editar Contrato"
-            >
-              <Edit3 className="h-4 w-4 text-slate-550" />
-              <span>Editar Contrato</span>
-            </button>
-            <button
-              onClick={() => {
-                setDeletePurgeChoice('preserve');
-                setShowDeleteModal(true);
-              }}
-              className="flex items-center gap-2 border border-rose-200 hover:bg-rose-50 text-rose-500 px-4 py-2 rounded-lg text-xs font-semibold font-sans transition-all"
-              title="Excluir Contrato"
-            >
-              <Trash2 className="h-4 w-4" />
-              <span>Excluir Contrato</span>
-            </button>
-          </div>
+              <button
+                onClick={() => {
+                  setDeletePurgeChoice('preserve');
+                  setShowDeleteModal(true);
+                }}
+                className="flex items-center gap-2 border border-rose-200 hover:bg-rose-50 text-rose-500 px-4 py-2 rounded-lg text-xs font-semibold font-sans transition-all"
+                title="Excluir Contrato"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span>Excluir Contrato</span>
+              </button>
+            </div>
+          ) : (
+            <span className="text-xs text-slate-400 italic font-medium">Visualização (Alterações bloqueadas para sócio)</span>
+          )}
         </div>
 
         {/* DETAILS CARDS GRID */}
@@ -795,20 +802,22 @@ export default function RentalsTab({
           <p className="text-xs text-slate-400 mt-0.5">Gerencie os contratos de locação semanal dos motoristas, controle caução e datas.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              const available = vehicles.find(v => v.status === 'available');
-              if (available) {
-                handleRentVehicleChange(available.id);
-              }
-              setShowStartRental(true);
-            }}
-            className="flex items-center gap-2 bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg text-xs font-semibold font-sans transition-all shadow-md shadow-brand-500/10"
-            id="open-start-rental-btn"
-          >
-            <Key className="h-4 w-4" />
-            Nova Locação Semanal
-          </button>
+          {!isSocio && (
+            <button
+              onClick={() => {
+                const available = vehicles.find(v => v.status === 'available');
+                if (available) {
+                  handleRentVehicleChange(available.id);
+                }
+                setShowStartRental(true);
+              }}
+              className="flex items-center gap-2 bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg text-xs font-semibold font-sans transition-all shadow-md shadow-brand-500/10"
+              id="open-start-rental-btn"
+            >
+              <Key className="h-4 w-4" />
+              Nova Locação Semanal
+            </button>
+          )}
         </div>
       </div>
 

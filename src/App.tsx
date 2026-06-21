@@ -1081,7 +1081,7 @@ export default function App() {
                 <Key className="h-4 w-4 shrink-0" />
                 <span>Contratos</span>
               </button>
-              {currentUser?.role === 'admin' && (
+              {(currentUser?.role === 'admin' || currentUser?.role === 'socio') && (
                 <button
                   onClick={() => setActiveTab('users')}
                   className={`flex items-center gap-1 px-2.5 xl:px-3 py-2 rounded-lg lg:text-[11px] xl:text-xs font-bold transition-all hover:scale-105 active:scale-95 duration-200 cursor-pointer shrink-0 ${
@@ -1106,7 +1106,7 @@ export default function App() {
                 </div>
                 <div className="flex flex-col text-left truncate">
                   <span className="text-[8px] xl:text-[9px] uppercase tracking-wider text-emerald-300 font-extrabold font-mono leading-none">
-                    {currentUser?.role === 'admin' ? 'ADMIN' : 'OP'}
+                    {currentUser?.role === 'admin' ? 'ADMIN' : currentUser?.role === 'socio' ? 'SÓCIO' : 'OP'}
                   </span>
                   <span className="text-[11px] xl:text-xs text-white font-black tracking-wide leading-none mt-0.5 truncate" title={currentUser?.name}>
                     {currentUser?.name || 'Acesso Ativo'}
@@ -1329,7 +1329,7 @@ export default function App() {
             </div>
 
             {/* Snug responsive columns: perfectly even tab allocation */}
-            <nav className={`grid ${currentUser?.role === 'admin' ? 'grid-cols-6' : 'grid-cols-5'} gap-0.5`}>
+            <nav className={`grid ${currentUser?.role === 'admin' || currentUser?.role === 'socio' ? 'grid-cols-6' : 'grid-cols-5'} gap-0.5`}>
               <button
                 onClick={() => setActiveTab('dashboard')}
                 className={`py-2 px-1 rounded-lg text-[10px] font-bold text-center flex flex-col items-center justify-center gap-1 transition-all ${
@@ -1385,7 +1385,7 @@ export default function App() {
                 <Key className="h-4 w-4" />
                 <span className="truncate max-w-full">Contratos</span>
               </button>
-              {currentUser?.role === 'admin' && (
+              {(currentUser?.role === 'admin' || currentUser?.role === 'socio') && (
                 <button
                   onClick={() => setActiveTab('users')}
                   className={`py-2 px-1 rounded-lg text-[10px] font-bold text-center flex flex-col items-center justify-center gap-1 transition-all ${
@@ -1519,114 +1519,128 @@ export default function App() {
               )}
 
               {/* FAST REGISTER ACTIONS ROW (moved logo abaixo do dinheiro em caixa - No header/comments) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                
-                {/* Lançar Aluguel Semanal Card */}
-                <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-premium space-y-3">
-                  <h4 className="text-xs font-bold text-slate-700 tracking-wide uppercase flex items-center gap-1">
-                    <Coins className="h-4.5 w-4.5 text-emerald-500 animate-pulse" /> Lançar Aluguel Semanal
-                  </h4>
+              {currentUser?.role === 'socio' ? (
+                <div className="bg-slate-50 rounded-2xl border border-slate-200 p-6 text-center flex flex-col items-center justify-center space-y-2 py-8">
+                  <Lock className="h-8 w-8 text-amber-500 animate-bounce" />
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Painel de Ações Rápidas Bloqueado</h4>
+                  <p className="text-[11px] text-slate-500 max-w-md mx-auto leading-relaxed">
+                    Sua conta possui acesso administrativo no nível de **Sócio (Sócio Visualizador)**.
+                    Lançamentos de cobranças, despesas operacionais manuais e cadastros estão desativados para o seu perfil.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   
-                  <form onSubmit={handleQuickRentSubmit} className="space-y-3">
-                    <div>
-                      <select
-                        required
-                        value={quickRentPaymentContractId}
-                        onChange={(e) => {
-                          setQuickRentPaymentContractId(e.target.value);
-                          const found = rentals.find(r => r.id === e.target.value);
-                          if (found) setQuickRentPaymentValue(found.weeklyRate);
-                        }}
-                        className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500"
-                      >
-                        <option value="">Selecione o contrato...</option>
-                        {rentals
-                          .filter(r => r.status === 'active' && !r.isDeleted)
-                          .map(r => {
-                            const v = vehicles.find(item => item.id === r.vehicleId);
+                  {/* Lançar Aluguel Semanal Card */}
+                  <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-premium space-y-3">
+                    <h4 className="text-xs font-bold text-slate-700 tracking-wide uppercase flex items-center gap-1">
+                      <Coins className="h-4.5 w-4.5 text-emerald-500 animate-pulse" /> Lançar Aluguel Semanal
+                    </h4>
+                    
+                    <form onSubmit={handleQuickRentSubmit} className="space-y-3">
+                      <div>
+                        <select
+                          required
+                          value={quickRentPaymentContractId}
+                          onChange={(e) => {
+                            setQuickRentPaymentContractId(e.target.value);
+                            const found = rentals.find(r => r.id === e.target.value);
+                            if (found) setQuickRentPaymentValue(found.weeklyRate);
+                          }}
+                          className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+                        >
+                          <option value="">Selecione o contrato...</option>
+                          {rentals
+                            .filter(r => r.status === 'active' && !r.isDeleted)
+                            .map(r => {
+                              const v = vehicles.find(item => item.id === r.vehicleId);
+                              return (
+                                <option key={r.id} value={r.id}>
+                                  {r.tenantName} - {v?.brandModel || 'Carro'}
+                                </option>
+                              );
+                            })}
+                        </select>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <input
+                            type="number"
+                            required
+                            placeholder="Valor Semanal (R$)"
+                            value={quickRentPaymentValue}
+                            onChange={(e) => setQuickRentPaymentValue(e.target.value === '' ? '' : Number(e.target.value))}
+                            className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500 font-mono"
+                          />
+                        </div>
+                        <button
+                          type="submit"
+                          disabled={!quickRentPaymentContractId || !quickRentPaymentValue}
+                          className="px-4 py-1.5 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-bold text-xs rounded-lg transition-all cursor-pointer select-none"
+                        >
+                          Confirmar Recebimento
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* Lançar Despesa Card */}
+                  <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-premium space-y-3">
+                    <h4 className="text-xs font-bold text-slate-700 tracking-wide uppercase flex items-center gap-1">
+                      <Wrench className="h-4.5 w-4.5 text-rose-500" /> Lançar Despesa
+                    </h4>
+                    
+                    <form onSubmit={handleQuickMaintenanceSubmit} className="space-y-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <select
+                          required
+                          value={quickMaintenanceVehicleId}
+                          onChange={(e) => setQuickMaintenanceVehicleId(e.target.value)}
+                          className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+                        >
+                          <option value="">Veículo...</option>
+                          {vehicles.filter(v => !v.isDeleted).map(v => {
+                            const activeRental = rentals.find(r => r.vehicleId === v.id && r.status === 'active' && !r.isDeleted);
                             return (
-                              <option key={r.id} value={r.id}>
-                                {r.tenantName} - {v?.brandModel || 'Carro'}
+                              <option key={v.id} value={v.id}>
+                                {v.plate} - {v.brandModel.split(' ')[0]}{activeRental ? ` (${activeRental.tenantName})` : ''}
                               </option>
                             );
                           })}
-                      </select>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
+                        </select>
                         <input
                           type="number"
                           required
-                          placeholder="Valor Semanal (R$)"
-                          value={quickRentPaymentValue}
-                          onChange={(e) => setQuickRentPaymentValue(e.target.value === '' ? '' : Number(e.target.value))}
+                          placeholder="Custo (R$)"
+                          value={quickMaintenanceCost}
+                          onChange={(e) => setQuickMaintenanceCost(e.target.value === '' ? '' : Number(e.target.value))}
                           className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500 font-mono"
                         />
                       </div>
-                      <button
-                        type="submit"
-                        disabled={!quickRentPaymentContractId || !quickRentPaymentValue}
-                        className="px-4 py-1.5 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-bold text-xs rounded-lg transition-all cursor-pointer select-none"
-                      >
-                        Confirmar Recebimento
-                      </button>
-                    </div>
-                  </form>
+
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          required
+                          placeholder="Qual o reparo? Ex: Troca de óleo"
+                          value={quickMaintenanceDesc}
+                          onChange={(e) => setQuickMaintenanceDesc(e.target.value)}
+                          className="flex-1 px-3 py-1.5 border border-slate-200 rounded-lg text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+                        />
+                        <button
+                          type="submit"
+                          disabled={!quickMaintenanceVehicleId || !quickMaintenanceCost || !quickMaintenanceDesc}
+                          className="px-4 py-1.5 bg-rose-500 hover:bg-rose-600 disabled:opacity-50 text-white font-bold text-xs rounded-lg transition-all cursor-pointer select-none"
+                        >
+                          Lançar
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
                 </div>
-
-                {/* Lançar Despesa Card */}
-                <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-premium space-y-3">
-                  <h4 className="text-xs font-bold text-slate-700 tracking-wide uppercase flex items-center gap-1">
-                    <Wrench className="h-4.5 w-4.5 text-rose-500" /> Lançar Despesa
-                  </h4>
-                  
-                  <form onSubmit={handleQuickMaintenanceSubmit} className="space-y-3">
-                    <div className="grid grid-cols-2 gap-2">
-                      <select
-                        required
-                        value={quickMaintenanceVehicleId}
-                        onChange={(e) => setQuickMaintenanceVehicleId(e.target.value)}
-                        className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500"
-                      >
-                        <option value="">Veículo...</option>
-                        {vehicles.filter(v => !v.isDeleted).map(v => (
-                          <option key={v.id} value={v.id}>
-                            {v.plate} - {v.brandModel.split(' ')[0]}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        type="number"
-                        required
-                        placeholder="Custo (R$)"
-                        value={quickMaintenanceCost}
-                        onChange={(e) => setQuickMaintenanceCost(e.target.value === '' ? '' : Number(e.target.value))}
-                        className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500 font-mono"
-                      />
-                    </div>
-
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        required
-                        placeholder="Qual o reparo? Ex: Troca de óleo"
-                        value={quickMaintenanceDesc}
-                        onChange={(e) => setQuickMaintenanceDesc(e.target.value)}
-                        className="flex-1 px-3 py-1.5 border border-slate-200 rounded-lg text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500"
-                      />
-                      <button
-                        type="submit"
-                        disabled={!quickMaintenanceVehicleId || !quickMaintenanceCost || !quickMaintenanceDesc}
-                        className="px-4 py-1.5 bg-rose-500 hover:bg-rose-600 disabled:opacity-50 text-white font-bold text-xs rounded-lg transition-all cursor-pointer select-none"
-                      >
-                        Lançar
-                      </button>
-                    </div>
-                  </form>
-                </div>
-
-              </div>
+              )}
             </div>
 
             {/* ROW 2: CASH FLOW GRAPH TIMELINE */}
@@ -1842,6 +1856,7 @@ export default function App() {
               onRealizeFutureInstallment={handleRealizeFutureInstallment}
               onDeleteFutureExpense={handleDeleteFutureExpense}
               onUpdateFutureInstallmentDate={handleUpdateFutureInstallmentDate}
+              currentUser={currentUser}
             />
           </div>
         )}
@@ -1856,6 +1871,7 @@ export default function App() {
               onUpdateVehicle={handleUpdateVehicle}
               onUpdateVehicleStatus={handleUpdateVehicleStatus}
               onDeleteVehicle={handleDeleteVehicle}
+              currentUser={currentUser}
             />
           </div>
         )}
@@ -1870,11 +1886,12 @@ export default function App() {
               onUpdateRental={handleUpdateRental}
               onTerminateRental={handleTerminateRental}
               onDeleteRental={handleDeleteRental}
+              currentUser={currentUser}
             />
           </div>
         )}
 
-        {activeTab === 'users' && currentUser?.role === 'admin' && (
+        {activeTab === 'users' && (currentUser?.role === 'admin' || currentUser?.role === 'socio') && (
           <div className="animate-fade-in">
             <UsersTab
               users={users}

@@ -16,6 +16,7 @@ interface VehiclesTabProps {
   onUpdateVehicle: (id: string, updatedFields: Partial<Vehicle>) => void;
   onUpdateVehicleStatus: (id: string, status: Vehicle['status']) => void;
   onDeleteVehicle: (id: string, purgeHistory: boolean) => void;
+  currentUser?: any;
 }
 
 export default function VehiclesTab({
@@ -25,8 +26,10 @@ export default function VehiclesTab({
   onAddVehicle,
   onUpdateVehicle,
   onUpdateVehicleStatus,
-  onDeleteVehicle
+  onDeleteVehicle,
+  currentUser
 }: VehiclesTabProps) {
+  const isSocio = currentUser?.role === 'socio';
   // Modal state
   const [showAddVehicle, setShowAddVehicle] = useState(false);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
@@ -257,45 +260,49 @@ export default function VehiclesTab({
               <p className="text-xs text-slate-400 mt-0.5">Visualizando individualização completa das informações do veículo.</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {selectedVehicle.status !== 'maintenance' && (
+          {!isSocio ? (
+            <div className="flex items-center gap-2">
+              {selectedVehicle.status !== 'maintenance' && (
+                <button
+                  onClick={() => onUpdateVehicleStatus(selectedVehicle.id, 'maintenance')}
+                  className="flex items-center gap-2 bg-amber-50 hover:bg-amber-100 text-amber-750 px-3 py-1.5 rounded-lg text-xs font-semibold font-sans transition-all border border-amber-250/30"
+                >
+                  <Wrench className="h-4 w-4 text-amber-500" />
+                  Oficina / Manutenção
+                </button>
+              )}
+              {selectedVehicle.status === 'maintenance' && (
+                <button
+                  onClick={() => onUpdateVehicleStatus(selectedVehicle.id, 'available')}
+                  className="flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-750 px-3 py-1.5 rounded-lg text-xs font-semibold font-sans transition-all border border-emerald-200/30"
+                >
+                  <CheckCircle className="h-4 w-4 text-emerald-500" />
+                  Liberar Carro
+                </button>
+              )}
               <button
-                onClick={() => onUpdateVehicleStatus(selectedVehicle.id, 'maintenance')}
-                className="flex items-center gap-2 bg-amber-50 hover:bg-amber-100 text-amber-750 px-3 py-1.5 rounded-lg text-xs font-semibold font-sans transition-all border border-amber-250/30"
+                onClick={() => openEditVehicleModal(selectedVehicle)}
+                className="p-1 px-3 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-650 rounded-lg transition-all text-xs font-semibold flex items-center gap-1.5"
+                title="Editar Veículo"
               >
-                <Wrench className="h-4 w-4 text-amber-500" />
-                Oficina / Manutenção
+                <Edit3 className="h-4 w-4 text-slate-550" />
+                <span>Editar Veículo</span>
               </button>
-            )}
-            {selectedVehicle.status === 'maintenance' && (
               <button
-                onClick={() => onUpdateVehicleStatus(selectedVehicle.id, 'available')}
-                className="flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-750 px-3 py-1.5 rounded-lg text-xs font-semibold font-sans transition-all border border-emerald-200/30"
+                onClick={() => {
+                  setDeletePurgeChoice('preserve');
+                  setShowDeleteModal(true);
+                }}
+                className="p-1 px-3 py-1.5 border border-rose-200 hover:bg-rose-50 text-rose-500 rounded-lg transition-all text-xs font-semibold flex items-center gap-1.5"
+                title="Excluir Veículo"
               >
-                <CheckCircle className="h-4 w-4 text-emerald-500" />
-                Liberar Carro
+                <Trash2 className="h-4 w-4" />
+                <span>Excluir Veículo</span>
               </button>
-            )}
-            <button
-              onClick={() => openEditVehicleModal(selectedVehicle)}
-              className="p-1 px-3 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-650 rounded-lg transition-all text-xs font-semibold flex items-center gap-1.5"
-              title="Editar Veículo"
-            >
-              <Edit3 className="h-4 w-4 text-slate-550" />
-              <span>Editar Veículo</span>
-            </button>
-            <button
-              onClick={() => {
-                setDeletePurgeChoice('preserve');
-                setShowDeleteModal(true);
-              }}
-              className="p-1 px-3 py-1.5 border border-rose-200 hover:bg-rose-50 text-rose-500 rounded-lg transition-all text-xs font-semibold flex items-center gap-1.5"
-              title="Excluir Veículo"
-            >
-              <Trash2 className="h-4 w-4" />
-              <span>Excluir Veículo</span>
-            </button>
-          </div>
+            </div>
+          ) : (
+            <span className="text-xs text-slate-400 italic">Visualização (Alterações bloqueadas para sócio)</span>
+          )}
         </div>
 
         {/* STATS OVERVIEW CARDS */}
@@ -973,14 +980,16 @@ export default function VehiclesTab({
           <p className="text-xs text-slate-400 mt-0.5">Cadastre seus carros de frota, configure valores e visualize relatórios individualizados.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowAddVehicle(true)}
-            className="flex items-center gap-2 bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg text-xs font-semibold font-sans transition-all shadow-md shadow-brand-500/10"
-            id="open-add-car-modal-btn"
-          >
-            <Plus className="h-4 w-4" />
-            Cadastrar Novo Carro
-          </button>
+          {!isSocio && (
+            <button
+              onClick={() => setShowAddVehicle(true)}
+              className="flex items-center gap-2 bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg text-xs font-semibold font-sans transition-all shadow-md shadow-brand-500/10"
+              id="open-add-car-modal-btn"
+            >
+              <Plus className="h-4 w-4" />
+              Cadastrar Novo Carro
+            </button>
+          )}
         </div>
       </div>
 

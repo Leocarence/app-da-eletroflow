@@ -31,7 +31,7 @@ export function UsersTab({ users, currentUser, onAddUser, onDeleteUser, onChange
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'admin' | 'user'>('admin');
+  const [role, setRole] = useState<'admin' | 'user' | 'socio'>('admin');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -41,6 +41,8 @@ export function UsersTab({ users, currentUser, onAddUser, onDeleteUser, onChange
     user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const isSocio = currentUser?.role === 'socio';
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -138,104 +140,115 @@ export function UsersTab({ users, currentUser, onAddUser, onDeleteUser, onChange
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            
-            {/* NAME */}
-            <div>
-              <label className="block text-[9px] uppercase font-mono tracking-wider font-extrabold text-slate-400 mb-1">
-                Nome do Usuário
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <User className="h-3.5 w-3.5" />
-                </div>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Ex: João Silva"
-                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl outline-none text-xs text-slate-700 font-sans font-medium"
-                />
-              </div>
+          {isSocio ? (
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-center space-y-3">
+              <Lock className="h-6 w-6 text-amber-500 mx-auto" />
+              <span className="text-xs font-bold text-slate-700 block">Modo Sócio Ativado</span>
+              <p className="text-[10px] text-slate-500 leading-relaxed">
+                Você possui privilégios de **Sócio (Apenas Visualização)**. Não é possível cadastrar ou remover credenciais de acesso de outros colaboradores no sistema.
+              </p>
             </div>
-
-            {/* EMAIL */}
-            <div>
-              <label className="block text-[9px] uppercase font-mono tracking-wider font-extrabold text-slate-400 mb-1">
-                E-mail de Login
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <Mail className="h-3.5 w-3.5" />
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              
+              {/* NAME */}
+              <div>
+                <label className="block text-[9px] uppercase font-mono tracking-wider font-extrabold text-slate-400 mb-1">
+                  Nome do Usuário
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <User className="h-3.5 w-3.5" />
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Ex: João Silva"
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl outline-none text-xs text-slate-700 font-sans font-medium"
+                  />
                 </div>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="exemplo@hotmail.com"
-                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl outline-none text-xs text-slate-700 font-sans font-medium"
-                />
               </div>
-            </div>
 
-            {/* PASSWORD */}
-            <div>
-              <label className="block text-[9px] uppercase font-mono tracking-wider font-extrabold text-slate-400 mb-1">
-                Senha Operacional
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <Lock className="h-3.5 w-3.5" />
+              {/* EMAIL */}
+              <div>
+                <label className="block text-[9px] uppercase font-mono tracking-wider font-extrabold text-slate-400 mb-1">
+                  E-mail de Login
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <Mail className="h-3.5 w-3.5" />
+                  </div>
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="exemplo@hotmail.com"
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl outline-none text-xs text-slate-700 font-sans font-medium"
+                  />
                 </div>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Mínimo 4 caracteres"
-                  className="w-full pl-9 pr-9 py-2 bg-slate-50 border border-slate-200 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl outline-none text-xs text-slate-700 font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-450 hover:text-slate-600 transition-colors"
-                >
-                  {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                </button>
               </div>
-            </div>
 
-            {/* ROLE */}
-            <div>
-              <label className="block text-[9px] uppercase font-mono tracking-wider font-extrabold text-slate-400 mb-1">
-                Nível de Privilégio
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <Shield className="h-3.5 w-3.5" />
+              {/* PASSWORD */}
+              <div>
+                <label className="block text-[9px] uppercase font-mono tracking-wider font-extrabold text-slate-400 mb-1">
+                  Senha Operacional
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <Lock className="h-3.5 w-3.5" />
+                  </div>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Mínimo 4 caracteres"
+                    className="w-full pl-9 pr-9 py-2 bg-slate-50 border border-slate-200 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl outline-none text-xs text-slate-700 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-450 hover:text-slate-600 transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </button>
                 </div>
-                <select
-                  value={role}
-                  onChange={(e) => setRole(e.target.value as 'admin' | 'user')}
-                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl outline-none text-xs text-slate-700 font-sans font-medium"
-                >
-                  <option value="admin">Administrador Pleno (Superuser)</option>
-                  <option value="user">Usuário Operador</option>
-                </select>
               </div>
-            </div>
 
-            <button
-              type="submit"
-              className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold transition-all active:scale-[0.98] shadow-sm flex items-center justify-center gap-1.5 cursor-pointer mt-4"
-            >
-              <UserPlus className="h-3.5 w-3.5" />
-              <span>Concluir Cadastro</span>
-            </button>
+              {/* ROLE */}
+              <div>
+                <label className="block text-[9px] uppercase font-mono tracking-wider font-extrabold text-slate-400 mb-1">
+                  Nível de Privilégio
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <Shield className="h-3.5 w-3.5" />
+                  </div>
+                  <select
+                    value={role}
+                    onChange={(e) => setRole(e.target.value as 'admin' | 'user' | 'socio')}
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl outline-none text-xs text-slate-700 font-sans font-medium"
+                  >
+                    <option value="admin">Administrador Pleno (Superuser)</option>
+                    <option value="user">Usuário Operador</option>
+                    <option value="socio">Sócio (Apenas Visualização)</option>
+                  </select>
+                </div>
+              </div>
 
-          </form>
+              <button
+                type="submit"
+                className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold transition-all active:scale-[0.98] shadow-sm flex items-center justify-center gap-1.5 cursor-pointer mt-4"
+              >
+                <UserPlus className="h-3.5 w-3.5" />
+                <span>Concluir Cadastro</span>
+              </button>
+
+            </form>
+          )}
         </div>
 
         {/* ACTIVE USERS LIST CARD */}
@@ -301,9 +314,11 @@ export function UsersTab({ users, currentUser, onAddUser, onDeleteUser, onChange
                         <span className={`inline-block px-2 py-0.5 rounded-lg text-[10px] font-bold font-sans ${
                           user.role === 'admin' 
                             ? 'bg-purple-50 text-purple-600 border border-purple-100' 
+                            : user.role === 'socio'
+                            ? 'bg-amber-50 text-amber-600 border border-amber-100'
                             : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
                         }`}>
-                          {user.role === 'admin' ? 'Administrador Pleno' : 'Usuário Operador'}
+                          {user.role === 'admin' ? 'Administrador Pleno' : user.role === 'socio' ? 'Sócio (Visualização)' : 'Usuário Operador'}
                         </span>
                       </td>
 
@@ -316,13 +331,19 @@ export function UsersTab({ users, currentUser, onAddUser, onDeleteUser, onChange
 
                       <td className="py-3 px-3 text-right">
                         {!isPrimaryRoot && !isCurrent ? (
-                          <button
-                            onClick={() => handleDeleteClick(user.id, user.name, user.email)}
-                            className="p-1 px-2.5 text-rose-500 hover:text-white hover:bg-rose-500 border border-rose-100 hover:border-rose-500 font-medium rounded-lg text-xs transition-all flex items-center gap-1 ml-auto cursor-pointer"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                            <span>Remover</span>
-                          </button>
+                          !isSocio ? (
+                            <button
+                              onClick={() => handleDeleteClick(user.id, user.name, user.email)}
+                              className="p-1 px-2.5 text-rose-500 hover:text-white hover:bg-rose-500 border border-rose-100 hover:border-rose-500 font-medium rounded-lg text-xs transition-all flex items-center gap-1 ml-auto cursor-pointer"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                              <span>Remover</span>
+                            </button>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 italic">
+                              Visualização
+                            </span>
+                          )
                         ) : (
                           <span className="text-[10px] text-slate-400 uppercase font-bold font-mono">
                             Bloqueado
