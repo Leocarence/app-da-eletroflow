@@ -1,0 +1,24 @@
+{
+  "short_name": "Eletroflow",
+  "name": "Eletroflow | Gestão de Locação & Recarga",
+  "description": "Aplicativo de alta performance para gestão de frotas, locações e recargas, integrado com controle financeiro, caução e planejamento de despesas.",
+  "icons": [
+    {
+      "src": "/eletroflow_logo.jpg",
+      "type": "image/jpeg",
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "/eletroflow_logo.jpg",
+      "type": "image/jpeg",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0b1523",
+  "theme_color": "#059669",
+  "display": "standalone",
+  "orientation": "portrait"
+}

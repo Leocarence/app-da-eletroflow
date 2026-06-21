@@ -1118,9 +1118,9 @@ export default function App() {
               <button
                 onClick={handleLogout}
                 title="Sair do Sistema"
-                className="px-3 py-2 bg-brand-600/50 hover:bg-rose-600 hover:text-white text-brand-100 rounded-lg border border-brand-700/60 transition-all hover:scale-105 active:scale-95 duration-200 flex items-center justify-center gap-1.5 shrink-0 cursor-pointer text-xs font-bold font-sans"
+                className="px-3 py-1.5 bg-brand-600/50 hover:bg-rose-600 hover:text-white text-brand-100 rounded-lg border border-brand-700/60 transition-all hover:scale-105 active:scale-95 duration-200 flex items-center justify-center gap-1.5 shrink-0 cursor-pointer text-[10px] xl:text-[11px] font-bold font-sans"
               >
-                <LogOut className="h-3.5 w-3.5" />
+                <LogOut className="h-3.5 w-3.5 shrink-0" />
                 <span>Sair</span>
               </button>
 
@@ -1129,14 +1129,14 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setShowDbDiagnosticsModal(true)}
-                  className={`px-2.5 py-2 rounded-lg border font-mono text-[10px] xl:text-xs font-bold transition-all hover:scale-105 active:scale-95 duration-200 flex items-center gap-1.5 shrink-0 hover:brightness-110 cursor-pointer shadow-sm ${
+                  className={`px-3 py-1.5 rounded-lg border font-mono text-[10px] xl:text-[11px] font-bold transition-all hover:scale-105 active:scale-95 duration-200 flex items-center gap-1.5 shrink-0 hover:brightness-110 cursor-pointer shadow-sm ${
                     dbStatus.connected
                       ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/35'
                       : 'bg-rose-500/20 text-rose-300 border-rose-500/35 animate-pulse'
                   }`}
                   title="Clique para ver o status da conexão com o MongoDB Atlas"
                 >
-                  <div className={`h-2 w-2 rounded-full ${dbStatus.connected ? 'bg-emerald-400' : 'bg-rose-400 animate-ping'}`} />
+                  <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${dbStatus.connected ? 'bg-emerald-400' : 'bg-rose-400 animate-ping'}`} />
                   <span>DB: {dbStatus.connected ? 'OK' : 'OFFLINE'}</span>
                 </button>
               )}
@@ -1145,9 +1145,9 @@ export default function App() {
               <button
                 onClick={handleManualSave}
                 title="Salvar alterações no LocalStorage e Backup"
-                className="px-2.5 py-2.5 bg-sky-500 hover:bg-sky-450 font-bold text-[11px] xl:text-xs text-white rounded-lg transition-all hover:scale-105 active:scale-95 duration-200 cursor-pointer shrink-0 shadow-md shadow-sky-500/15 group relative"
+                className="px-3 py-1.5 bg-brand-600/50 hover:bg-brand-700 text-brand-100 hover:text-white rounded-lg border border-brand-700/60 transition-all hover:scale-105 active:scale-95 duration-200 cursor-pointer shrink-0 shadow-sm flex items-center gap-1.5 justify-center text-[10px] xl:text-[11px] font-bold"
               >
-                <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+                <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                 <span className="font-sans">Salvar</span>
               </button>
 
@@ -1156,9 +1156,9 @@ export default function App() {
                 <button
                   onClick={() => setShowBackupMenu(!showBackupMenu)}
                   title="Exportar/Importar Banco de Dados ou Restaurar"
-                  className="px-2 py-2.5 bg-brand-600/50 hover:bg-brand-700 text-brand-100 hover:text-white rounded-lg border border-brand-700/60 transition-all hover:scale-105 active:scale-95 duration-200 text-[11px] xl:text-xs font-bold flex items-center gap-1 cursor-pointer shrink-0"
+                  className="px-3 py-1.5 bg-brand-600/50 hover:bg-brand-700 text-brand-100 hover:text-white rounded-lg border border-brand-700/60 transition-all hover:scale-105 active:scale-95 duration-200 text-[10px] xl:text-[11px] font-bold flex items-center gap-1.5 cursor-pointer shrink-0"
                 >
-                  <RefreshCcw className={`h-3.5 w-3.5 ${showBackupMenu ? 'rotate-90' : ''} transition-transform`} />
+                  <RefreshCcw className="h-3.5 w-3.5 shrink-0" />
                   <span>Backup</span>
                 </button>
 
