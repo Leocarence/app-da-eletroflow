@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Transaction } from '../types';
-import { Calendar, TrendingUp, Wallet, CheckSquare, Square, Lock } from 'lucide-react';
+import { Calendar, TrendingUp, Wallet, CheckSquare, Square, Lock, Minus, Plus } from 'lucide-react';
 import { getBrasiliaDateStr, toLocalDateStr } from '../utils/dateUtils';
 
 interface CashFlowChartProps {
@@ -22,11 +22,12 @@ interface ChartPoint {
 
 export default function CashFlowChart({ transactions }: CashFlowChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [dimensions, setDimensions] = useState({ width: 600, height: 280 });
+  const [dimensions, setDimensions] = useState({ width: 320, height: 240 });
   const [hoveredPoint, setHoveredPoint] = useState<ChartPoint | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [chartMode, setChartMode] = useState<'acumulado' | 'diario'>('acumulado');
   const [timeFrame, setTimeFrame] = useState<'semanal' | 'mensal'>('semanal');
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
 
   // Interactive visibility toggles for the chart lines and bars
   const [showReceitas, setShowReceitas] = useState(true);
@@ -41,7 +42,7 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
       for (let entry of entries) {
         const { width, height } = entry.contentRect;
         setDimensions({
-          width: Math.max(width, 300),
+          width: Math.max(width, 100),
           height: Math.max(height, 220)
         });
       }
@@ -229,7 +230,9 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
   const paddingTop = 25;
   const paddingBottom = 40;
 
-  const chartWidth = dimensions.width - paddingLeft - paddingRight;
+  // Let the chart width expand dynamically with zoom Level
+  const totalWidth = Math.max(dimensions.width, 320) * zoomLevel;
+  const chartWidth = totalWidth - paddingLeft - paddingRight;
   const chartHeight = dimensions.height - paddingTop - paddingBottom;
 
   // Max and min values for cumulative scale based on toggled inputs
@@ -407,7 +410,7 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
   });
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-premium flex flex-col h-full relative">
+    <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-premium flex flex-col h-full relative overflow-x-hidden w-full">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div>
           <h3 className="font-display font-semibold text-slate-800 text-lg flex items-center gap-2">
@@ -417,6 +420,29 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+          {/* Zoom Controls */}
+          <div className="flex items-center gap-1 bg-slate-105 p-1 rounded-lg border border-slate-200">
+            <button
+              onClick={() => setZoomLevel(Math.max(1, zoomLevel - 0.5))}
+              disabled={zoomLevel <= 1}
+              className="p-1 rounded text-slate-500 hover:bg-white hover:text-slate-800 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
+              title="Reduzir Zoom (Mais compacto)"
+            >
+              <Minus className="h-3 w-3" />
+            </button>
+            <span className="text-[10px] font-mono font-bold text-slate-700 min-w-[28px] text-center select-none" title="Zoom da linha do tempo">
+              {zoomLevel.toFixed(1)}x
+            </span>
+            <button
+              onClick={() => setZoomLevel(Math.min(4, zoomLevel + 0.5))}
+              disabled={zoomLevel >= 4}
+              className="p-1 rounded text-slate-500 hover:bg-white hover:text-slate-800 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
+              title="Aumentar Zoom (Rolar para ver mais detalhes)"
+            >
+              <Plus className="h-3 w-3" />
+            </button>
+          </div>
+
           {/* Include Caução Toggle */}
           <button
             onClick={() => setIncludeCaucao(!includeCaucao)}
@@ -485,15 +511,126 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
         </div>
       </div>
 
-      <div ref={containerRef} className="relative flex-1 min-h-[220px] select-none">
-        {/* Render SVG content */}
-        <svg
-          width="100%"
-          height={dimensions.height}
-          onMouseMove={handleMouseMove}
-          onMouseLeave={handleMouseLeave}
-          className="overflow-visible cursor-crosshair"
-        >
+      <div ref={containerRef} className="relative flex-1 min-h-[220px] select-none w-full overflow-hidden">
+        {/* Y-Axis Fixed Labels Overlay - Sits absolutely at the left of the view, does not scroll! */}
+        <div className="absolute left-0 top-0 bottom-0 w-[60px] bg-gradient-to-r from-white via-white/95 to-transparent pointer-events-none z-10 select-none pb-[40px]">
+          {gridLines.map((line, idx) => (
+            <div
+              key={idx}
+              className="absolute left-1 pr-2 w-full text-right font-mono text-[9px] font-extrabold text-slate-500/90 whitespace-nowrap"
+              style={{ top: `${line.y - 6}px` }}
+            >
+              {formatCurrency(line.value).replace('R$', '').trim()}
+            </div>
+          ))}
+        </div>
+
+        {/* Dynamic HTML Tooltip - Fixed at Top-Left of the chart grid */}
+        {hoveredPoint && (
+          <div
+            className="absolute z-20 top-2 left-[64px] bg-slate-900/95 backdrop-blur-md text-white rounded-xl p-2.5 shadow-xl border border-slate-800 text-[11px] text-left pointer-events-none min-w-[210px] animate-fade-in select-none"
+          >
+            <div className="flex items-center gap-1.5 text-slate-400 font-mono font-semibold pb-1 mb-1 border-b border-slate-800/80">
+              <Calendar className="h-3 w-3" />
+              {timeFrame === 'semanal' ? (
+                `Semana de ${new Date(hoveredPoint.date + 'T00:00:00').toLocaleDateString('pt-BR', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric'
+                })}`
+              ) : (
+                (() => {
+                  const [year, month] = hoveredPoint.date.split('-');
+                  const monthNamesFull = [
+                    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+                  ];
+                  return `${monthNamesFull[Number(month) - 1]} / ${year}`;
+                })()
+              )}
+            </div>
+
+            <div className="space-y-0.5 font-sans">
+              {chartMode === 'acumulado' ? (
+                <>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-slate-300 font-bold flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#3b42c4]"></span>
+                      Caixa Geral:
+                    </span>
+                    <span className={`font-bold font-mono ${hoveredPoint.acumulado >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {formatCurrency(hoveredPoint.acumulado)}
+                    </span>
+                  </div>
+                  {showReceitas && (
+                    <div className="flex justify-between gap-4">
+                      <span className="text-slate-400 flex items-center gap-1 font-semibold">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        Receitas Acum.:
+                      </span>
+                      <span className="font-semibold font-mono text-emerald-400 font-normal">
+                        {formatCurrency(hoveredPoint.acumuladoReceitas)}
+                      </span>
+                    </div>
+                  )}
+                  {showDespesas && (
+                    <div className="flex justify-between gap-4">
+                      <span className="text-slate-400 flex items-center gap-1 font-semibold">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                        Despesas Acum.:
+                      </span>
+                      <span className="font-semibold font-mono text-rose-300 font-normal">
+                        {formatCurrency(hoveredPoint.acumuladoDespesas)}
+                      </span>
+                    </div>
+                  )}
+                  
+                  <div className="border-t border-slate-800 my-1 opacity-45"></div>
+                  <div className="text-[9px] text-slate-400 font-medium italic pb-0.5">Movimentações do Período:</div>
+                </>
+              ) : null}
+
+              <div className="flex justify-between gap-4">
+                <span className="text-slate-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  Receitas:
+                </span>
+                <span className="font-medium font-mono text-emerald-400">
+                  {formatCurrency(hoveredPoint.receitas)}
+                </span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-slate-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                  Despesas:
+                </span>
+                <span className="font-medium font-mono text-rose-300">
+                  {formatCurrency(hoveredPoint.despesas)}
+                </span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-slate-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                  Caução Líquido:
+                </span>
+                <span className={`font-medium font-mono ${hoveredPoint.caucao >= 0 ? 'text-amber-300' : 'text-orange-400'}`}>
+                  {formatCurrency(hoveredPoint.caucao)}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Scrollable Container */}
+        <div className="relative w-full h-full overflow-x-auto scrollbar-thin">
+          {/* Render SVG content */}
+          <svg
+            width={totalWidth}
+            height={dimensions.height}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+            className="overflow-visible cursor-crosshair"
+          >
           {/* Definitions for beautiful gradients */}
           <defs>
             <linearGradient id="saldoGradient" x1="0" y1="0" x2="0" y2="1">
@@ -528,22 +665,12 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
               <line
                 x1={paddingLeft}
                 y1={line.y}
-                x2={dimensions.width - paddingRight}
+                x2={totalWidth - paddingRight}
                 y2={line.y}
                 stroke="#f1f5f9"
                 strokeWidth={1}
                 strokeDasharray="4,4"
               />
-              <text
-                x={paddingLeft - 10}
-                y={line.y + 4}
-                fill="#475569"
-                fontSize={10}
-                className="font-mono text-right font-semibold"
-                textAnchor="end"
-              >
-                {formatCurrency(line.value).replace('R$', '').trim()}
-              </text>
             </g>
           ))}
 
@@ -551,7 +678,7 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
           <line
             x1={paddingLeft}
             y1={paddingTop + chartHeight}
-            x2={dimensions.width - paddingRight}
+            x2={totalWidth - paddingRight}
             y2={paddingTop + chartHeight}
             stroke="#e2e8f0"
             strokeWidth={1}
@@ -819,107 +946,8 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
             </g>
           )}
         </svg>
-
-        {/* Dynamic HTML Tooltip */}
-        {hoveredPoint && (
-          <div
-            className="absolute z-10 bg-slate-900/95 backdrop-blur-md text-white rounded-xl p-3 shadow-xl border border-slate-800 text-xs text-left pointer-events-none min-w-[210px]"
-            style={{
-              left: Math.min(tooltipPos.x, dimensions.width - 220),
-              top: Math.max(tooltipPos.y - 145, 5)
-            }}
-          >
-            <div className="flex items-center gap-1.5 text-slate-400 font-mono font-semibold pb-1.5 mb-1.5 border-b border-slate-800">
-              <Calendar className="h-3.5 w-3.5" />
-              {timeFrame === 'semanal' ? (
-                `Semana de ${new Date(hoveredPoint.date + 'T00:00:00').toLocaleDateString('pt-BR', {
-                  day: 'numeric',
-                  month: 'short',
-                  year: 'numeric'
-                })}`
-              ) : (
-                (() => {
-                  const [year, month] = hoveredPoint.date.split('-');
-                  const monthNamesFull = [
-                    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-                    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-                  ];
-                  return `${monthNamesFull[Number(month) - 1]} / ${year}`;
-                })()
-              )}
-            </div>
-
-            <div className="space-y-1 font-sans">
-              {chartMode === 'acumulado' ? (
-                <>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-slate-300 font-bold flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#3b42c4]"></span>
-                      Caixa Geral:
-                    </span>
-                    <span className={`font-bold font-mono ${hoveredPoint.acumulado >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {formatCurrency(hoveredPoint.acumulado)}
-                    </span>
-                  </div>
-                  {showReceitas && (
-                    <div className="flex justify-between gap-4">
-                      <span className="text-slate-400 flex items-center gap-1 font-semibold">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                        Receitas Acum.:
-                      </span>
-                      <span className="font-semibold font-mono text-emerald-400">
-                        {formatCurrency(hoveredPoint.acumuladoReceitas)}
-                      </span>
-                    </div>
-                  )}
-                  {showDespesas && (
-                    <div className="flex justify-between gap-4">
-                      <span className="text-slate-400 flex items-center gap-1 font-semibold">
-                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                        Despesas Acum.:
-                      </span>
-                      <span className="font-semibold font-mono text-rose-300">
-                        {formatCurrency(hoveredPoint.acumuladoDespesas)}
-                      </span>
-                    </div>
-                  )}
-                  
-                  <div className="border-t border-slate-800 my-1.5 opacity-40"></div>
-                  <div className="text-[10px] text-slate-450 font-medium italic pb-0.5">Movimentações do Período:</div>
-                </>
-              ) : null}
-
-              <div className="flex justify-between gap-4">
-                <span className="text-slate-400 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                  Receitas:
-                </span>
-                <span className="font-medium font-mono text-emerald-400">
-                  {formatCurrency(hoveredPoint.receitas)}
-                </span>
-              </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-slate-400 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                  Despesas:
-                </span>
-                <span className="font-medium font-mono text-rose-300">
-                  {formatCurrency(hoveredPoint.despesas)}
-                </span>
-              </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-slate-400 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                  Caução Líquido:
-                </span>
-                <span className={`font-medium font-mono ${hoveredPoint.caucao >= 0 ? 'text-amber-300' : 'text-orange-400'}`}>
-                  {formatCurrency(hoveredPoint.caucao)}
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
+    </div>
 
       {/* Legend below the chart - Interactive toggles */}
       <div className="flex flex-wrap items-center justify-center gap-4 mt-3 pt-3 border-t border-slate-100 text-xs font-semibold select-none font-sans">

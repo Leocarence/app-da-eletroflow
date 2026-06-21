@@ -996,7 +996,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50/50 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50/50 flex flex-col font-sans overflow-x-hidden w-full">
       {/* Dynamic Alert Banner Notifications / Toast */}
       {toast && (
         <div className="fixed top-4 right-4 z-50 animate-bounce">
