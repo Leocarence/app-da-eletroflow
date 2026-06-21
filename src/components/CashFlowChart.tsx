@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Transaction } from '../types';
-import { Calendar, TrendingUp, TrendingDown, Wallet, ArrowUpRight, ArrowDownRight, Info } from 'lucide-react';
+import { Calendar, TrendingUp, Wallet, CheckSquare, Square, Lock } from 'lucide-react';
 import { getBrasiliaDateStr, toLocalDateStr } from '../utils/dateUtils';
 
 interface CashFlowChartProps {
@@ -15,8 +15,9 @@ interface ChartPoint {
   caucao: number; // Net caução
   saldoDia: number;
   acumulado: number;
-  acumuladoCentral: number; // Cumulative Caixa Central
-  acumuladoCaucao: number; // Cumulative Depósito Caução
+  acumuladoReceitas: number;
+  acumuladoDespesas: number;
+  acumuladoCaucao: number;
 }
 
 export default function CashFlowChart({ transactions }: CashFlowChartProps) {
@@ -30,7 +31,8 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
   // Interactive visibility toggles for the chart lines and bars
   const [showReceitas, setShowReceitas] = useState(true);
   const [showDespesas, setShowDespesas] = useState(true);
-  const [showCaucao, setShowCaucao] = useState(true);
+  const [showSaldo, setShowSaldo] = useState(true);
+  const [includeCaucao, setIncludeCaucao] = useState(true);
 
   // Track parent div resize
   useEffect(() => {
@@ -104,15 +106,18 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
 
       let runningCentral = 0;
       let runningEscrow = 0;
-      let runningTotal = 0;
+      let runningReceitas = 0;
+      let runningDespesas = 0;
 
       const computedWeeks: ChartPoint[] = weekMondays.map(m => {
         const data = aggWeekly[m] || { receitas: 0, despesas: 0, caucao: 0 };
         const netCaucao = data.caucao;
         
+        runningReceitas += data.receitas;
+        runningDespesas += data.despesas;
         runningCentral += (data.receitas - data.despesas);
         runningEscrow += netCaucao;
-        runningTotal = runningCentral + runningEscrow;
+        const runningTotal = runningCentral + (includeCaucao ? runningEscrow : 0);
 
         const parts = m.split('-');
         const formattedDate = `${parts[2]}/${parts[1]}`;
@@ -123,9 +128,10 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
           receitas: data.receitas,
           despesas: data.despesas,
           caucao: netCaucao,
-          saldoDia: data.receitas + netCaucao - data.despesas,
+          saldoDia: data.receitas - data.despesas + (includeCaucao ? netCaucao : 0),
           acumulado: runningTotal,
-          acumuladoCentral: runningCentral,
+          acumuladoReceitas: runningReceitas,
+          acumuladoDespesas: runningDespesas,
           acumuladoCaucao: runningEscrow
         };
       });
@@ -177,16 +183,19 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
 
       let runningCentral = 0;
       let runningEscrow = 0;
-      let runningTotal = 0;
+      let runningReceitas = 0;
+      let runningDespesas = 0;
 
       const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
       const computedMonths: ChartPoint[] = monthYMs.map(ym => {
         const data = aggMonthly[ym] || { receitas: 0, despesas: 0, caucao: 0 };
         const netCaucao = data.caucao;
         
+        runningReceitas += data.receitas;
+        runningDespesas += data.despesas;
         runningCentral += (data.receitas - data.despesas);
         runningEscrow += netCaucao;
-        runningTotal = runningCentral + runningEscrow;
+        const runningTotal = runningCentral + (includeCaucao ? runningEscrow : 0);
 
         const [year, month] = ym.split('-');
         const monthIndex = Number(month);
@@ -198,9 +207,10 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
           receitas: data.receitas,
           despesas: data.despesas,
           caucao: netCaucao,
-          saldoDia: data.receitas + netCaucao - data.despesas,
+          saldoDia: data.receitas - data.despesas + (includeCaucao ? netCaucao : 0),
           acumulado: runningTotal,
-          acumuladoCentral: runningCentral,
+          acumuladoReceitas: runningReceitas,
+          acumuladoDespesas: runningDespesas,
           acumuladoCaucao: runningEscrow
         };
       });
@@ -211,10 +221,10 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
       }
       return computedMonths;
     }
-  }, [transactions, timeFrame, showReceitas, showDespesas, showCaucao]);
+  }, [transactions, timeFrame, includeCaucao]);
 
   // Calculate SVG Drawing coordinates
-  const paddingLeft = 60;
+  const paddingLeft = 65;
   const paddingRight = 20;
   const paddingTop = 25;
   const paddingBottom = 40;
@@ -227,35 +237,35 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
     if (points.length === 0) return 0;
     const values: number[] = [0];
     points.forEach(p => {
-      if (showReceitas || showDespesas) {
-        values.push(p.acumuladoCentral);
-      }
-      if (showCaucao) {
-        values.push(p.acumuladoCaucao);
-      }
-      if ((showReceitas || showDespesas) && showCaucao) {
+      if (showSaldo) {
         values.push(p.acumulado);
+      }
+      if (showReceitas) {
+        values.push(p.acumuladoReceitas);
+      }
+      if (showDespesas) {
+        values.push(p.acumuladoDespesas);
       }
     });
     return Math.min(...values);
-  }, [points, showReceitas, showDespesas, showCaucao]);
+  }, [points, showReceitas, showDespesas, showSaldo]);
 
   const maxCum = React.useMemo(() => {
     if (points.length === 0) return 1000;
     const values: number[] = [1000];
     points.forEach(p => {
-      if (showReceitas || showDespesas) {
-        values.push(p.acumuladoCentral);
-      }
-      if (showCaucao) {
-        values.push(p.acumuladoCaucao);
-      }
-      if ((showReceitas || showDespesas) && showCaucao) {
+      if (showSaldo) {
         values.push(p.acumulado);
+      }
+      if (showReceitas) {
+        values.push(p.acumuladoReceitas);
+      }
+      if (showDespesas) {
+        values.push(p.acumuladoDespesas);
       }
     });
     return Math.max(...values);
-  }, [points, showReceitas, showDespesas, showCaucao]);
+  }, [points, showReceitas, showDespesas, showSaldo]);
 
   // If there are no points, render placeholder
   if (points.length === 0) {
@@ -275,7 +285,7 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
     const vals: number[] = [];
     if (showReceitas) vals.push(p.receitas);
     if (showDespesas) vals.push(p.despesas);
-    if (showCaucao) vals.push(Math.abs(p.caucao));
+    if (includeCaucao) vals.push(Math.abs(p.caucao));
     return vals.length > 0 ? Math.max(...vals) : 0;
   }), 200);
 
@@ -295,54 +305,60 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
   };
 
   // Generate paths for cumulative charts
-  let lineCentralPath = '';
-  let areaCentralPath = '';
-  let lineCaucaoPath = '';
-  let areaCaucaoPath = '';
-  let lineTotalPath = '';
-  let areaTotalPath = '';
+  let lineReceitasPath = '';
+  let areaReceitasPath = '';
+  let lineDespesasPath = '';
+  let areaDespesasPath = '';
+  let lineSaldoPath = '';
+  let areaSaldoPath = '';
 
   if (points.length > 0) {
     points.forEach((p, idx) => {
       const x = getX(idx);
       
-      // Caixa Central
-      const yCentral = getY(p.acumuladoCentral);
-      if (idx === 0) {
-        lineCentralPath = `M ${x} ${yCentral}`;
-        areaCentralPath = `M ${x} ${paddingTop + chartHeight} L ${x} ${yCentral}`;
-      } else {
-        lineCentralPath += ` L ${x} ${yCentral}`;
-        areaCentralPath += ` L ${x} ${yCentral}`;
-      }
-      if (idx === points.length - 1) {
-        areaCentralPath += ` L ${x} ${paddingTop + chartHeight} Z`;
-      }
-
-      // Depósito Caução
-      const yCaucao = getY(p.acumuladoCaucao);
-      if (idx === 0) {
-        lineCaucaoPath = `M ${x} ${yCaucao}`;
-        areaCaucaoPath = `M ${x} ${paddingTop + chartHeight} L ${x} ${yCaucao}`;
-      } else {
-        lineCaucaoPath += ` L ${x} ${yCaucao}`;
-        areaCaucaoPath += ` L ${x} ${yCaucao}`;
-      }
-      if (idx === points.length - 1) {
-        areaCaucaoPath += ` L ${x} ${paddingTop + chartHeight} Z`;
+      // Receitas
+      if (showReceitas) {
+        const yReceitas = getY(p.acumuladoReceitas);
+        if (idx === 0) {
+          lineReceitasPath = `M ${x} ${yReceitas}`;
+          areaReceitasPath = `M ${x} ${paddingTop + chartHeight} L ${x} ${yReceitas}`;
+        } else {
+          lineReceitasPath += ` L ${x} ${yReceitas}`;
+          areaReceitasPath += ` L ${x} ${yReceitas}`;
+        }
+        if (idx === points.length - 1) {
+          areaReceitasPath += ` L ${x} ${paddingTop + chartHeight} Z`;
+        }
       }
 
-      // Total Balance (Saldo Geral)
-      const yTotal = getY(p.acumulado);
-      if (idx === 0) {
-        lineTotalPath = `M ${x} ${yTotal}`;
-        areaTotalPath = `M ${x} ${paddingTop + chartHeight} L ${x} ${yTotal}`;
-      } else {
-        lineTotalPath += ` L ${x} ${yTotal}`;
-        areaTotalPath += ` L ${x} ${yTotal}`;
+      // Despesas
+      if (showDespesas) {
+        const yDespesas = getY(p.acumuladoDespesas);
+        if (idx === 0) {
+          lineDespesasPath = `M ${x} ${yDespesas}`;
+          areaDespesasPath = `M ${x} ${paddingTop + chartHeight} L ${x} ${yDespesas}`;
+        } else {
+          lineDespesasPath += ` L ${x} ${yDespesas}`;
+          areaDespesasPath += ` L ${x} ${yDespesas}`;
+        }
+        if (idx === points.length - 1) {
+          areaDespesasPath += ` L ${x} ${paddingTop + chartHeight} Z`;
+        }
       }
-      if (idx === points.length - 1) {
-        areaTotalPath += ` L ${x} ${paddingTop + chartHeight} Z`;
+
+      // Saldo do Caixa Geral
+      if (showSaldo) {
+        const ySaldo = getY(p.acumulado);
+        if (idx === 0) {
+          lineSaldoPath = `M ${x} ${ySaldo}`;
+          areaSaldoPath = `M ${x} ${paddingTop + chartHeight} L ${x} ${ySaldo}`;
+        } else {
+          lineSaldoPath += ` L ${x} ${ySaldo}`;
+          areaSaldoPath += ` L ${x} ${ySaldo}`;
+        }
+        if (idx === points.length - 1) {
+          areaSaldoPath += ` L ${x} ${paddingTop + chartHeight} Z`;
+        }
       }
     });
   }
@@ -364,14 +380,9 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
 
     if (point) {
       setHoveredPoint(point);
-      
-      const activeYVal = (showReceitas || showDespesas) && showCaucao ? point.acumulado :
-                          (showReceitas || showDespesas) ? point.acumuladoCentral :
-                          point.acumuladoCaucao;
-
       setTooltipPos({
         x: getX(index) + rect.left - containerRef.current.getBoundingClientRect().left,
-        y: getY(activeYVal) - 10
+        y: getY(point.acumulado) - 10
       });
     }
   };
@@ -400,14 +411,32 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div>
           <h3 className="font-display font-semibold text-slate-800 text-lg flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-brand-500" />
-            Fluxo de Caixa
+            <TrendingUp className="h-5 w-5 text-emerald-500" />
+            Fluxo de Caixa Geral
           </h3>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 self-start sm:self-auto">
+        <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+          {/* Include Caução Toggle */}
+          <button
+            onClick={() => setIncludeCaucao(!includeCaucao)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold select-none border transition-all cursor-pointer ${
+              includeCaucao 
+                ? 'bg-amber-50 text-amber-850 border-amber-200 shadow-sm'
+                : 'bg-slate-50 text-slate-500 border-slate-150'
+            }`}
+            title="Contabilizar cauções líquidos no saldo geral"
+          >
+            {includeCaucao ? (
+              <CheckSquare className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+            ) : (
+              <Square className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+            )}
+            <span>Contabilizar Cauções</span>
+          </button>
+
           {/* Semanal vs Mensal Switcher */}
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+          <div className="flex items-center gap-1 bg-slate-105 p-1 rounded-lg">
             <button
               onClick={() => setTimeFrame('semanal')}
               className={`px-3 py-1 text-xs font-semibold rounded-md transition-all-custom ${
@@ -431,7 +460,7 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
           </div>
 
           {/* Acumulado vs Periodo Switcher */}
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg font-sans">
+          <div className="flex items-center gap-1 bg-slate-105 p-1 rounded-lg font-sans">
             <button
               onClick={() => setChartMode('acumulado')}
               className={`px-3 py-1 text-xs font-semibold rounded-md transition-all-custom ${
@@ -450,7 +479,7 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              {timeFrame === 'semanal' ? 'Lançamentos Semanais' : 'Lançamentos Mensais'}
+              {timeFrame === 'semanal' ? 'Lançamentos' : 'Mensagens'}
             </button>
           </div>
         </div>
@@ -467,25 +496,25 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
         >
           {/* Definitions for beautiful gradients */}
           <defs>
-            <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id="saldoGradient" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#3b42c4" stopOpacity="0.22" />
               <stop offset="100%" stopColor="#3b42c4" stopOpacity="0.00" />
             </linearGradient>
-            <linearGradient id="caucaoGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.18" />
-              <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.00" />
-            </linearGradient>
-            <linearGradient id="totalGradient" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id="receitasGradient" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#10b981" stopOpacity="0.18" />
               <stop offset="100%" stopColor="#10b981" stopOpacity="0.00" />
+            </linearGradient>
+            <linearGradient id="despesasGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#ef4444" stopOpacity="0.18" />
+              <stop offset="100%" stopColor="#ef4444" stopOpacity="0.00" />
             </linearGradient>
             <linearGradient id="barGreen" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#10b981" />
               <stop offset="100%" stopColor="#059669" />
             </linearGradient>
             <linearGradient id="barRed" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#f43f5e" />
-              <stop offset="100%" stopColor="#e11d48" />
+              <stop offset="0%" stopColor="#ef4444" />
+              <stop offset="100%" stopColor="#dc2626" />
             </linearGradient>
             <linearGradient id="barOrange" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#f59e0b" />
@@ -508,7 +537,7 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
               <text
                 x={paddingLeft - 10}
                 y={line.y + 4}
-                fill="#1e293b"
+                fill="#475569"
                 fontSize={10}
                 className="font-mono text-right font-semibold"
                 textAnchor="end"
@@ -540,7 +569,7 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
                   key={idx}
                   x={getX(idx)}
                   y={paddingTop + chartHeight + 18}
-                  fill="#1e293b"
+                  fill="#475569"
                   fontSize={10}
                   textAnchor="middle"
                   className="font-mono font-bold"
@@ -552,21 +581,21 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
 
           {chartMode === 'acumulado' ? (
             <>
-              {/* 1. CAIXA CENTRAL LINE & AREA (BLUE/INDIGO) */}
-              {(showReceitas || showDespesas) && (
+              {/* 1. RECEITAS ACUMULADAS (GREEN) */}
+              {showReceitas && (
                 <>
-                  {areaCentralPath && (
+                  {areaReceitasPath && (
                     <path
-                      d={areaCentralPath}
-                      fill="url(#chartGradient)"
+                      d={areaReceitasPath}
+                      fill="url(#receitasGradient)"
                       className="transition-all duration-300"
                     />
                   )}
-                  {lineCentralPath && (
+                  {lineReceitasPath && (
                     <path
-                      d={lineCentralPath}
+                      d={lineReceitasPath}
                       fill="none"
-                      stroke="#3b42c4"
+                      stroke="#10b981"
                       strokeWidth={2}
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -576,22 +605,22 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
                 </>
               )}
 
-              {/* 2. SECURITY DEPOSIT ESCROW LINE & AREA (ORANGE/AMBER) */}
-              {showCaucao && (
+              {/* 2. DESPESAS ACUMULADAS (RED) */}
+              {showDespesas && (
                 <>
-                  {areaCaucaoPath && (
+                  {areaDespesasPath && (
                     <path
-                      d={areaCaucaoPath}
-                      fill="url(#caucaoGradient)"
+                      d={areaDespesasPath}
+                      fill="url(#despesasGradient)"
                       className="transition-all duration-300"
                     />
                   )}
-                  {lineCaucaoPath && (
+                  {lineDespesasPath && (
                     <path
-                      d={lineCaucaoPath}
+                      d={lineDespesasPath}
                       fill="none"
-                      stroke="#f59e0b"
-                      strokeWidth={2.5}
+                      stroke="#ef4444"
+                      strokeWidth={2}
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       className="transition-all duration-300 pointer-events-none"
@@ -600,22 +629,21 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
                 </>
               )}
 
-              {/* 3. SALDO GERAL LINE & AREA (EMERALD GREEN) */}
-              {(showReceitas || showDespesas) && showCaucao && (
+              {/* 3. EVOLUÇÃO DO CAIXA GERAL (BLUE/INDIGO) */}
+              {showSaldo && (
                 <>
-                  {areaTotalPath && (
+                  {areaSaldoPath && (
                     <path
-                      d={areaTotalPath}
-                      fill="url(#totalGradient)"
+                      d={areaSaldoPath}
+                      fill="url(#saldoGradient)"
                       className="transition-all duration-300"
-                      opacity={0.3}
                     />
                   )}
-                  {lineTotalPath && (
+                  {lineSaldoPath && (
                     <path
-                      d={lineTotalPath}
+                      d={lineSaldoPath}
                       fill="none"
-                      stroke="#10b981"
+                      stroke="#3b42c4"
                       strokeWidth={2.5}
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -630,38 +658,38 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
                 const cx = getX(idx);
                 return (
                   <g key={idx} className="pointer-events-none select-none">
-                    {/* Caixa Central dot */}
-                    {(showReceitas || showDespesas) && (
+                    {/* Receitas dot */}
+                    {showReceitas && (
                       <circle
                         cx={cx}
-                        cy={getY(p.acumuladoCentral)}
+                        cy={getY(p.acumuladoReceitas)}
                         r={3}
                         fill="#ffffff"
-                        stroke="#3b42c4"
+                        stroke="#10b981"
                         strokeWidth={1.5}
                         className="transition-all duration-300 pointer-events-none"
                       />
                     )}
-                    {/* Depósito Caução dot */}
-                    {showCaucao && (
+                    {/* Despesas dot */}
+                    {showDespesas && (
                       <circle
                         cx={cx}
-                        cy={getY(p.acumuladoCaucao)}
+                        cy={getY(p.acumuladoDespesas)}
                         r={3}
                         fill="#ffffff"
-                        stroke="#f59e0b"
+                        stroke="#ef4444"
                         strokeWidth={1.5}
                         className="transition-all duration-300 pointer-events-none"
                       />
                     )}
-                    {/* Saldo Geral dot */}
-                    {(showReceitas || showDespesas) && showCaucao && (
+                    {/* Saldo dot */}
+                    {showSaldo && (
                       <circle
                         cx={cx}
                         cy={getY(p.acumulado)}
                         r={3.5}
                         fill="#ffffff"
-                        stroke="#10b981"
+                        stroke="#3b42c4"
                         strokeWidth={1.5}
                         className="transition-all duration-300 pointer-events-none"
                       />
@@ -709,8 +737,8 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
                       />
                     )}
 
-                    {/* Caução Bar (Orange - if positive, or empty if negative) */}
-                    {hasCaucao && p.caucao > 0 && showCaucao && (
+                    {/* Caução Bar (Orange) */}
+                    {hasCaucao && p.caucao > 0 && includeCaucao && (
                       <rect
                         x={x - barWidth / 2}
                         y={baselineY - getBarHeight(p.caucao)}
@@ -731,11 +759,11 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
           {hoveredPoint && (
             <g className="pointer-events-none">
               <line
-                x1={tooltipPos.x + paddingLeft - (hoveredPoint ? getX(points.indexOf(hoveredPoint)) : 0) + getX(points.indexOf(hoveredPoint))}
+                x1={getX(points.indexOf(hoveredPoint))}
                 y1={paddingTop}
                 x2={getX(points.indexOf(hoveredPoint))}
                 y2={paddingTop + chartHeight}
-                stroke="#475569"
+                stroke="#64748b"
                 strokeWidth={1}
                 strokeDasharray="3,3"
               />
@@ -743,34 +771,34 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
               {/* Hover circles for each active curve */}
               {chartMode === 'acumulado' ? (
                 <>
-                  {(showReceitas || showDespesas) && (
+                  {showReceitas && (
                     <circle
                       cx={getX(points.indexOf(hoveredPoint))}
-                      cy={getY(hoveredPoint.acumuladoCentral)}
+                      cy={getY(hoveredPoint.acumuladoReceitas)}
                       r={5}
-                      fill="#3b42c4"
+                      fill="#10b981"
                       stroke="#ffffff"
                       strokeWidth={1.5}
                       className="shadow-premium"
                     />
                   )}
-                  {showCaucao && (
+                  {showDespesas && (
                     <circle
                       cx={getX(points.indexOf(hoveredPoint))}
-                      cy={getY(hoveredPoint.acumuladoCaucao)}
+                      cy={getY(hoveredPoint.acumuladoDespesas)}
                       r={5}
-                      fill="#f59e0b"
+                      fill="#ef4444"
                       stroke="#ffffff"
                       strokeWidth={1.5}
                       className="shadow-premium"
                     />
                   )}
-                  {(showReceitas || showDespesas) && showCaucao && (
+                  {showSaldo && (
                     <circle
                       cx={getX(points.indexOf(hoveredPoint))}
                       cy={getY(hoveredPoint.acumulado)}
                       r={6}
-                      fill="#10b981"
+                      fill="#3b42c4"
                       stroke="#ffffff"
                       strokeWidth={2}
                       className="shadow-premium"
@@ -795,9 +823,9 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
         {/* Dynamic HTML Tooltip */}
         {hoveredPoint && (
           <div
-            className="absolute z-10 bg-slate-900/95 backdrop-blur-md text-white rounded-xl p-3 shadow-xl border border-slate-800 text-xs text-left pointer-events-none min-w-[190px]"
+            className="absolute z-10 bg-slate-900/95 backdrop-blur-md text-white rounded-xl p-3 shadow-xl border border-slate-800 text-xs text-left pointer-events-none min-w-[210px]"
             style={{
-              left: Math.min(tooltipPos.x, dimensions.width - 200),
+              left: Math.min(tooltipPos.x, dimensions.width - 220),
               top: Math.max(tooltipPos.y - 145, 5)
             }}
           >
@@ -824,39 +852,40 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
             <div className="space-y-1 font-sans">
               {chartMode === 'acumulado' ? (
                 <>
-                  {(showReceitas || showDespesas) && showCaucao && (
+                  <div className="flex justify-between gap-4">
+                    <span className="text-slate-300 font-bold flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#3b42c4]"></span>
+                      Caixa Geral:
+                    </span>
+                    <span className={`font-bold font-mono ${hoveredPoint.acumulado >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {formatCurrency(hoveredPoint.acumulado)}
+                    </span>
+                  </div>
+                  {showReceitas && (
                     <div className="flex justify-between gap-4">
-                      <span className="text-slate-400 font-medium">Saldo Geral:</span>
-                      <span className={`font-bold font-mono ${hoveredPoint.acumulado >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {formatCurrency(hoveredPoint.acumulado)}
+                      <span className="text-slate-400 flex items-center gap-1 font-semibold">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        Receitas Acum.:
+                      </span>
+                      <span className="font-semibold font-mono text-emerald-400">
+                        {formatCurrency(hoveredPoint.acumuladoReceitas)}
                       </span>
                     </div>
                   )}
-                  {(showReceitas || showDespesas) && (
+                  {showDespesas && (
                     <div className="flex justify-between gap-4">
-                      <span className="text-slate-400 flex items-center gap-1 font-medium">
-                        <span className="w-1.5 h-1.5 rounded-full bg-brand-500"></span>
-                        Caixa Central:
+                      <span className="text-slate-400 flex items-center gap-1 font-semibold">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                        Despesas Acum.:
                       </span>
-                      <span className={`font-semibold font-mono ${hoveredPoint.acumuladoCentral >= 0 ? 'text-brand-500' : 'text-red-400'}`}>
-                        {formatCurrency(hoveredPoint.acumuladoCentral)}
-                      </span>
-                    </div>
-                  )}
-                  {showCaucao && (
-                    <div className="flex justify-between gap-4">
-                      <span className="text-slate-400 flex items-center gap-1 font-medium">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                        Cauções Custodiados:
-                      </span>
-                      <span className="font-semibold font-mono text-amber-300">
-                        {formatCurrency(hoveredPoint.acumuladoCaucao)}
+                      <span className="font-semibold font-mono text-rose-300">
+                        {formatCurrency(hoveredPoint.acumuladoDespesas)}
                       </span>
                     </div>
                   )}
                   
                   <div className="border-t border-slate-800 my-1.5 opacity-40"></div>
-                  <div className="text-[10px] text-slate-400 font-medium italic pb-0.5">Movimentações do Período:</div>
+                  <div className="text-[10px] text-slate-450 font-medium italic pb-0.5">Movimentações do Período:</div>
                 </>
               ) : null}
 
@@ -893,7 +922,7 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
       </div>
 
       {/* Legend below the chart - Interactive toggles */}
-      <div className="flex flex-wrap items-center justify-center gap-4 mt-3 pt-3 border-t border-slate-100 text-xs font-semibold select-none">
+      <div className="flex flex-wrap items-center justify-center gap-4 mt-3 pt-3 border-t border-slate-100 text-xs font-semibold select-none font-sans">
         <button
           onClick={() => setShowReceitas(!showReceitas)}
           className={`flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all cursor-pointer ${
@@ -901,10 +930,10 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
               ? 'bg-emerald-50 text-emerald-800 border-emerald-200 shadow-sm'
               : 'bg-slate-50 text-slate-400 border-slate-150 line-through opacity-50'
           }`}
-          title="Clique para ocultar/exibir receitas"
+          title="Clique para ocultar/exibir receitas estimadas"
         >
           <span className={`h-2.5 w-2.5 rounded-full ${showReceitas ? 'bg-emerald-500' : 'bg-slate-350'}`}></span>
-          <span>Receitas</span>
+          <span>{chartMode === 'acumulado' ? 'Receitas Acumuladas' : 'Receitas'}</span>
         </button>
         <button
           onClick={() => setShowDespesas(!showDespesas)}
@@ -913,43 +942,24 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
               ? 'bg-rose-50 text-rose-800 border-rose-200 shadow-sm'
               : 'bg-slate-50 text-slate-400 border-slate-150 line-through opacity-50'
           }`}
-          title="Clique para ocultar/exibir despesas"
+          title="Clique para ocultar/exibir despesas estimadas"
         >
           <span className={`h-2.5 w-2.5 rounded-full ${showDespesas ? 'bg-rose-500' : 'bg-slate-350'}`}></span>
-          <span>Despesas</span>
+          <span>{chartMode === 'acumulado' ? 'Despesas Acumuladas' : 'Despesas'}</span>
         </button>
+
         <button
-          onClick={() => setShowCaucao(!showCaucao)}
+          onClick={() => setShowSaldo(!showSaldo)}
           className={`flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all cursor-pointer ${
-            showCaucao
-              ? 'bg-amber-50 text-amber-800 border-amber-200 shadow-sm'
+            showSaldo
+              ? 'bg-indigo-50 text-indigo-800 border-indigo-200 shadow-sm'
               : 'bg-slate-50 text-slate-400 border-slate-150 line-through opacity-50'
           }`}
-          title="Clique para ocultar/exibir depósitos caução"
+          title="Clique para ocultar/exibir a linha de evolução do caixa geral"
         >
-          <span className={`h-2.5 w-2.5 rounded-full ${showCaucao ? 'bg-amber-500' : 'bg-slate-350'}`}></span>
-          <span>Depósito Caução</span>
+          <span className={`h-2.5 w-2.5 rounded-full ${showSaldo ? 'bg-[#3b42c4]' : 'bg-slate-350'}`}></span>
+          <span>Evolução Caixa Geral {includeCaucao ? '(Com Cauções)' : '(Sem Cauções)'}</span>
         </button>
-        <div className="flex flex-wrap items-center gap-3 pl-2 border-l border-slate-200">
-          {(showReceitas || showDespesas) && (
-            <div className="flex items-center gap-1 text-slate-500">
-              <span className="h-0.5 w-3 bg-brand-500 inline-block relative -top-px"></span>
-              <span className="text-[10px]">Evolução Caixa Central</span>
-            </div>
-          )}
-          {showCaucao && (
-            <div className="flex items-center gap-1 text-slate-500">
-              <span className="h-0.5 w-3 bg-amber-500 inline-block relative -top-px"></span>
-              <span className="text-[10px]">Evolução Caução</span>
-            </div>
-          )}
-          {(showReceitas || showDespesas) && showCaucao && (
-            <div className="flex items-center gap-1 text-slate-400 font-medium">
-              <span className="h-0.5 w-3 bg-emerald-500 inline-block relative -top-px"></span>
-              <span className="text-[10px]">Evolução Saldo Geral</span>
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );
