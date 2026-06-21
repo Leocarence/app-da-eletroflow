@@ -26,8 +26,12 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
   const [hoveredPoint, setHoveredPoint] = useState<ChartPoint | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [chartMode, setChartMode] = useState<'acumulado' | 'diario'>('acumulado');
-  const [timeFrame, setTimeFrame] = useState<'semanal' | 'mensal'>('semanal');
+  const [timeFrame, setTimeFrame] = useState<'diario' | 'semanal' | 'mensal'>('semanal');
   const [zoomLevel, setZoomLevel] = useState<number>(1);
+
+  // Touch/Pinch gesture refs for mobile pinch-to-zoom
+  const touchStartDistRef = useRef<number | null>(null);
+  const touchStartZoomRef = useRef<number>(1);
 
   // Interactive visibility toggles for the chart lines and bars
   const [showReceitas, setShowReceitas] = useState(true);
@@ -142,6 +146,60 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
         return computedWeeks.slice(-16);
       }
       return computedWeeks;
+    } else if (timeFrame === 'diario') {
+      // Find all days on which there were financial transactions
+      const aggDaily: Record<string, { receitas: number; despesas: number; caucao: number }> = {};
+      
+      transactions.forEach(t => {
+        const d = t.date; // YYYY-MM-DD
+        if (!aggDaily[d]) {
+          aggDaily[d] = { receitas: 0, despesas: 0, caucao: 0 };
+        }
+        if (t.type === 'receita') aggDaily[d].receitas += t.value;
+        else if (t.type === 'despesa') aggDaily[d].despesas += t.value;
+        else if (t.type === 'caucao_recebido') aggDaily[d].caucao += t.value;
+        else if (t.type === 'caucao_devolvido') aggDaily[d].caucao -= t.value;
+      });
+
+      const activeDates = Object.keys(aggDaily).sort();
+
+      let runningCentral = 0;
+      let runningEscrow = 0;
+      let runningReceitas = 0;
+      let runningDespesas = 0;
+
+      const computedDaily: ChartPoint[] = activeDates.map(d => {
+        const data = aggDaily[d];
+        const netCaucao = data.caucao;
+        
+        runningReceitas += data.receitas;
+        runningDespesas += data.despesas;
+        runningCentral += (data.receitas - data.despesas);
+        runningEscrow += netCaucao;
+        const runningTotal = runningCentral + (includeCaucao ? runningEscrow : 0);
+
+        const parts = d.split('-'); // YYYY-MM-DD
+        const formattedDate = `${parts[2]}/${parts[1]}`; // DD/MM
+
+        return {
+          date: d,
+          formattedDate,
+          receitas: data.receitas,
+          despesas: data.despesas,
+          caucao: netCaucao,
+          saldoDia: data.receitas - data.despesas + (includeCaucao ? netCaucao : 0),
+          acumulado: runningTotal,
+          acumuladoReceitas: runningReceitas,
+          acumuladoDespesas: runningDespesas,
+          acumuladoCaucao: runningEscrow
+        };
+      });
+
+      // Show the last 30 active days max to keep visually clear layout
+      if (computedDaily.length > 30) {
+        return computedDaily.slice(-30);
+      }
+      return computedDaily;
     } else {
       // Monthly mode
       const getYearMonth = (dateStr: string) => dateStr.substring(0, 7); // "YYYY-MM"
@@ -394,6 +452,67 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
     setHoveredPoint(null);
   };
 
+  // Touch handlers for mobile pinch-to-zoom & tooltips
+  const getTouchDistance = (t1: React.Touch, t2: React.Touch) => {
+    const dx = t1.clientX - t2.clientX;
+    const dy = t1.clientY - t2.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent<SVGSVGElement>) => {
+    if (e.touches.length === 2) {
+      const dist = getTouchDistance(e.touches[0], e.touches[1]);
+      touchStartDistRef.current = dist;
+      touchStartZoomRef.current = zoomLevel;
+    } else if (e.touches.length === 1) {
+      handleTouchMoveHover(e.touches[0], e.currentTarget);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<SVGSVGElement>) => {
+    if (e.touches.length === 2 && touchStartDistRef.current !== null) {
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+      const dist = getTouchDistance(e.touches[0], e.touches[1]);
+      if (dist > 5) {
+        const factor = dist / touchStartDistRef.current;
+        const nextZoom = Math.min(4, Math.max(1, touchStartZoomRef.current * factor));
+        setZoomLevel(Math.round(nextZoom * 10) / 10);
+      }
+    } else if (e.touches.length === 1) {
+      handleTouchMoveHover(e.touches[0], e.currentTarget);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    touchStartDistRef.current = null;
+    setHoveredPoint(null);
+  };
+
+  const handleTouchMoveHover = (touch: React.Touch, svgElement: SVGSVGElement) => {
+    if (!containerRef.current) return;
+    const rect = svgElement.getBoundingClientRect();
+    const touchX = touch.clientX - rect.left - paddingLeft;
+
+    if (touchX < 0 || touchX > chartWidth) {
+      setHoveredPoint(null);
+      return;
+    }
+
+    const pct = touchX / chartWidth;
+    const index = Math.min(Math.max(Math.round(pct * (points.length - 1)), 0), points.length - 1);
+    const point = points[index];
+
+    if (point) {
+      setHoveredPoint(point);
+      setTooltipPos({
+        x: getX(index) + rect.left - containerRef.current.getBoundingClientRect().left,
+        y: getY(point.acumulado) - 10
+      });
+    }
+  };
+
   // Helper to format currency values nicely
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -461,8 +580,18 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
             <span>Contabilizar Cauções</span>
           </button>
 
-          {/* Semanal vs Mensal Switcher */}
+          {/* Diário vs Semanal vs Mensal Switcher */}
           <div className="flex items-center gap-1 bg-slate-105 p-1 rounded-lg">
+            <button
+              onClick={() => setTimeFrame('diario')}
+              className={`px-3 py-1 text-xs font-semibold rounded-md transition-all-custom ${
+                timeFrame === 'diario'
+                  ? 'bg-white text-slate-800 shadow-sm font-bold'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Diário
+            </button>
             <button
               onClick={() => setTimeFrame('semanal')}
               className={`px-3 py-1 text-xs font-semibold rounded-md transition-all-custom ${
@@ -505,7 +634,7 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              {timeFrame === 'semanal' ? 'Lançamentos' : 'Mensagens'}
+              {timeFrame === 'diario' ? 'Lançamentos' : timeFrame === 'semanal' ? 'Lançamentos' : 'Mensais'}
             </button>
           </div>
         </div>
@@ -525,10 +654,10 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
           ))}
         </div>
 
-        {/* Dynamic HTML Tooltip - Fixed at Top-Left of the chart grid */}
+        {/* Dynamic HTML Tooltip - Fixed at Top-Right of the chart area */}
         {hoveredPoint && (
           <div
-            className="absolute z-20 top-2 left-[64px] bg-slate-900/95 backdrop-blur-md text-white rounded-xl p-2.5 shadow-xl border border-slate-800 text-[11px] text-left pointer-events-none min-w-[210px] animate-fade-in select-none"
+            className="absolute z-20 top-2 right-2 sm:right-4 bg-slate-900/95 backdrop-blur-md text-white rounded-xl p-2.5 shadow-xl border border-slate-800 text-[11px] text-left pointer-events-none min-w-[210px] animate-fade-in select-none"
           >
             <div className="flex items-center gap-1.5 text-slate-400 font-mono font-semibold pb-1 mb-1 border-b border-slate-800/80">
               <Calendar className="h-3 w-3" />
@@ -538,6 +667,17 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
                   month: 'short',
                   year: 'numeric'
                 })}`
+              ) : timeFrame === 'diario' ? (
+                (() => {
+                  const dObj = new Date(hoveredPoint.date + 'T00:00:00');
+                  const formatted = dObj.toLocaleDateString('pt-BR', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric'
+                  });
+                  const isToday = hoveredPoint.date === getBrasiliaDateStr();
+                  return `${formatted}${isToday ? ' (Hoje)' : ''}`;
+                })()
               ) : (
                 (() => {
                   const [year, month] = hoveredPoint.date.split('-');
@@ -629,7 +769,11 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
             height={dimensions.height}
             onMouseMove={handleMouseMove}
             onMouseLeave={handleMouseLeave}
-            className="overflow-visible cursor-crosshair"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchEnd}
+            className="overflow-visible cursor-crosshair touch-none"
           >
           {/* Definitions for beautiful gradients */}
           <defs>
