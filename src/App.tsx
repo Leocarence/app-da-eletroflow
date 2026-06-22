@@ -43,7 +43,8 @@ import {
   X,
   Users,
   LogOut,
-  Database
+  Database,
+  ArrowDown
 } from 'lucide-react';
 
 const INITIAL_USERS: AppUser[] = [
@@ -108,6 +109,201 @@ export default function App() {
   // Toast / notification feedback alerts
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
   const toastTimerRef = useRef<any>(null);
+
+  // Mobile Pull to Refresh States
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshSuccess, setRefreshSuccess] = useState(false);
+  const pullStartYRef = useRef<number | null>(null);
+
+  // Automatic background synchronization
+  useEffect(() => {
+    let intervalId: any;
+
+    const performPoll = async () => {
+      try {
+        const response = await fetch('/api/load-data');
+        if (response.ok) {
+          const serverBackup = await response.json();
+          if (serverBackup && serverBackup.vehicles && serverBackup.vehicles.length > 0) {
+            const sVehicles = serverBackup.vehicles;
+            const sRentals = serverBackup.rentals || [];
+            const sTransactions = serverBackup.transactions || [];
+            const sFuture = serverBackup.futureExpenses || [];
+            const sUsers = serverBackup.users || [];
+            const sAccessLogs = serverBackup.accessLogs || [];
+
+            // Safe State Updates (prevents screen flickers and only updates on difference)
+            setVehicles(prev => {
+              if (JSON.stringify(prev) !== JSON.stringify(sVehicles)) {
+                localStorage.setItem('loca_vehicles', JSON.stringify(sVehicles));
+                return sVehicles;
+              }
+              return prev;
+            });
+
+            setRentals(prev => {
+              if (JSON.stringify(prev) !== JSON.stringify(sRentals)) {
+                localStorage.setItem('loca_rentals', JSON.stringify(sRentals));
+                return sRentals;
+              }
+              return prev;
+            });
+
+            setTransactions(prev => {
+              if (JSON.stringify(prev) !== JSON.stringify(sTransactions)) {
+                localStorage.setItem('loca_transactions', JSON.stringify(sTransactions));
+                return sTransactions;
+              }
+              return prev;
+            });
+
+            setFutureExpenses(prev => {
+              if (JSON.stringify(prev) !== JSON.stringify(sFuture)) {
+                localStorage.setItem('loca_future_expenses', JSON.stringify(sFuture));
+                return sFuture;
+              }
+              return prev;
+            });
+
+            setUsers(prev => {
+              if (JSON.stringify(prev) !== JSON.stringify(sUsers)) {
+                localStorage.setItem('loca_users', JSON.stringify(sUsers));
+                return sUsers;
+              }
+              return prev;
+            });
+
+            setAccessLogs(prev => {
+              if (JSON.stringify(prev) !== JSON.stringify(sAccessLogs)) {
+                localStorage.setItem('loca_access_logs', JSON.stringify(sAccessLogs));
+                return sAccessLogs;
+              }
+              return prev;
+            });
+
+            // Sync safety backup
+            const backupObj = { 
+              vehicles: sVehicles, 
+              rentals: sRentals, 
+              transactions: sTransactions, 
+              futureExpenses: sFuture, 
+              users: sUsers, 
+              accessLogs: sAccessLogs 
+            };
+            localStorage.setItem('loca_db_safety_backup', JSON.stringify(backupObj));
+          }
+        }
+      } catch (e) {
+        console.warn("[Background Poll] Sync failed:", e);
+      }
+    };
+
+    // Delay start of polling slightly so initial hydration finishes first
+    const delayTimeout = setTimeout(() => {
+      // Poll every 5 seconds
+      intervalId = setInterval(performPoll, 5000);
+    }, 3000);
+
+    return () => {
+      clearTimeout(delayTimeout);
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, []);
+
+  // Gesture detection for mobile Pull-to-Refresh
+  useEffect(() => {
+    const handleTouchStart = (e: TouchEvent) => {
+      if (window.scrollY === 0 && !isRefreshing) {
+        pullStartYRef.current = e.touches[0].clientY;
+        setRefreshSuccess(false);
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (pullStartYRef.current === null || isRefreshing) return;
+
+      const currentY = e.touches[0].clientY;
+      const diffY = currentY - pullStartYRef.current;
+
+      if (diffY > 0) {
+        // Resistance factor
+        const distance = Math.min(diffY * 0.35, 95);
+        setPullDistance(distance);
+
+        // Prevent body bounce-scrolling only when actively pulling down at the top
+        if (distance > 15 && e.cancelable) {
+          e.preventDefault();
+        }
+      } else {
+        setPullDistance(0);
+      }
+    };
+
+    const handleTouchEnd = async () => {
+      if (pullStartYRef.current === null || isRefreshing) return;
+      pullStartYRef.current = null;
+
+      if (pullDistance >= 65) {
+        setIsRefreshing(true);
+        setPullDistance(60); // lock at spinner position
+
+        try {
+          const response = await fetch('/api/load-data');
+          if (response.ok) {
+            const serverBackup = await response.json();
+            if (serverBackup && serverBackup.vehicles && serverBackup.vehicles.length > 0) {
+              setVehicles(serverBackup.vehicles);
+              setRentals(serverBackup.rentals || []);
+              setTransactions(serverBackup.transactions || []);
+              setFutureExpenses(serverBackup.futureExpenses || []);
+              setUsers(serverBackup.users || []);
+              setAccessLogs(serverBackup.accessLogs || []);
+
+              localStorage.setItem('loca_vehicles', JSON.stringify(serverBackup.vehicles));
+              localStorage.setItem('loca_rentals', JSON.stringify(serverBackup.rentals || []));
+              localStorage.setItem('loca_transactions', JSON.stringify(serverBackup.transactions || []));
+              localStorage.setItem('loca_future_expenses', JSON.stringify(serverBackup.futureExpenses || []));
+              localStorage.setItem('loca_users', JSON.stringify(serverBackup.users || []));
+              localStorage.setItem('loca_access_logs', JSON.stringify(serverBackup.accessLogs || []));
+
+              const backupObj = {
+                vehicles: serverBackup.vehicles,
+                rentals: serverBackup.rentals || [],
+                transactions: serverBackup.transactions || [],
+                futureExpenses: serverBackup.futureExpenses || [],
+                users: serverBackup.users || [],
+                accessLogs: serverBackup.accessLogs || []
+              };
+              localStorage.setItem('loca_db_safety_backup', JSON.stringify(backupObj));
+            }
+          }
+          setRefreshSuccess(true);
+          showNotification('✓ Base atualizada com sucesso!', 'success');
+          await new Promise(resolve => setTimeout(resolve, 800));
+        } catch (err) {
+          console.error("Failed to refresh:", err);
+          showNotification('Erro ao sincronizar dados.', 'error');
+        } finally {
+          setIsRefreshing(false);
+          setRefreshSuccess(false);
+          setPullDistance(0);
+        }
+      } else {
+        setPullDistance(0);
+      }
+    };
+
+    window.addEventListener('touchstart', handleTouchStart, { passive: false });
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleTouchEnd);
+
+    return () => {
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [pullDistance, isRefreshing]);
 
   // Quick Action Form state values
   const [quickRentPaymentContractId, setQuickRentPaymentContractId] = useState('');
@@ -499,7 +695,7 @@ export default function App() {
     localStorage.setItem('loca_future_expenses', JSON.stringify(futureExpenses));
     localStorage.setItem('loca_users', JSON.stringify(users));
     localStorage.setItem('loca_db_safety_backup', JSON.stringify(backupObj));
-    persistToBackend(vehicles, rentals, transactions, futureExpenses, users, true);
+    persistToBackend(vehicles, rentals, transactions, futureExpenses, users, accessLogs, true);
   };
 
   // Export JSON physical backup file
@@ -1088,6 +1284,37 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50/50 flex flex-col font-sans overflow-x-hidden w-full">
+      {/* Elegant mobile pull-to-refresh indicators with clean micro-interaction animations */}
+      {(pullDistance > 0 || isRefreshing) && (
+        <div 
+          style={{ 
+            transform: `translateY(${pullDistance - 50}px)`, 
+            opacity: Math.min(pullDistance / 35, 1) 
+          }}
+          className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center transition-all duration-150 pointer-events-none"
+        >
+          <div className="bg-slate-900 border border-slate-800 text-white shadow-xl rounded-full px-4 py-2 flex items-center justify-center gap-2 text-xs font-bold font-sans">
+            {isRefreshing ? (
+              refreshSuccess ? (
+                <div className="flex items-center gap-1.5 text-emerald-400">
+                  <span className="font-bold">✓ Sincronizado</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <RefreshCcw className="h-4 w-4 animate-spin text-indigo-400" />
+                  <span>Sincronizando...</span>
+                </div>
+              )
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <ArrowDown className={`h-4 w-4 text-indigo-400 transition-transform duration-200 ${pullDistance >= 65 ? 'rotate-180' : ''}`} />
+                <span>{pullDistance >= 65 ? 'Solte para atualizar' : 'Arraste para atualizar'}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Dynamic Alert Banner Notifications / Toast */}
       {toast && (
         <div className="fixed top-4 right-4 z-50 animate-bounce">
