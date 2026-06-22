@@ -14,7 +14,7 @@ import { FinancialsTab } from './components/FinancialsTab';
 import { LoginScreen } from './components/LoginScreen';
 import { UsersTab } from './components/UsersTab';
 import { EletroflowLogo } from './components/EletroflowLogo';
-import { AppUser } from './types';
+import { AppUser, AccessLog } from './types';
 import {
   LayoutDashboard,
   FileSpreadsheet,
@@ -70,6 +70,7 @@ export default function App() {
   // Security / Authentication State
   const [users, setUsers] = useState<AppUser[]>([]);
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
+  const [accessLogs, setAccessLogs] = useState<AccessLog[]>([]);
 
   // Dashboard Sub-Financials visibility toggle (revenue, deposit, expenses)
   const [showSubFinancials, setShowSubFinancials] = useState(true);
@@ -173,10 +174,16 @@ export default function App() {
     tList: Transaction[],
     fList: FutureExpense[],
     uList?: AppUser[],
+    aLogs?: AccessLog[],
     isManualClick = false
   ) => {
     try {
       const activeUsers = uList || users;
+      const activeLogs = aLogs || accessLogs;
+      
+      // Keep localStorage in key-value sync
+      localStorage.setItem('loca_access_logs', JSON.stringify(activeLogs));
+      
       const response = await fetch('/api/save-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -185,7 +192,8 @@ export default function App() {
           rentals: rList, 
           transactions: tList, 
           futureExpenses: fList,
-          users: activeUsers
+          users: activeUsers,
+          accessLogs: activeLogs
         })
       });
       if (response.ok && isManualClick) {
@@ -209,6 +217,7 @@ export default function App() {
       let parsedTransactions: Transaction[] = [];
       let parsedFuture: FutureExpense[] = [];
       let parsedUsers: AppUser[] = [];
+      let parsedAccessLogs: AccessLog[] = [];
 
       // Load session
       const storedSession = localStorage.getItem('loca_current_user');
@@ -229,6 +238,7 @@ export default function App() {
             parsedTransactions = serverBackup.transactions || [];
             parsedFuture = serverBackup.futureExpenses || [];
             parsedUsers = serverBackup.users || [];
+            parsedAccessLogs = serverBackup.accessLogs || [];
             console.log("Hydrated successfully from server persistent disk backup!");
           }
         }
@@ -243,6 +253,7 @@ export default function App() {
         const storedTransactions = localStorage.getItem('loca_transactions');
         const storedFuture = localStorage.getItem('loca_future_expenses');
         const storedUsers = localStorage.getItem('loca_users');
+        const storedLogs = localStorage.getItem('loca_access_logs');
         const safetyBackup = localStorage.getItem('loca_db_safety_backup');
 
         if (storedFuture) {
@@ -258,6 +269,14 @@ export default function App() {
             parsedUsers = JSON.parse(storedUsers);
           } catch (e) {
             parsedUsers = [];
+          }
+        }
+
+        if (storedLogs) {
+          try {
+            parsedAccessLogs = JSON.parse(storedLogs);
+          } catch (e) {
+            parsedAccessLogs = [];
           }
         }
 
@@ -279,6 +298,7 @@ export default function App() {
               parsedTransactions = parsedBackup.transactions || [];
               parsedFuture = parsedBackup.futureExpenses || [];
               parsedUsers = parsedBackup.users || [];
+              parsedAccessLogs = parsedBackup.accessLogs || [];
             }
           } catch (e) {}
         }
@@ -350,6 +370,7 @@ export default function App() {
       setTransactions(parsedTransactions);
       setFutureExpenses(parsedFuture);
       setUsers(parsedUsers);
+      setAccessLogs(parsedAccessLogs);
 
       // Write standard local storage keys to keep things fully synced
       localStorage.setItem('loca_vehicles', JSON.stringify(parsedVehicles));
@@ -357,12 +378,13 @@ export default function App() {
       localStorage.setItem('loca_transactions', JSON.stringify(parsedTransactions));
       localStorage.setItem('loca_future_expenses', JSON.stringify(parsedFuture));
       localStorage.setItem('loca_users', JSON.stringify(parsedUsers));
+      localStorage.setItem('loca_access_logs', JSON.stringify(parsedAccessLogs));
 
-      const backupObj = { vehicles: parsedVehicles, rentals: parsedRentals, transactions: parsedTransactions, futureExpenses: parsedFuture, users: parsedUsers };
+      const backupObj = { vehicles: parsedVehicles, rentals: parsedRentals, transactions: parsedTransactions, futureExpenses: parsedFuture, users: parsedUsers, accessLogs: parsedAccessLogs };
       localStorage.setItem('loca_db_safety_backup', JSON.stringify(backupObj));
 
       // Trigger server save to ensure files stay in perfect unison
-      persistToBackend(parsedVehicles, parsedRentals, parsedTransactions, parsedFuture, parsedUsers);
+      persistToBackend(parsedVehicles, parsedRentals, parsedTransactions, parsedFuture, parsedUsers, parsedAccessLogs);
     };
 
     loadData();
@@ -955,6 +977,38 @@ export default function App() {
   const handleLogin = (user: AppUser) => {
     setCurrentUser(user);
     localStorage.setItem('loca_current_user', JSON.stringify(user));
+
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('pt-BR', {
+      dateStyle: 'short',
+      timeStyle: 'medium',
+      timeZone: 'America/Sao_Paulo'
+    });
+    const timestampStr = formatter.format(now);
+
+    const logId = 'log_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+    
+    const ua = navigator.userAgent;
+    let deviceRepresentation = 'Navegador Padrão';
+    if (ua.includes('Windows')) deviceRepresentation = 'Windows OS (Computador)';
+    else if (ua.includes('Macintosh')) deviceRepresentation = 'Apple macOS (Computador)';
+    else if (ua.includes('Linux')) deviceRepresentation = 'Linux OS (Computador)';
+    else if (ua.includes('Android')) deviceRepresentation = 'Android Mobile';
+    else if (ua.includes('iPhone') || ua.includes('iPad')) deviceRepresentation = 'iOS Mobile';
+
+    const newLog: AccessLog = {
+      id: logId,
+      userName: user.name,
+      userEmail: user.email,
+      userRole: user.email === 'leojoex@hotmail.com' ? 'Desenvolvedor' : user.role === 'admin' ? 'Administrador Pleno' : user.role === 'socio' ? 'Sócio' : 'Operador',
+      timestamp: timestampStr,
+      deviceInfo: deviceRepresentation
+    };
+
+    const updatedLogs = [newLog, ...accessLogs];
+    setAccessLogs(updatedLogs);
+    persistToBackend(vehicles, rentals, transactions, futureExpenses, users, updatedLogs);
+
     showNotification(`✓ Bem-vindo de volta, ${user.name}! Sessão administrativa estabelecida.`, 'success');
   };
 
@@ -1519,16 +1573,7 @@ export default function App() {
               )}
 
               {/* FAST REGISTER ACTIONS ROW (moved logo abaixo do dinheiro em caixa - No header/comments) */}
-              {currentUser?.role === 'socio' ? (
-                <div className="bg-slate-50 rounded-2xl border border-slate-200 p-6 text-center flex flex-col items-center justify-center space-y-2 py-8">
-                  <Lock className="h-8 w-8 text-amber-500 animate-bounce" />
-                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Painel de Ações Rápidas Bloqueado</h4>
-                  <p className="text-[11px] text-slate-500 max-w-md mx-auto leading-relaxed">
-                    Sua conta possui acesso administrativo no nível de **Sócio (Sócio Visualizador)**.
-                    Lançamentos de cobranças, despesas operacionais manuais e cadastros estão desativados para o seu perfil.
-                  </p>
-                </div>
-              ) : (
+              {currentUser?.role !== 'socio' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   
                   {/* Lançar Aluguel Semanal Card */}
@@ -1902,6 +1947,7 @@ export default function App() {
               onAddUser={handleAddUser}
               onDeleteUser={handleDeleteUser}
               onChangePasswordClick={() => setShowChangePasswordModal(true)}
+              accessLogs={accessLogs}
             />
           </div>
         )}

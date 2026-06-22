@@ -72,3 +72,12 @@ export interface AppUser {
   password?: string;
   role: 'admin' | 'user' | 'socio';
 }
+
+export interface AccessLog {
+  id: string;
+  userName: string;
+  userEmail: string;
+  userRole: string;
+  timestamp: string; // ISO string standard BRL-timezone format
+  deviceInfo: string; // Browser/useragent snippet
+}
