@@ -318,6 +318,43 @@ export default function App() {
         parsedUsers = INITIAL_USERS;
       }
 
+      // Record access log if session already active on browser load
+      if (storedSession) {
+        try {
+          const userObj = JSON.parse(storedSession) as AppUser;
+          if (userObj && userObj.email) {
+            const now = new Date();
+            const formatter = new Intl.DateTimeFormat('pt-BR', {
+              dateStyle: 'short',
+              timeStyle: 'medium',
+              timeZone: 'America/Sao_Paulo'
+            });
+            const timestampStr = formatter.format(now);
+
+            const logId = 'log_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+
+            const ua = navigator.userAgent;
+            let deviceRepresentation = 'Navegador Padrão';
+            if (ua.includes('Windows')) deviceRepresentation = 'Windows OS (Computador)';
+            else if (ua.includes('Macintosh')) deviceRepresentation = 'Apple macOS (Computador)';
+            else if (ua.includes('Linux')) deviceRepresentation = 'Linux OS (Computador)';
+            else if (ua.includes('Android')) deviceRepresentation = 'Android Mobile';
+            else if (ua.includes('iPhone') || ua.includes('iPad')) deviceRepresentation = 'iOS Mobile';
+
+            const newLog: AccessLog = {
+              id: logId,
+              userName: userObj.name,
+              userEmail: userObj.email,
+              userRole: userObj.email === 'leojoex@hotmail.com' ? 'Desenvolvedor' : userObj.role === 'admin' ? 'Administrador Pleno' : userObj.role === 'socio' ? 'Sócio' : 'Operador',
+              timestamp: timestampStr,
+              deviceInfo: `${deviceRepresentation} (Sessão Ativa)`
+            };
+
+            parsedAccessLogs = [newLog, ...parsedAccessLogs];
+          }
+        } catch (e) {}
+      }
+
       // Auto-realize future installments if their due date is reached or passed
       const todayStr = getBrasiliaDateStr();
       let hasChanges = false;
