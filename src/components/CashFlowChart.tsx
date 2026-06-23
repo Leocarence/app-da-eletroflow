@@ -68,8 +68,8 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
   // Compute aggregated data points of weekly/monthly cash flow
   const points: ChartPoint[] = React.useMemo(() => {
     const todayStr = getBrasiliaDateStr();
-    // Only use current/past transactions OR those that have already been realized/paga
-    const effectiveTransactions = transactions.filter(t => t.date <= todayStr || t.status === 'realized');
+    // Only use current/past transactions
+    const effectiveTransactions = transactions.filter(t => t.date <= todayStr);
 
     if (effectiveTransactions.length === 0) return [];
 

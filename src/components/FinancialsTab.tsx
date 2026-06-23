@@ -45,7 +45,7 @@ export function FinancialsTab({
   // 1. CASH BALANCE (computed from all historical non-deleted transactions)
   const cashBalance = useMemo(() => {
     const todayStr = getBrasiliaDateStr();
-    const effectiveTransactions = transactions.filter(t => t.date <= todayStr || t.status === 'realized');
+    const effectiveTransactions = transactions.filter(t => t.date <= todayStr);
 
     const totalRevenues = effectiveTransactions
       .filter((t) => t.type === 'receita')
@@ -167,7 +167,7 @@ export function FinancialsTab({
     }> = {};
 
     transactions
-      .filter(t => t.date <= todayStr || t.status === 'realized')
+      .filter(t => t.date <= todayStr)
       .forEach(t => {
       if (!t.date) return;
       const [yearStr, monthStr] = t.date.split('-');
@@ -233,7 +233,7 @@ export function FinancialsTab({
   // 6 & 7. GENERAL BILLING & GENERAL EXPENSES Sum
   const generalTotals = useMemo(() => {
     const todayStr = getBrasiliaDateStr();
-    const effectiveTransactions = transactions.filter(t => t.date <= todayStr || t.status === 'realized');
+    const effectiveTransactions = transactions.filter(t => t.date <= todayStr);
 
     const revenueSum = effectiveTransactions
       .filter(t => t.type === 'receita')

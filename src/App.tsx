@@ -808,7 +808,7 @@ export default function App() {
   // FINANCIAL FORMULA CALCULATORS (only effective non-future transactions)
   const financials = React.useMemo(() => {
     const todayStr = getBrasiliaDateStr();
-    const effectiveTransactions = transactions.filter(t => t.date <= todayStr || t.status === 'realized');
+    const effectiveTransactions = transactions.filter(t => t.date <= todayStr);
 
     const totalRevenues = effectiveTransactions
       .filter((t) => t.type === 'receita')
