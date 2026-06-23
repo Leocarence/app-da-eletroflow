@@ -805,22 +805,25 @@ export default function App() {
     }, 2500);
   };
 
-  // FINANCIAL FORMULA CALCULATORS
+  // FINANCIAL FORMULA CALCULATORS (only effective non-future transactions)
   const financials = React.useMemo(() => {
-    const totalRevenues = transactions
+    const todayStr = getBrasiliaDateStr();
+    const effectiveTransactions = transactions.filter(t => t.date <= todayStr);
+
+    const totalRevenues = effectiveTransactions
       .filter((t) => t.type === 'receita')
       .reduce((sum, t) => sum + t.value, 0);
 
-    const totalExpenses = transactions
+    const totalExpenses = effectiveTransactions
       .filter((t) => t.type === 'despesa')
       .reduce((sum, t) => sum + t.value, 0);
 
     // Caução Retido Activo = Received - Returned
-    const caucoesReceived = transactions
+    const caucoesReceived = effectiveTransactions
       .filter((t) => t.type === 'caucao_recebido')
       .reduce((sum, t) => sum + t.value, 0);
 
-    const caucoesReturned = transactions
+    const caucoesReturned = effectiveTransactions
       .filter((t) => t.type === 'caucao_devolvido')
       .reduce((sum, t) => sum + t.value, 0);
 
@@ -2062,13 +2065,15 @@ export default function App() {
                       <tbody className="divide-y divide-slate-100 text-slate-700">
                         {recentTransactions.map((t) => {
                           const increment = t.type === 'receita' || t.type === 'caucao_recebido';
+                          const isFuture = t.date > getBrasiliaDateStr();
                           return (
-                            <tr key={t.id} className="hover:bg-slate-50/50 transition-colors">
+                            <tr key={t.id} className={`hover:bg-slate-50/50 transition-colors ${isFuture ? 'opacity-65 bg-slate-50/80 text-slate-400' : ''}`}>
                               <td className="px-5 py-3.5 font-mono text-black font-semibold whitespace-nowrap">
                                 {new Date(t.date + 'T00:00:00').toLocaleDateString('pt-BR')}
                               </td>
                               <td className="px-5 py-3.5 flex-1">
-                                <span className="font-semibold text-slate-800 block truncate max-w-[280px]" title={t.description}>
+                                <span className={`font-semibold block truncate max-w-[280px] ${isFuture ? 'text-slate-500 italic' : 'text-slate-800'}`} title={t.description}>
+                                  {isFuture && <span className="text-[9px] bg-slate-200 text-slate-600 font-bold px-1.5 py-0.5 rounded mr-1.5 uppercase font-sans">Previsto</span>}
                                   {t.description}
                                 </span>
                               </td>
@@ -2077,7 +2082,7 @@ export default function App() {
                                   {t.category}
                                 </span>
                               </td>
-                              <td className={`px-5 py-3.5 text-right font-mono whitespace-nowrap ${increment ? 'text-emerald-600 font-bold' : 'text-rose-600 font-normal'}`}>
+                              <td className={`px-5 py-3.5 text-right font-mono whitespace-nowrap ${isFuture ? 'text-slate-400 font-semibold italic' : increment ? 'text-emerald-600 font-bold' : 'text-rose-600 font-normal'}`}>
                                 {increment ? '+' : '-'} {formatCurrency(t.value)}
                               </td>
                             </tr>
@@ -2097,22 +2102,26 @@ export default function App() {
                     <div className="block md:hidden divide-y divide-slate-100 p-1 bg-white">
                       {recentTransactions.map((t) => {
                         const increment = t.type === 'receita' || t.type === 'caucao_recebido';
+                        const isFuture = t.date > getBrasiliaDateStr();
                         return (
-                          <div key={t.id} className="p-3.5 flex flex-col gap-2 bg-slate-50/30 hover:bg-slate-50 rounded-lg my-1 border border-slate-100/50">
+                          <div key={t.id} className={`p-3.5 flex flex-col gap-2 rounded-lg my-1 border transition-colors ${isFuture ? 'bg-slate-50/90 border-slate-200/80 opacity-75 text-slate-400' : 'bg-slate-50/30 hover:bg-slate-50 border-slate-100/50'}`}>
                             <div className="flex justify-between items-center text-[10px]">
                               <span className="font-mono text-black font-bold bg-white px-2 py-0.5 rounded border border-slate-205">
                                 {new Date(t.date + 'T00:00:00').toLocaleDateString('pt-BR')}
                               </span>
-                              <span className="text-[9px] bg-indigo-50/70 text-indigo-700 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider border border-indigo-100/60">
-                                {t.category}
-                              </span>
+                              <div className="flex items-center gap-1">
+                                {isFuture && <span className="text-[8px] bg-slate-200 text-slate-600 font-bold px-1.5 py-0.5 rounded uppercase font-sans">Previsto</span>}
+                                <span className="text-[9px] bg-indigo-50/70 text-indigo-700 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider border border-indigo-100/60">
+                                  {t.category}
+                                </span>
+                              </div>
                             </div>
                             
                             <div className="flex justify-between items-end">
-                              <span className="text-xs font-semibold text-slate-800 max-w-[190px] break-words line-clamp-2">
+                              <span className={`text-xs font-semibold max-w-[190px] break-words line-clamp-2 ${isFuture ? 'text-slate-500 italic' : 'text-slate-800'}`}>
                                 {t.description}
                               </span>
-                              <span className={`font-mono text-xs font-bold text-right ${increment ? 'text-emerald-600' : 'text-rose-600 font-normal'}`}>
+                              <span className={`font-mono text-xs font-bold text-right ${isFuture ? 'text-slate-400 italic font-medium' : increment ? 'text-emerald-600' : 'text-rose-600 font-normal'}`}>
                                 {increment ? '+' : '-'} {formatCurrency(t.value)}
                               </span>
                             </div>
