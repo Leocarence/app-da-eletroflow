@@ -114,32 +114,37 @@ export default function VehiclesTab({
     // Past rentals
     const pastRentals = rentals.filter(r => r.vehicleId === v.id && r.status === 'completed');
 
+    const todayStr = getBrasiliaDateStr();
+
     // Transactions associated with this vehicle (using linked vehicleId)
     const vehicleTransactions = transactions
       .filter(t => t.vehicleId === v.id)
       .sort((a, b) => b.date.localeCompare(a.date));
 
+    // For calculations, only sum items with date <= today
+    const effectiveVehicleTransactions = vehicleTransactions.filter(t => t.date <= todayStr);
+
     // Financial calculations
-    const totalRevenues = vehicleTransactions
+    const totalRevenues = effectiveVehicleTransactions
       .filter(t => t.type === 'receita')
       .reduce((sum, t) => sum + t.value, 0);
 
-    const totalExpenses = vehicleTransactions
+    const totalExpenses = effectiveVehicleTransactions
       .filter(t => t.type === 'despesa')
       .reduce((sum, t) => sum + t.value, 0);
 
-    const depositsReceived = vehicleTransactions
+    const depositsReceived = effectiveVehicleTransactions
       .filter(t => t.type === 'caucao_recebido')
       .reduce((sum, t) => sum + t.value, 0);
 
-    const depositsReturned = vehicleTransactions
+    const depositsReturned = effectiveVehicleTransactions
       .filter(t => t.type === 'caucao_devolvido')
       .reduce((sum, t) => sum + t.value, 0);
 
     const netDepositInHand = depositsReceived - depositsReturned;
     const netProfit = totalRevenues - totalExpenses;
 
-    const mechanicalExpenses = vehicleTransactions
+    const mechanicalExpenses = effectiveVehicleTransactions
       .filter(t => t.type === 'despesa' && (
         t.category.toLowerCase().includes('manutenção') ||
         t.category.toLowerCase().includes('oficina') ||
@@ -161,7 +166,7 @@ export default function VehiclesTab({
       ))
       .reduce((sum, t) => sum + t.value, 0);
 
-    const financingExpenses = vehicleTransactions
+    const financingExpenses = effectiveVehicleTransactions
       .filter(t => t.type === 'despesa' && (
         t.category.toLowerCase().includes('financiamento') ||
         t.category.toLowerCase().includes('consórcio') ||
@@ -171,7 +176,7 @@ export default function VehiclesTab({
       ))
       .reduce((sum, t) => sum + t.value, 0);
 
-    const taxExpenses = vehicleTransactions
+    const taxExpenses = effectiveVehicleTransactions
       .filter(t => t.type === 'despesa' && (
         t.category.toLowerCase().includes('ipva') ||
         t.category.toLowerCase().includes('imposto') ||
@@ -185,7 +190,7 @@ export default function VehiclesTab({
       ))
       .reduce((sum, t) => sum + t.value, 0);
 
-    const insuranceExpenses = vehicleTransactions
+    const insuranceExpenses = effectiveVehicleTransactions
       .filter(t => t.type === 'despesa' && (
         t.category.toLowerCase().includes('seguro') ||
         t.description.toLowerCase().includes('seguro')
@@ -567,21 +572,31 @@ export default function VehiclesTab({
               <div className="mt-4 space-y-2 max-h-[400px] overflow-y-auto pr-1">
                 {vehicleTransactions.map((t) => {
                   const increment = t.type === 'receita' || t.type === 'caucao_recebido';
+                  const isFuture = t.date > getBrasiliaDateStr();
                   return (
                     <div
                       key={t.id}
-                      className="flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100/50 rounded-xl text-xs transition-all duration-250 border border-slate-100/30"
+                      className={`flex items-center justify-between p-3 rounded-xl text-xs transition-all duration-250 border ${
+                        isFuture 
+                          ? 'bg-slate-50/70 border-slate-100/90 text-slate-400 opacity-65 font-mono italic' 
+                          : 'bg-slate-50 hover:bg-slate-100/50 border-slate-100/30'
+                      }`}
                     >
                       <div className="truncate pr-3 space-y-0.5">
                         <div className="flex items-center gap-2">
-                          <span className="font-bold text-slate-700">{t.description}</span>
+                          <span className={`font-bold ${isFuture ? 'text-slate-400 italic font-mono' : 'text-slate-700'}`}>
+                            {isFuture && <span className="text-[8px] bg-slate-200 text-slate-500 px-1.5 py-0.2 rounded mr-1 uppercase font-semibold font-sans not-italic">Previsto</span>}
+                            {t.description}
+                          </span>
                           <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${
+                            isFuture ? 'bg-slate-100 text-slate-400 border border-slate-200/50' :
                             t.type === 'receita' ? 'bg-emerald-50 text-emerald-600' :
                             t.type === 'despesa' ? 'bg-rose-50 text-rose-600' :
                             t.type === 'caucao_recebido' ? 'bg-amber-50 text-amber-600' :
                             'bg-slate-150 text-slate-600'
                           }`}>
-                            {t.type === 'receita' ? 'ALUGUEL' :
+                            {isFuture ? 'PREVISTO' :
+                             t.type === 'receita' ? 'ALUGUEL' :
                              t.type === 'despesa' ? `DESPESA - ${t.category.toUpperCase()}` :
                              t.type === 'caucao_recebido' ? 'CAUÇÃO IN' : 'CAUÇÃO OUT'}
                           </span>
@@ -593,7 +608,7 @@ export default function VehiclesTab({
                         </div>
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <span className={`font-mono font-bold ${increment ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        <span className={`font-mono ${isFuture ? 'text-slate-400 font-normal italic' : increment ? 'text-emerald-500 font-bold' : 'text-rose-500 font-normal'}`}>
                           {increment ? '+' : '-'} {formatCurrency(t.value)}
                         </span>
                       </div>

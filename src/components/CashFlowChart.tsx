@@ -67,14 +67,17 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
 
   // Compute aggregated data points of weekly/monthly cash flow
   const points: ChartPoint[] = React.useMemo(() => {
-    if (transactions.length === 0) return [];
+    const todayStr = getBrasiliaDateStr();
+    // Only use current/past transactions OR those that have already been realized/paga
+    const effectiveTransactions = transactions.filter(t => t.date <= todayStr || t.status === 'realized');
+
+    if (effectiveTransactions.length === 0) return [];
 
     // Sort transactions chronologically
-    const sorted = [...transactions].sort((a, b) => a.date.localeCompare(b.date));
+    const sorted = [...effectiveTransactions].sort((a, b) => a.date.localeCompare(b.date));
 
     // Find date range
     const minDateStr = sorted[0].date;
-    const todayStr = getBrasiliaDateStr();
     
     // Choose active range limits
     const maxDateStr = sorted[sorted.length - 1].date > todayStr ? sorted[sorted.length - 1].date : todayStr;
@@ -108,7 +111,7 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
         aggWeekly[m] = { receitas: 0, despesas: 0, caucao: 0 };
       });
 
-      transactions.forEach(t => {
+      effectiveTransactions.forEach(t => {
         const m = getMonday(t.date);
         if (!aggWeekly[m]) {
           aggWeekly[m] = { receitas: 0, despesas: 0, caucao: 0 };
@@ -160,7 +163,7 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
       // Find all days on which there were financial transactions
       const aggDaily: Record<string, { receitas: number; despesas: number; caucao: number }> = {};
       
-      transactions.forEach(t => {
+      effectiveTransactions.forEach(t => {
         const d = t.date; // YYYY-MM-DD
         if (!aggDaily[d]) {
           aggDaily[d] = { receitas: 0, despesas: 0, caucao: 0 };
@@ -239,7 +242,7 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
         aggMonthly[ym] = { receitas: 0, despesas: 0, caucao: 0 };
       });
 
-      transactions.forEach(t => {
+      effectiveTransactions.forEach(t => {
         const ym = t.date.substring(0, 7);
         if (!aggMonthly[ym]) {
           aggMonthly[ym] = { receitas: 0, despesas: 0, caucao: 0 };

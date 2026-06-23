@@ -56,6 +56,7 @@ export default function TransactionsTab({
   const [vehicleId, setVehicleId] = useState<string>('');
   const [category, setCategory] = useState('Aluguel Semanal');
   const [description, setDescription] = useState('');
+  const [isRealized, setIsRealized] = useState(false);
 
   // Edit States for Selected Transaction
   const [showEditModal, setShowEditModal] = useState(false);
@@ -66,6 +67,7 @@ export default function TransactionsTab({
   const [editVehicleId, setEditVehicleId] = useState<string>('');
   const [editCategory, setEditCategory] = useState('');
   const [editDescription, setEditDescription] = useState('');
+  const [editIsRealized, setEditIsRealized] = useState(false);
 
   // Delete States for Selected Transaction
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -148,7 +150,8 @@ export default function TransactionsTab({
         date,
         vehicleId: vehicleId || undefined,
         category,
-        description: description || ''
+        description: description || '',
+        status: isRealized ? 'realized' : 'pending'
       });
       // Reset Standard states
       setType('receita');
@@ -156,6 +159,7 @@ export default function TransactionsTab({
       setVehicleId('');
       setCategory('Aluguel Semanal');
       setDescription('');
+      setIsRealized(false);
       setShowAddModal(false);
     }
   };
@@ -171,7 +175,8 @@ export default function TransactionsTab({
       date: editDate,
       vehicleId: editVehicleId || undefined,
       category: editCategory,
-      description: editDescription || ''
+      description: editDescription || '',
+      status: editIsRealized ? 'realized' : 'pending'
     });
 
     setShowEditModal(false);
@@ -226,6 +231,7 @@ export default function TransactionsTab({
     setEditVehicleId(t.vehicleId || '');
     setEditCategory(t.category);
     setEditDescription(t.description);
+    setEditIsRealized(t.status === 'realized');
     setShowEditModal(true);
   };
 
@@ -504,23 +510,24 @@ export default function TransactionsTab({
               {paginatedTransactions.map((t) => {
                 const vehicle = vehicles.find((v) => v.id === t.vehicleId);
                 const isPositive = t.type === 'receita' || t.type === 'caucao_recebido';
+                const isFuture = t.date > getBrasiliaDateStr();
 
                 return (
-                  <tr key={t.id} className="hover:bg-slate-50/50 transition-colors">
+                  <tr key={t.id} className={`hover:bg-slate-50/50 transition-colors ${isFuture ? 'bg-slate-50/40 text-slate-400 opacity-70 font-mono italic' : ''}`}>
                     {/* Date */}
-                    <td className="px-6 py-4 font-mono text-black font-semibold whitespace-nowrap">
+                    <td className={`px-6 py-4 font-mono whitespace-nowrap ${isFuture ? 'text-slate-400 italic' : 'text-black font-semibold'}`}>
                       {new Date(t.date + 'T00:00:00').toLocaleDateString('pt-BR')}
                     </td>
 
                     {/* Badge Indicator */}
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 rounded-md text-[10px] font-semibold border ${getTypeStyle(t.type)}`}>
-                        {getTypeText(t.type)}
+                      <span className={`px-2 py-1 rounded-md text-[10px] font-semibold border ${isFuture ? 'bg-slate-100 text-slate-400 border-slate-200' : getTypeStyle(t.type)}`}>
+                        {isFuture ? `PREVISTO / ${getTypeText(t.type).toUpperCase()}` : getTypeText(t.type)}
                       </span>
                     </td>
 
                     {/* Category */}
-                    <td className="px-6 py-4 font-semibold text-slate-700 whitespace-nowrap">
+                    <td className={`px-6 py-4 whitespace-nowrap ${isFuture ? 'text-slate-400 italic font-medium' : 'font-semibold text-slate-700'}`}>
                       {t.category}
                     </td>
 
@@ -529,10 +536,10 @@ export default function TransactionsTab({
                       {vehicle ? (
                         <div className="flex flex-col space-y-1">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-mono text-[11px] bg-slate-900 text-white px-2 py-0.5 rounded font-extrabold tracking-wide">
+                            <span className={`font-mono text-[11px] px-2 py-0.5 rounded font-extrabold tracking-wide ${isFuture ? 'bg-slate-400 text-white' : 'bg-slate-900 text-white'}`}>
                               {vehicle.plate}
                             </span>
-                            <span className="font-semibold text-slate-700 text-xs">
+                            <span className={`text-xs ${isFuture ? 'text-slate-400 italic font-medium' : 'font-semibold text-slate-700'}`}>
                               {vehicle.brandModel}
                             </span>
                           </div>
@@ -541,9 +548,9 @@ export default function TransactionsTab({
                                          rentals.find(r => r.vehicleId === t.vehicleId);
                             if (rent) {
                               return (
-                                <div className="text-[10px] font-sans text-slate-750 bg-brand-50 border border-brand-100 px-1.5 py-0.5 rounded inline-flex items-center gap-1">
+                                <div className={`text-[10px] font-sans border px-1.5 py-0.5 rounded inline-flex items-center gap-1 ${isFuture ? 'bg-slate-50 border-slate-200 text-slate-400' : 'bg-brand-50 border-brand-100 text-slate-755'}`}>
                                   <span>Locatário:</span>
-                                  <strong className="text-slate-950 font-bold">{rent.tenantName}</strong>
+                                  <strong className={`font-bold ${isFuture ? 'text-slate-400' : 'text-slate-950'}`}>{rent.tenantName}</strong>
                                 </div>
                               );
                             }
@@ -551,17 +558,17 @@ export default function TransactionsTab({
                           })()}
                         </div>
                       ) : (
-                        <span className="text-slate-400 italic">Geral / Não Vinculado</span>
+                        <span className="text-slate-400 italic font-medium">Geral / Não Vinculado</span>
                       )}
                     </td>
 
                     {/* Description */}
-                    <td className="px-6 py-4 text-slate-500 font-medium max-w-[240px] truncate" title={t.description}>
+                    <td className={`px-6 py-4 font-medium max-w-[240px] truncate ${isFuture ? 'text-slate-400 italic' : 'text-slate-500'}`} title={t.description}>
                       {t.description}
                     </td>
 
                     {/* Cash value */}
-                    <td className={`px-6 py-4 text-right font-mono text-sm whitespace-nowrap ${isPositive ? 'text-emerald-600 font-bold' : 'text-rose-600 font-normal'}`}>
+                    <td className={`px-6 py-4 text-right font-mono text-sm whitespace-nowrap ${isFuture ? 'text-slate-400 italic font-medium' : isPositive ? 'text-emerald-600 font-bold' : 'text-rose-600 font-normal'}`}>
                       {isPositive ? '+' : '-'} {formatCurrency(t.value)}
                     </td>
 
@@ -1235,6 +1242,22 @@ export default function TransactionsTab({
                       rows={2}
                     />
                   </div>
+
+                  {/* Option to mark dynamic future transaction as already settled / paid/ abatida */}
+                  {date > getBrasiliaDateStr() && (
+                    <div className="flex items-center gap-2 p-3 bg-indigo-50/60 rounded-xl border border-indigo-100 transition-all">
+                      <input
+                        type="checkbox"
+                        id="isRealizedCheckbox"
+                        checked={isRealized}
+                        onChange={(e) => setIsRealized(e.target.checked)}
+                        className="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-slate-300 rounded cursor-pointer"
+                      />
+                      <label htmlFor="isRealizedCheckbox" className="text-slate-700 text-xs font-semibold cursor-pointer select-none">
+                        Já compensada / abatida antecipadamente no caixa geral
+                      </label>
+                    </div>
+                  )}
                 </>
               ) : (
                 <>
@@ -1523,6 +1546,22 @@ export default function TransactionsTab({
                   rows={2}
                 />
               </div>
+
+              {/* Option to mark dynamic future transaction as already settled / paid/ abatida inside edit modal */}
+              {editDate > getBrasiliaDateStr() && (
+                <div className="flex items-center gap-2 p-3 bg-indigo-50/60 rounded-xl border border-indigo-100 transition-all">
+                  <input
+                    type="checkbox"
+                    id="editIsRealizedCheckbox"
+                    checked={editIsRealized}
+                    onChange={(e) => setEditIsRealized(e.target.checked)}
+                    className="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-slate-300 rounded cursor-pointer"
+                  />
+                  <label htmlFor="editIsRealizedCheckbox" className="text-slate-700 text-xs font-semibold cursor-pointer select-none">
+                    Já compensada / abatida antecipadamente no caixa geral
+                  </label>
+                </div>
+              )}
 
               <div className="pt-3 border-t border-slate-50 flex items-center justify-end gap-2">
                 <button

@@ -44,19 +44,22 @@ export function FinancialsTab({
 
   // 1. CASH BALANCE (computed from all historical non-deleted transactions)
   const cashBalance = useMemo(() => {
-    const totalRevenues = transactions
+    const todayStr = getBrasiliaDateStr();
+    const effectiveTransactions = transactions.filter(t => t.date <= todayStr || t.status === 'realized');
+
+    const totalRevenues = effectiveTransactions
       .filter((t) => t.type === 'receita')
       .reduce((sum, t) => sum + t.value, 0);
 
-    const totalExpenses = transactions
+    const totalExpenses = effectiveTransactions
       .filter((t) => t.type === 'despesa')
       .reduce((sum, t) => sum + t.value, 0);
 
-    const caucoesReceived = transactions
+    const caucoesReceived = effectiveTransactions
       .filter((t) => t.type === 'caucao_recebido')
       .reduce((sum, t) => sum + t.value, 0);
 
-    const caucoesReturned = transactions
+    const caucoesReturned = effectiveTransactions
       .filter((t) => t.type === 'caucao_devolvido')
       .reduce((sum, t) => sum + t.value, 0);
 
@@ -149,6 +152,7 @@ export function FinancialsTab({
 
   // 5. MONTHLY RESULT: performance of each month chronologically
   const monthlyResults = useMemo(() => {
+    const todayStr = getBrasiliaDateStr();
     const resultsMap: Record<string, {
       monthKey: string; // YYYY-MM
       year: number;
@@ -162,7 +166,9 @@ export function FinancialsTab({
       expenseTransactionsCount: number;
     }> = {};
 
-    transactions.forEach(t => {
+    transactions
+      .filter(t => t.date <= todayStr || t.status === 'realized')
+      .forEach(t => {
       if (!t.date) return;
       const [yearStr, monthStr] = t.date.split('-');
       if (!yearStr || !monthStr) return;
@@ -226,11 +232,14 @@ export function FinancialsTab({
 
   // 6 & 7. GENERAL BILLING & GENERAL EXPENSES Sum
   const generalTotals = useMemo(() => {
-    const revenueSum = transactions
+    const todayStr = getBrasiliaDateStr();
+    const effectiveTransactions = transactions.filter(t => t.date <= todayStr || t.status === 'realized');
+
+    const revenueSum = effectiveTransactions
       .filter(t => t.type === 'receita')
       .reduce((sum, t) => sum + t.value, 0);
 
-    const expenseSum = transactions
+    const expenseSum = effectiveTransactions
       .filter(t => t.type === 'despesa')
       .reduce((sum, t) => sum + t.value, 0);
 

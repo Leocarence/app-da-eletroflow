@@ -34,6 +34,7 @@ export interface Transaction {
   vehicleId?: string; // Optional links to vehicle
   category: string;
   description: string; // facultativa (optional)
+  status?: 'pending' | 'realized'; // to support manually created future transactions already paid/abatido
 }
 
 export interface FutureExpenseInstallment {
