@@ -74,7 +74,7 @@ export default function App() {
   const [accessLogs, setAccessLogs] = useState<AccessLog[]>([]);
 
   // Dashboard Sub-Financials visibility toggle (revenue, deposit, expenses)
-  const [showSubFinancials, setShowSubFinancials] = useState(true);
+  const [showSubFinancials, setShowSubFinancials] = useState(false);
 
   // Core Reactive Data Store with local persistence
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -1769,7 +1769,7 @@ export default function App() {
                         </>
                       ) : (
                         <>
-                          <span>Mostrar Detalhes</span>
+                          <span>Exibir Detalhes</span>
                           <ChevronDown className="h-4 w-4 text-emerald-700" />
                         </>
                       )}
