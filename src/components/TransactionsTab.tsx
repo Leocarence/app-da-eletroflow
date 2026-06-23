@@ -269,12 +269,15 @@ export default function TransactionsTab({
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
 
-  const getTypeText = (t: Transaction) => {
-    switch (t.type) {
+  const getTypeText = (input: Transaction | Transaction['type'], fallbackCategory?: string) => {
+    const type = typeof input === 'object' && input !== null ? input.type : input;
+    const category = typeof input === 'object' && input !== null ? input.category : fallbackCategory;
+    switch (type) {
       case 'receita': return 'Receita';
-      case 'despesa': return `Despesa - ${t.category}`;
+      case 'despesa': return category ? `Despesa - ${category}` : 'Despesa';
       case 'caucao_recebido': return 'Caução Recebido';
       case 'caucao_devolvido': return 'Caução Devolvido';
+      default: return 'Lançamento';
     }
   };
 
@@ -522,7 +525,7 @@ export default function TransactionsTab({
                     {/* Badge Indicator */}
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 rounded-md text-[10px] font-semibold border ${isFuture ? 'bg-slate-100 text-slate-400 border-slate-200' : getTypeStyle(t.type)}`}>
-                        {isFuture ? `PREVISTO / ${getTypeText(t.type).toUpperCase()}` : getTypeText(t.type)}
+                        {isFuture ? `PREVISTO / ${getTypeText(t).toUpperCase()}` : getTypeText(t)}
                       </span>
                     </td>
 
@@ -629,7 +632,7 @@ export default function TransactionsTab({
                     {new Date(t.date + 'T00:00:00').toLocaleDateString('pt-BR')}
                   </span>
                   <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wide border ${getTypeStyle(t.type)}`}>
-                    {getTypeText(t.type)}
+                    {getTypeText(t)}
                   </span>
                 </div>
 
