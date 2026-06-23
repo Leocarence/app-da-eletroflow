@@ -258,6 +258,51 @@ export default function TransactionsTab({
       .sort((a, b) => b.date.localeCompare(a.date)); // descending dates
   }, [transactions, search, filterType, filterVehicle, filterCategory, filterStartDate, filterEndDate]);
 
+  // Reset all filters to their initial states
+  const handleClearFilters = () => {
+    setSearch('');
+    setFilterType('all');
+    setFilterVehicle('all');
+    setFilterCategory('all');
+    setFilterStartDate('');
+    setFilterEndDate('');
+    setCurrentPage(1);
+  };
+
+  // Compute financial totals of current filtered transactions
+  const filteredTotals = React.useMemo(() => {
+    let receitas = 0;
+    let despesas = 0;
+    let caucoesRecebidos = 0;
+    let caucoesDevolvidos = 0;
+
+    filteredTransactions.forEach(t => {
+      if (t.type === 'receita') {
+        receitas += t.value;
+      } else if (t.type === 'despesa') {
+        despesas += t.value;
+      } else if (t.type === 'caucao_recebido') {
+        caucoesRecebidos += t.value;
+      } else if (t.type === 'caucao_devolvido') {
+        caucoesDevolvidos += t.value;
+      }
+    });
+
+    const entradas = receitas + caucoesRecebidos;
+    const saidas = despesas + caucoesDevolvidos;
+    const saldoLiquido = entradas - saidas;
+
+    return {
+      receitas,
+      despesas,
+      caucoesRecebidos,
+      caucoesDevolvidos,
+      entradas,
+      saidas,
+      saldoLiquido
+    };
+  }, [filteredTransactions]);
+
   const MAX_ROWS = 30;
   const totalPages = Math.ceil(filteredTransactions.length / MAX_ROWS);
   const activePage = Math.min(currentPage, Math.max(1, totalPages));
@@ -395,9 +440,20 @@ export default function TransactionsTab({
         <>
           {/* Structured Filters Panels */}
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-premium space-y-4">
-        <div className="flex items-center gap-2 pb-1 border-b border-slate-100">
-          <Filter className="h-4 w-4 text-black" />
-          <h3 className="text-xs font-bold uppercase text-black tracking-wider">Filtros de Visibilidade</h3>
+        <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-black" />
+            <h3 className="text-xs font-bold uppercase text-black tracking-wider">Filtros de Visibilidade</h3>
+          </div>
+          {(search || filterType !== 'all' || filterVehicle !== 'all' || filterCategory !== 'all' || filterStartDate || filterEndDate) && (
+            <button
+              onClick={handleClearFilters}
+              className="flex items-center gap-1 text-[10px] font-extrabold text-rose-600 hover:text-rose-500 bg-rose-50 hover:bg-rose-100/80 px-2.5 py-1.5 rounded-lg transition-all cursor-pointer uppercase tracking-wider"
+            >
+              <X className="h-3.5 w-3.5" />
+              Limpar Filtros
+            </button>
+          )}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
@@ -489,6 +545,70 @@ export default function TransactionsTab({
               onChange={(e) => setFilterEndDate(e.target.value)}
               className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white text-black font-semibold focus:outline-none focus:ring-1 focus:ring-brand-500 font-mono"
             />
+          </div>
+        </div>
+
+        {/* Dynamic Filtered Financial Summary Box */}
+        <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="flex items-center gap-3 bg-emerald-50/70 border border-emerald-100 rounded-xl p-3 transition-colors">
+            <div className="p-2 bg-emerald-100 text-emerald-700 rounded-lg">
+              <ArrowUpCircle className="h-5 w-5" />
+            </div>
+            <div>
+              <span className="text-[10px] font-bold text-slate-500 uppercase block tracking-wider">Entradas Filtradas</span>
+              <span className="text-sm font-extrabold text-emerald-700">{formatCurrency(filteredTotals.entradas)}</span>
+              {filteredTotals.caucoesRecebidos > 0 ? (
+                <span className="text-[9px] text-emerald-600 block leading-tight">
+                  Receitas: {formatCurrency(filteredTotals.receitas)} | Caução: {formatCurrency(filteredTotals.caucoesRecebidos)}
+                </span>
+              ) : (
+                <span className="text-[9px] text-slate-400 block leading-tight">
+                  Receitas operacionais do período
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 bg-rose-50/70 border border-rose-100 rounded-xl p-3 transition-colors">
+            <div className="p-2 bg-rose-100 text-rose-700 rounded-lg">
+              <ArrowDownCircle className="h-5 w-5" />
+            </div>
+            <div>
+              <span className="text-[10px] font-bold text-slate-500 uppercase block tracking-wider">Saídas Filtradas</span>
+              <span className="text-sm font-extrabold text-rose-700">{formatCurrency(filteredTotals.saidas)}</span>
+              {filteredTotals.caucoesDevolvidos > 0 ? (
+                <span className="text-[9px] text-rose-600 block leading-tight">
+                  Despesas: {formatCurrency(filteredTotals.despesas)} | Devolvido: {formatCurrency(filteredTotals.caucoesDevolvidos)}
+                </span>
+              ) : (
+                <span className="text-[9px] text-slate-400 block leading-tight">
+                  Despesas operacionais do período
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className={`flex items-center gap-3 border rounded-xl p-3 transition-colors ${
+            filteredTotals.saldoLiquido >= 0 
+              ? 'bg-indigo-50/70 border-indigo-100' 
+              : 'bg-amber-50/70 border-amber-100'
+          }`}>
+            <div className={`p-2 rounded-lg ${
+              filteredTotals.saldoLiquido >= 0 
+                ? 'bg-indigo-100 text-indigo-700' 
+                : 'bg-amber-100 text-amber-700'
+            }`}>
+              <DollarSign className="h-5 w-5" />
+            </div>
+            <div>
+              <span className="text-[10px] font-bold text-slate-500 uppercase block tracking-wider">Resultado Líquido Filtrado</span>
+              <span className={`text-sm font-extrabold ${
+                filteredTotals.saldoLiquido >= 0 ? 'text-indigo-700' : 'text-rose-600'
+              }`}>{formatCurrency(filteredTotals.saldoLiquido)}</span>
+              <span className="text-[9px] text-slate-400 block leading-tight">
+                Saldo das {filteredTransactions.length} transações visíveis
+              </span>
+            </div>
           </div>
         </div>
       </div>
