@@ -1257,7 +1257,9 @@ export default function App() {
 
   // Most recent transactions lists for the quick overview grid (up to 10 entries)
   const recentTransactions = React.useMemo(() => {
-    return [...transactions]
+    const todayStr = getBrasiliaDateStr();
+    return transactions
+      .filter((t) => t.date <= todayStr)
       .sort((a, b) => b.date.localeCompare(a.date))
       .slice(0, 10);
   }, [transactions]);
