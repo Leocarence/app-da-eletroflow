@@ -2038,8 +2038,8 @@ export default function App() {
               </div>
             </div>
 
-            {/* ROW 3: RECENT ACTIVITIES & FUTURE DEVELOPMENTS BENTO GRID */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-6">
+            {/* ROW 3: RECENT ACTIVITIES */}
+            <div className="grid grid-cols-1 gap-6 pb-6">
               
               {/* Box 1: Últimas Movimentações */}
               <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-premium flex flex-col justify-between">
@@ -2153,84 +2153,6 @@ export default function App() {
                     className="px-4 py-2 border border-slate-100 hover:border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg transition-all flex items-center gap-1 cursor-pointer"
                   >
                     Ver Extrato Completo
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Box 2: Despesas Futuras */}
-              <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-premium flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-4">
-                    <div>
-                      <h3 className="font-display font-semibold text-slate-800 text-base flex items-center gap-2">
-                        <CalendarDays className="h-5 w-5 text-indigo-500 animate-pulse" />
-                        Despesas e Lançamentos Futuros
-                      </h3>
-                      <p className="text-xs text-slate-400">Previsões lançadas com data posterior à atual (não somadas ao caixa).</p>
-                    </div>
-                    <span className="text-[10px] bg-slate-100 border border-slate-205 text-slate-600 px-2 py-0.5 rounded-full font-bold whitespace-nowrap">
-                      {futureTransactions.length} previstas
-                    </span>
-                  </div>
-
-                  <div className="overflow-y-auto max-h-[350px] border border-slate-100 rounded-xl">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold text-[10px] uppercase tracking-wider sticky top-0 bg-white">
-                          <th className="px-4 py-3">Previsto Para</th>
-                          <th className="px-4 py-3">Lançamento / Veículo</th>
-                          <th className="px-4 py-3 text-right">Valor</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 text-slate-400">
-                        {futureTransactions.map((t) => {
-                          const isPositive = t.type === 'receita' || t.type === 'caucao_recebido';
-                          const vehicle = vehicles.find(v => v.id === t.vehicleId);
-                          return (
-                            <tr key={t.id} className="hover:bg-slate-50/40 transition-colors">
-                              <td className="px-4 py-3.5 font-mono font-semibold text-slate-500 whitespace-nowrap">
-                                {new Date(t.date + 'T00:00:00').toLocaleDateString('pt-BR')}
-                              </td>
-                              <td className="px-4 py-3.5">
-                                <span className="block font-sans font-semibold text-slate-500 italic truncate max-w-[150px]" title={t.description}>
-                                  {t.description}
-                                </span>
-                                <div className="flex items-center gap-1.5 flex-wrap mt-1">
-                                  <span className="text-[9px] bg-slate-100 border border-slate-200 text-slate-500 px-1.5 py-0.2 rounded font-sans font-semibold">
-                                    {t.category}
-                                  </span>
-                                  {vehicle && (
-                                    <span className="text-[9px] bg-slate-900 border border-slate-950 text-slate-200 font-mono px-1 rounded font-bold uppercase tracking-wide">
-                                      {vehicle.plate}
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3.5 text-right font-mono text-slate-400 whitespace-nowrap italic">
-                                {isPositive ? '+' : '-'} {formatCurrency(t.value)}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                        {futureTransactions.length === 0 && (
-                          <tr>
-                            <td colSpan={3} className="py-20 text-center text-slate-400 italic">
-                              Nenhuma despesa ou lançamento futuro cadastrada.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <div className="mt-4 flex justify-end">
-                  <button
-                    onClick={() => setActiveTab('transactions')}
-                    className="px-4 py-2 border border-slate-100 hover:border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-lg transition-all flex items-center gap-1 cursor-pointer"
-                  >
-                    Gerenciar Lançamentos
                     <ChevronRight className="h-3.5 w-3.5" />
                   </button>
                 </div>

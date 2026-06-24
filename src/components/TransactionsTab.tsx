@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Transaction, Vehicle, FutureExpense, FutureExpenseInstallment, Rental } from '../types';
 import { getBrasiliaDateStr } from '../utils/dateUtils';
-import { Plus, Search, Calendar, Landmark, ArrowUpCircle, ArrowDownCircle, ChevronDown, Check, X, Filter, Trash2, Edit3, DollarSign, Download, Upload, Pencil, ChevronUp, AlertCircle, Wrench, Shield, CreditCard, HelpCircle, FileText } from 'lucide-react';
+import { Plus, Search, Calendar, Landmark, ArrowUpCircle, ArrowDownCircle, ChevronDown, Check, X, Filter, Trash2, Edit3, DollarSign, Download, Upload, Pencil, ChevronUp, AlertCircle, Wrench, Shield, CreditCard, HelpCircle, FileText, CalendarDays } from 'lucide-react';
 
 interface TransactionsTabProps {
   transactions: Transaction[];
@@ -257,6 +257,14 @@ export default function TransactionsTab({
       })
       .sort((a, b) => b.date.localeCompare(a.date)); // descending dates
   }, [transactions, search, filterType, filterVehicle, filterCategory, filterStartDate, filterEndDate]);
+
+  // Future only transactions for the "box chamada despesas futuras"
+  const futureTransactions = React.useMemo(() => {
+    const todayStr = getBrasiliaDateStr();
+    return transactions
+      .filter((t) => t.date > todayStr)
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }, [transactions]);
 
   // Reset all filters to their initial states
   const handleClearFilters = () => {
@@ -882,6 +890,74 @@ export default function TransactionsTab({
       </div>
     </>
   )}
+
+      {/* BOX: DESPESAS E LANÇAMENTOS FUTUROS (PREVISTOS NO EXTRATO) */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-premium flex flex-col justify-between animate-fade-in">
+        <div>
+          <div className="flex items-center justify-between gap-2 mb-4">
+            <div>
+              <h3 className="font-display font-semibold text-slate-800 text-base flex items-center gap-2">
+                <CalendarDays className="h-5 w-5 text-indigo-500 animate-pulse" />
+                Despesas e Lançamentos Futuros
+              </h3>
+              <p className="text-xs text-slate-400">Previsões lançadas com data posterior à atual (não somadas ao caixa).</p>
+            </div>
+            <span className="text-[10px] bg-slate-100 border border-slate-205 text-slate-600 px-2 py-0.5 rounded-full font-bold whitespace-nowrap">
+              {futureTransactions.length} previstas
+            </span>
+          </div>
+
+          <div className="overflow-y-auto max-h-[350px] border border-slate-100 rounded-xl">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold text-[10px] uppercase tracking-wider sticky top-0 bg-white">
+                  <th className="px-4 py-3">Previsto Para</th>
+                  <th className="px-4 py-3">Lançamento / Veículo</th>
+                  <th className="px-4 py-3 text-right">Valor</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-400">
+                {futureTransactions.map((t) => {
+                  const isPositive = t.type === 'receita' || t.type === 'caucao_recebido';
+                  const vehicle = vehicles.find(v => v.id === t.vehicleId);
+                  return (
+                    <tr key={t.id} className="hover:bg-slate-50/40 transition-colors">
+                      <td className="px-4 py-3.5 font-mono font-semibold text-slate-500 whitespace-nowrap">
+                        {new Date(t.date + 'T00:00:00').toLocaleDateString('pt-BR')}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <span className="block font-sans font-semibold text-slate-500 italic truncate max-w-[250px]" title={t.description}>
+                          {t.description}
+                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                          <span className="text-[9px] bg-slate-100 border border-slate-200 text-slate-500 px-1.5 py-0.2 rounded font-sans font-semibold">
+                            {t.category}
+                          </span>
+                          {vehicle && (
+                            <span className="text-[9px] bg-slate-900 border border-slate-950 text-slate-200 font-mono px-1 rounded font-bold uppercase tracking-wide">
+                              {vehicle.plate}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5 text-right font-mono text-slate-400 whitespace-nowrap italic">
+                        {isPositive ? '+' : '-'} {formatCurrency(t.value)}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {futureTransactions.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="py-20 text-center text-slate-400 italic">
+                      Nenhuma despesa ou lançamento futuro cadastrado.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
 
       {/* DESPESAS FUTURAS / PARCELADAS SECTION */}
       <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-5 shadow-inner-sm space-y-5 animate-fade-in">

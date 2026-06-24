@@ -653,7 +653,7 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
         </div>
       </div>
 
-      <div ref={containerRef} className="relative flex-1 min-h-[220px] select-none w-full overflow-hidden">
+      <div ref={containerRef} className="relative h-[260px] sm:h-[320px] select-none w-full overflow-hidden">
         {/* Y-Axis Fixed Labels Overlay - Sits absolutely at the left of the view, does not scroll! */}
         <div className="absolute left-0 top-0 bottom-0 w-[60px] bg-gradient-to-r from-white via-white/95 to-transparent pointer-events-none z-10 select-none pb-[40px]">
           {gridLines.map((line, idx) => (
