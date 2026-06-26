@@ -686,6 +686,20 @@ export default function App() {
     syncAndSetUsers(updatedUsers);
   };
 
+  const handleClearAccessLogs = (idsToDelete?: string[]) => {
+    let updated: AccessLog[];
+    if (idsToDelete && idsToDelete.length > 0) {
+      updated = accessLogs.filter(log => !idsToDelete.includes(log.id));
+      showNotification(`${idsToDelete.length} log(s) de auditoria apagado(s) com sucesso.`, 'success');
+    } else {
+      updated = [];
+      showNotification('Todos os logs de auditoria foram apagados com sucesso.', 'success');
+    }
+    setAccessLogs(updated);
+    localStorage.setItem('loca_access_logs', JSON.stringify(updated));
+    persistToBackend(vehicles, rentals, transactions, futureExpenses, users, updated);
+  };
+
   // Manual trigger of database saves with clear feedback Toast
   const handleManualSave = () => {
     const backupObj = { vehicles, rentals, transactions, futureExpenses, users };
@@ -2234,6 +2248,7 @@ export default function App() {
               onDeleteUser={handleDeleteUser}
               onChangePasswordClick={() => setShowChangePasswordModal(true)}
               accessLogs={accessLogs}
+              onClearAccessLogs={handleClearAccessLogs}
             />
           </div>
         )}

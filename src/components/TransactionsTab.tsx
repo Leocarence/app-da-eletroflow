@@ -311,7 +311,7 @@ export default function TransactionsTab({
     };
   }, [filteredTransactions]);
 
-  const MAX_ROWS = 30;
+  const MAX_ROWS = 50;
   const totalPages = Math.ceil(filteredTransactions.length / MAX_ROWS);
   const activePage = Math.min(currentPage, Math.max(1, totalPages));
   const paginatedTransactions = React.useMemo(() => {
@@ -624,17 +624,17 @@ export default function TransactionsTab({
       {/* Ledger Table */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-premium overflow-hidden">
         {/* VIEW: Desktop Table (hidden on mobile, visible on medium screens and up) */}
-        <div className="hidden md:block overflow-x-auto">
+        <div className="hidden md:block overflow-auto max-h-[825px] relative scrollbar-thin">
           <table className="w-full text-inner border-collapse min-w-[700px]">
-            <thead>
-              <tr className="bg-slate-50/70 border-b border-slate-100 text-[11px] font-bold text-slate-400 text-left uppercase tracking-wider select-none">
-                <th className="px-6 py-3.5 mr-1 font-sans">Data de Efetivação</th>
-                <th className="px-6 py-3.5 font-sans">Tipo</th>
-                <th className="px-6 py-3.5 font-sans">Categoria</th>
-                <th className="px-6 py-3.5 font-sans">Veículo Relacionado</th>
-                <th className="px-6 py-3.5 font-sans">Descrição do Lançamento</th>
-                <th className="px-6 py-3.5 text-right font-sans">Entrada/Saídas</th>
-                <th className="px-6 py-3.5 text-center font-sans">Ações</th>
+            <thead className="sticky top-0 z-20 shadow-sm bg-slate-50">
+              <tr className="bg-slate-50 border-b border-slate-100 text-[11px] font-bold text-slate-400 text-left uppercase tracking-wider select-none">
+                <th className="px-6 py-3.5 mr-1 font-sans bg-slate-50">Data de Efetivação</th>
+                <th className="px-6 py-3.5 font-sans bg-slate-50">Tipo</th>
+                <th className="px-6 py-3.5 font-sans bg-slate-50">Categoria</th>
+                <th className="px-6 py-3.5 font-sans bg-slate-50">Veículo Relacionado</th>
+                <th className="px-6 py-3.5 font-sans bg-slate-50">Descrição do Lançamento</th>
+                <th className="px-6 py-3.5 text-right font-sans bg-slate-50">Entrada/Saídas</th>
+                <th className="px-6 py-3.5 text-center font-sans bg-slate-50">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs text-slate-600">
@@ -747,7 +747,7 @@ export default function TransactionsTab({
         </div>
 
         {/* VIEW: Smartphone Vertical Cards (visible on mobile, hidden on tablet/desktop) */}
-        <div className="block md:hidden divide-y divide-slate-100 bg-white">
+        <div className="block md:hidden divide-y divide-slate-100 bg-white max-h-[900px] overflow-y-auto relative scrollbar-thin">
           {paginatedTransactions.map((t) => {
             const vehicle = vehicles.find((v) => v.id === t.vehicleId);
             const isPositive = t.type === 'receita' || t.type === 'caucao_recebido';
@@ -865,9 +865,22 @@ export default function TransactionsTab({
               >
                 Anterior
               </button>
-              <span className="px-2.5 py-1 bg-brand-50 text-brand-700 font-extrabold border border-brand-100 rounded text-[11px]">
-                {activePage} / {totalPages}
-              </span>
+              <div className="flex items-center gap-1 select-none overflow-x-auto max-w-[120px] sm:max-w-none py-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    onClick={() => setCurrentPage(page)}
+                    className={`px-2.5 py-1 rounded text-[11px] font-extrabold transition-all cursor-pointer border ${
+                      activePage === page
+                        ? 'bg-brand-600 text-white border-brand-600 shadow-inner'
+                        : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+              </div>
               <button
                 disabled={activePage === totalPages}
                 type="button"

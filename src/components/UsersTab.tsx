@@ -17,7 +17,8 @@ import {
   ArrowLeft,
   Cpu,
   Database,
-  Clock
+  Clock,
+  Download
 } from 'lucide-react';
 import { AppUser, AccessLog } from '../types';
 
@@ -28,11 +29,16 @@ interface UsersTabProps {
   onDeleteUser: (id: string) => void;
   onChangePasswordClick?: () => void;
   accessLogs?: AccessLog[];
+  onClearAccessLogs?: (ids?: string[]) => void;
 }
 
-export function UsersTab({ users, currentUser, onAddUser, onDeleteUser, onChangePasswordClick, accessLogs }: UsersTabProps) {
+export function UsersTab({ users, currentUser, onAddUser, onDeleteUser, onChangePasswordClick, accessLogs, onClearAccessLogs }: UsersTabProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showDevLogs, setShowDevLogs] = useState(false);
+  const [currentLogPage, setCurrentLogPage] = useState(1);
+  const [showDeleteMenu, setShowDeleteMenu] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedLogIds, setSelectedLogIds] = useState<string[]>([]);
   
   // Create User Form States
   const [name, setName] = useState('');
@@ -114,6 +120,100 @@ export function UsersTab({ users, currentUser, onAddUser, onDeleteUser, onChange
 
   if (showDevLogs) {
     const logs = accessLogs || [];
+    const MAX_LOG_ROWS = 50;
+    const totalLogPages = Math.ceil(logs.length / MAX_LOG_ROWS);
+    const activeLogPage = Math.min(currentLogPage, Math.max(1, totalLogPages));
+    const paginatedLogs = logs.slice((activeLogPage - 1) * MAX_LOG_ROWS, activeLogPage * MAX_LOG_ROWS);
+
+    const handleExportLogs = () => {
+      if (logs.length === 0) {
+        alert('Nenhum log disponível para exportar.');
+        return;
+      }
+      
+      // Excel-compatible CSV format with semicolon delimiter and UTF-8 Byte Order Mark (BOM)
+      const headers = [
+        'ID do Registro',
+        'Profissional',
+        'E-mail',
+        'Nivel de Acesso',
+        'Data e Horario (BRL)',
+        'Plataforma/Dispositivo'
+      ];
+      
+      const rows = logs.map(log => [
+        log.id,
+        log.userName || '',
+        log.userEmail || '',
+        log.userRole || '',
+        log.timestamp || '',
+        log.deviceInfo || ''
+      ]);
+      
+      const csvContent = "\uFEFF" + [
+        headers.join(';'),
+        ...rows.map(row => row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(';'))
+      ].join('\r\n');
+      
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", url);
+      downloadAnchor.setAttribute("download", `auditoria_conexoes_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      URL.revokeObjectURL(url);
+    };
+
+    const handleClearLogsClick = () => {
+      if (logs.length === 0) {
+        alert('Nenhum log disponível para apagar.');
+        return;
+      }
+      if (window.confirm('Tem certeza de que deseja apagar TODOS os logs de conexões da auditoria? Esta ação é irreversível.')) {
+        if (onClearAccessLogs) {
+          onClearAccessLogs();
+          setSelectedLogIds([]);
+          setSelectionMode(false);
+          setCurrentLogPage(1);
+        }
+      }
+    };
+
+    const areAllPaginatedLogsSelected = paginatedLogs.length > 0 && paginatedLogs.every(log => selectedLogIds.includes(log.id));
+
+    const handleSelectAllPaginatedLogs = () => {
+      if (areAllPaginatedLogsSelected) {
+        // Unselect all paginated logs
+        setSelectedLogIds(prev => prev.filter(id => !paginatedLogs.map(l => l.id).includes(id)));
+      } else {
+        // Select all paginated logs
+        const paginatedIds = paginatedLogs.map(l => l.id);
+        setSelectedLogIds(prev => Array.from(new Set([...prev, ...paginatedIds])));
+      }
+    };
+
+    const handleSelectLog = (logId: string) => {
+      setSelectedLogIds(prev => 
+        prev.includes(logId) ? prev.filter(id => id !== logId) : [...prev, logId]
+      );
+    };
+
+    const handleDeleteSelectedLogs = () => {
+      if (selectedLogIds.length === 0) {
+        alert('Selecione pelo menos um log para apagar.');
+        return;
+      }
+      if (window.confirm(`Tem certeza de que deseja apagar os ${selectedLogIds.length} logs selecionados?`)) {
+        if (onClearAccessLogs) {
+          onClearAccessLogs(selectedLogIds);
+          setSelectedLogIds([]);
+          setSelectionMode(false);
+        }
+      }
+    };
+
     return (
       <div className="space-y-6 animate-fade-in">
         <div id="users-header" className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-2 border-b border-slate-100">
@@ -150,7 +250,7 @@ export function UsersTab({ users, currentUser, onAddUser, onDeleteUser, onChange
                 <Cpu className="h-5 w-5" />
               </div>
             </div>
-            <p className="text-[10px] text-slate-400 mt-4">Auditoria ativa e de auditoria persistente no disco de backup.</p>
+            <p className="text-[10px] text-slate-400 mt-4">Auditoria activa e de auditoria persistente no disco de backup.</p>
           </div>
 
           <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-premium relative overflow-hidden group">
@@ -186,27 +286,139 @@ export function UsersTab({ users, currentUser, onAddUser, onDeleteUser, onChange
 
         {/* LOGS TABLE CARD */}
         <div className="bg-white rounded-2xl border border-indigo-100/50 shadow-premium p-6">
-          <div className="pb-4 border-b border-slate-100 mb-4">
-            <h3 className="font-display font-bold text-slate-800 text-sm">Controle de Conexões à Aplicação (Auditoria)</h3>
-            <p className="text-[10px] text-slate-400">Logs detalhados de credenciais em conformidade com as regras de privilégios de auditoria.</p>
+          <div className="pb-4 border-b border-slate-100 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h3 className="font-display font-bold text-slate-800 text-sm">Controle de Conexões à Aplicação (Auditoria)</h3>
+              <p className="text-[10px] text-slate-400">Logs detalhados de credenciais em conformidade com as regras de privilégios de auditoria.</p>
+            </div>
+            <div className="flex items-center gap-2 relative">
+              <button
+                onClick={handleExportLogs}
+                className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-[11px] font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                title="Exportar todos os logs de conexões em formato Excel (.csv)"
+              >
+                <Download className="h-3.5 w-3.5 text-indigo-500" />
+                <span>Exportar Logs (Excel)</span>
+              </button>
+              
+              <div className="relative">
+                <button
+                  onClick={() => setShowDeleteMenu(!showDeleteMenu)}
+                  className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-150 text-rose-700 text-[11px] font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                  title="Opções para apagar logs"
+                >
+                  <Trash2 className="h-3.5 w-3.5 text-rose-500" />
+                  <span>Apagar Logs</span>
+                </button>
+                
+                {showDeleteMenu && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-40" 
+                      onClick={() => setShowDeleteMenu(false)}
+                    />
+                    <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-150 rounded-2xl shadow-xl z-50 py-2 animate-fade-in text-xs">
+                      <div className="px-3 py-1.5 border-b border-slate-100 font-bold text-slate-500 text-[10px] uppercase tracking-wider select-none">
+                        Opções de Exclusão
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectionMode(true);
+                          setShowDeleteMenu(false);
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700 hover:text-indigo-600 transition-colors font-semibold flex items-center gap-2"
+                      >
+                        <span className="h-2 w-2 rounded-full bg-indigo-500"></span>
+                        <span>Marcar logs para apagar</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowDeleteMenu(false);
+                          handleClearLogsClick();
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-rose-50 text-rose-700 transition-colors font-semibold flex items-center gap-2"
+                      >
+                        <span className="h-2 w-2 rounded-full bg-rose-500"></span>
+                        <span>Apagar todos de uma vez</span>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* ACTIVE SELECTION CONTROL BAR */}
+          {selectionMode && (
+            <div className="bg-indigo-50/70 border border-indigo-100 rounded-xl p-3 mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-fade-in">
+              <div className="flex items-center gap-2 text-slate-700">
+                <span className="font-bold text-indigo-950">Modo de Seleção Ativo:</span>
+                <span>{selectedLogIds.length} de {logs.length} logs marcados para exclusão.</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleDeleteSelectedLogs}
+                  disabled={selectedLogIds.length === 0}
+                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold rounded-lg cursor-pointer transition-all text-[11px] disabled:cursor-not-allowed"
+                >
+                  Apagar Selecionados ({selectedLogIds.length})
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedLogIds([]);
+                    setSelectionMode(false);
+                  }}
+                  className="px-3 py-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold rounded-lg cursor-pointer transition-all text-[11px]"
+                >
+                  Cancelar Seleção
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="overflow-auto max-h-[550px] relative scrollbar-thin">
             <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-100 text-[10px] uppercase font-mono tracking-wider text-slate-400">
-                  <th className="py-2.5 px-3">Profissional</th>
-                  <th className="py-2.5 px-3">Nível Classificado</th>
-                  <th className="py-2.5 px-3">Identificação Eletrônica</th>
-                  <th className="py-2.5 px-3">Data e Horário (BRL)</th>
-                  <th className="py-2.5 px-3 text-right">Plataforma/Ponto de Ingress</th>
+              <thead className="sticky top-0 z-20 shadow-sm bg-slate-50">
+                <tr className="border-b border-slate-100 text-[10px] uppercase font-mono tracking-wider text-slate-400 bg-slate-50">
+                  {selectionMode && (
+                    <th className="py-2.5 px-3 bg-slate-50 text-center w-10">
+                      <input
+                        type="checkbox"
+                        checked={areAllPaginatedLogsSelected}
+                        onChange={handleSelectAllPaginatedLogs}
+                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5 cursor-pointer"
+                        title="Selecionar todos da página"
+                      />
+                    </th>
+                  )}
+                  <th className="py-2.5 px-3 bg-slate-50">Profissional</th>
+                  <th className="py-2.5 px-3 bg-slate-50">Nível Classificado</th>
+                  <th className="py-2.5 px-3 bg-slate-50">Identificação Eletrônica</th>
+                  <th className="py-2.5 px-3 bg-slate-50">Data e Horário (BRL)</th>
+                  <th className="py-2.5 px-3 text-right bg-slate-50">Plataforma/Ponto de Ingress</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {logs.map((log) => {
+                {paginatedLogs.map((log) => {
                   const isDev = log.userEmail === 'leojoex@hotmail.com';
+                  const isSelected = selectedLogIds.includes(log.id);
                   return (
-                    <tr key={log.id} className="hover:bg-indigo-50/20 transition-colors text-xs font-semibold text-slate-700">
+                    <tr 
+                      key={log.id} 
+                      className={`hover:bg-indigo-50/20 transition-colors text-xs font-semibold text-slate-700 ${isSelected ? 'bg-indigo-50/10' : ''}`}
+                    >
+                      {selectionMode && (
+                        <td className="py-3 px-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleSelectLog(log.id)}
+                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5 cursor-pointer"
+                          />
+                        </td>
+                      )}
                       <td className="py-3 px-3">
                         <div className="flex items-center gap-2">
                           <div className={`h-8 w-8 rounded-lg flex items-center justify-center font-display font-bold ${
@@ -252,9 +464,9 @@ export function UsersTab({ users, currentUser, onAddUser, onDeleteUser, onChange
                   );
                 })}
 
-                {logs.length === 0 && (
+                {paginatedLogs.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="text-center py-12 text-slate-400 text-xs">
+                    <td colSpan={selectionMode ? 6 : 5} className="text-center py-12 text-slate-400 text-xs">
                       Não há logs de conexões gravados nos servidores locais.
                     </td>
                   </tr>
@@ -262,6 +474,45 @@ export function UsersTab({ users, currentUser, onAddUser, onDeleteUser, onChange
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls */}
+          {totalLogPages > 1 && (
+            <div className="flex justify-between items-center mt-5 pt-4 border-t border-slate-100">
+              <button
+                disabled={activeLogPage === 1}
+                type="button"
+                onClick={() => setCurrentLogPage((prev) => Math.max(1, prev - 1))}
+                className="px-3 py-1.5 bg-white border border-slate-200 text-slate-650 rounded-xl font-bold hover:bg-slate-50 text-[11px] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
+              >
+                Anterior
+              </button>
+              <div className="flex items-center gap-1 select-none overflow-x-auto max-w-[120px] sm:max-w-none py-1">
+                {Array.from({ length: totalLogPages }, (_, i) => i + 1).map((page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    onClick={() => setCurrentLogPage(page)}
+                    className={`px-2.5 py-1 rounded text-[11px] font-extrabold transition-all cursor-pointer border ${
+                      activeLogPage === page
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-inner'
+                        : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+              </div>
+              <button
+                disabled={activeLogPage === totalLogPages}
+                type="button"
+                onClick={() => setCurrentLogPage((prev) => Math.min(totalLogPages, prev + 1))}
+                className="px-3 py-1.5 bg-white border border-slate-200 text-slate-650 rounded-xl font-bold hover:bg-slate-50 text-[11px] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
+              >
+                Próximo
+              </button>
+            </div>
+          )}
+
         </div>
       </div>
     );
