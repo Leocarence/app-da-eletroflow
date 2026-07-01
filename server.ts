@@ -94,8 +94,28 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
+    
+    // Set cache control headers for static files
+    app.use(express.static(distPath, {
+      etag: true,
+      lastModified: true,
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith(".html")) {
+          // Never cache HTML files so the browser always gets the latest asset hashes
+          res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+          res.setHeader("Pragma", "no-cache");
+          res.setHeader("Expires", "0");
+        } else {
+          // CSS, JS and other assets are hashed by Vite, so they are safe to cache but we can ask for revalidation to be safe
+          res.setHeader("Cache-Control", "public, max-age=0, must-revalidate");
+        }
+      }
+    }));
+
     app.get("*", (req, res) => {
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
