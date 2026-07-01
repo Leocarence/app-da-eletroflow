@@ -1037,123 +1037,115 @@ export default function RentalsTab({
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {interestedLeads
-              .slice()
-              .sort((a, b) => {
-                const dateA = a.contactDate || '';
-                const dateB = b.contactDate || '';
-                if (dateA !== dateB) {
-                  return dateA.localeCompare(dateB);
-                }
-                return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-              })
-              .map((lead) => {
-                const cleanPhone = lead.phone.replace(/\D/g, '');
-                const waLink = `https://wa.me/55${cleanPhone}`;
-                return (
-                  <div
-                    key={lead.id}
-                    className="bg-slate-50/55 hover:bg-white rounded-xl border border-slate-100 hover:border-brand-200 p-4 shadow-sm hover:shadow-premium transition-all duration-250 relative overflow-hidden flex flex-col justify-between group"
-                  >
-                    <div>
-                      {/* Name and registration / contact date */}
-                      <div className="flex justify-between items-start mb-2 mt-1">
-                        <div>
-                          <h4 className="font-display font-bold text-slate-800 text-sm">{lead.name}</h4>
-                          <span className="text-[10px] text-brand-600 font-bold block mt-0.5 font-sans">
-                            Contato em: {lead.contactDate ? new Date(lead.contactDate + 'T00:00:00').toLocaleDateString('pt-BR') : 'N/A'}
-                          </span>
-                          <span className="text-[9px] text-slate-400 font-mono block mt-0.5">
-                            Cadastrado em: {new Date(lead.createdAt).toLocaleDateString('pt-BR', { dateStyle: 'short' })}
-                          </span>
-                        </div>
-                        <div className="flex gap-1 items-center">
+          {interestedLeads.length > 0 ? (
+            <div className="overflow-x-auto border border-slate-100 rounded-xl">
+              <table className="w-full min-w-[700px] border-collapse text-left text-xs text-slate-600 font-sans">
+                <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-100">
+                  <tr>
+                    <th scope="col" className="px-4 py-3.5">Data de Contato</th>
+                    <th scope="col" className="px-4 py-3.5">Nome</th>
+                    <th scope="col" className="px-4 py-3.5">WhatsApp / Telefone</th>
+                    <th scope="col" className="px-4 py-3.5">E-mail</th>
+                    <th scope="col" className="px-4 py-3.5">Observações</th>
+                    {!isSocio && <th scope="col" className="px-4 py-3.5 text-right">Ações</th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {interestedLeads
+                    .slice()
+                    .sort((a, b) => {
+                      const dateA = a.contactDate || '';
+                      const dateB = b.contactDate || '';
+                      if (dateA !== dateB) {
+                        return dateA.localeCompare(dateB);
+                      }
+                      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+                    })
+                    .map((lead) => {
+                      const cleanPhone = lead.phone.replace(/\D/g, '');
+                      const waLink = `https://wa.me/55${cleanPhone}`;
+                      return (
+                        <tr key={lead.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="px-4 py-3 font-semibold text-brand-600 whitespace-nowrap">
+                            {lead.contactDate ? new Date(lead.contactDate + 'T00:00:00').toLocaleDateString('pt-BR') : 'N/A'}
+                          </td>
+                          <td className="px-4 py-3 font-bold text-slate-800">
+                            {lead.name}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <a
+                              href={waLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-mono font-semibold text-emerald-600 hover:underline inline-flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded text-[11px]"
+                              style={{ minHeight: '24px' }}
+                            >
+                              <PhoneCall className="h-3 w-3" />
+                              {lead.phone}
+                            </a>
+                          </td>
+                          <td className="px-4 py-3 font-mono text-slate-500 max-w-[150px] truncate" title={lead.email}>
+                            {lead.email || '-'}
+                          </td>
+                          <td className="px-4 py-3 text-slate-500 max-w-[200px] truncate" title={lead.notes}>
+                            {lead.notes || <span className="text-slate-300 italic">Sem observações</span>}
+                          </td>
                           {!isSocio && (
-                            <button
-                              onClick={() => {
-                                // Pre-fill start rental form
-                                setTenantName(lead.name);
-                                setTenantPhone(lead.phone);
-                                const available = vehicles.find(v => v.status === 'available');
-                                if (available) {
-                                  handleRentVehicleChange(available.id);
-                                }
-                                setSubTab('list');
-                                setShowStartRental(true);
-                              }}
-                              className="text-[10px] font-bold text-brand-650 bg-brand-50 hover:bg-brand-100 border border-brand-100 px-2 py-1 rounded transition-all flex items-center gap-0.5 cursor-pointer"
-                              title="Converter este interessado em locação ativa"
-                              style={{ minHeight: '30px' }}
-                            >
-                              <Key className="h-3 w-3" />
-                              Alugar
-                            </button>
+                            <td className="px-4 py-3 text-right whitespace-nowrap">
+                              <div className="inline-flex items-center gap-2">
+                                <button
+                                  onClick={() => {
+                                    // Pre-fill start rental form
+                                    setTenantName(lead.name);
+                                    setTenantPhone(lead.phone);
+                                    const available = vehicles.find(v => v.status === 'available');
+                                    if (available) {
+                                      handleRentVehicleChange(available.id);
+                                    }
+                                    setSubTab('list');
+                                    setShowStartRental(true);
+                                  }}
+                                  className="text-[10px] font-bold text-brand-650 bg-brand-50 hover:bg-brand-100 border border-brand-100 px-2.5 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer"
+                                  title="Converter este interessado em locação ativa"
+                                  style={{ minHeight: '28px' }}
+                                >
+                                  <Key className="h-3.5 w-3.5" />
+                                  Alugar
+                                </button>
+                                {onDeleteInterestedLead && (
+                                  <button
+                                    onClick={() => onDeleteInterestedLead(lead.id)}
+                                    className="text-slate-400 hover:text-rose-600 p-1 hover:bg-rose-50 rounded-md transition-all cursor-pointer"
+                                    style={{ minWidth: '28px', minHeight: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                    title="Remover cadastro"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
                           )}
-                          {!isSocio && onDeleteInterestedLead && (
-                            <button
-                              onClick={() => onDeleteInterestedLead(lead.id)}
-                              className="text-slate-400 hover:text-rose-600 p-1.5 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
-                              style={{ minWidth: '32px', minHeight: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                              title="Remover cadastro"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Lead Contact Details */}
-                      <div className="bg-white p-2.5 rounded-lg text-xs space-y-1.5 my-3 border border-slate-100/30">
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-400 font-sans">Telefone:</span>
-                          <a
-                            href={waLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="font-mono font-semibold text-emerald-600 hover:underline flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded text-[11px]"
-                            style={{ minHeight: '24px' }}
-                          >
-                            <PhoneCall className="h-3 w-3 inline" />
-                            {lead.phone}
-                          </a>
-                        </div>
-                        {lead.email && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-slate-400 font-sans">E-mail:</span>
-                            <span className="font-medium text-slate-700 font-mono break-all text-right">{lead.email}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Additional notes if any */}
-                      {lead.notes && (
-                        <div className="bg-slate-100/65 p-2.5 rounded-lg text-[11px] text-slate-500 leading-normal flex items-start gap-1.5 border border-slate-100/40 mt-2 font-sans">
-                          <Info className="h-3.5 w-3.5 text-slate-400 mt-0.5 shrink-0" />
-                          <p className="italic">{lead.notes}</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-
-            {interestedLeads.length === 0 && (
-              <div className="col-span-full py-16 flex flex-col items-center justify-center bg-white rounded-xl border border-dashed border-slate-200">
-                <Users className="h-10 w-10 text-slate-300 stroke-[1.5] mb-2" />
-                <p className="text-slate-500 text-xs font-semibold text-center select-none font-sans">Nenhum interessado cadastrado até o momento.</p>
-                {!isSocio && (
-                  <button
-                    onClick={() => setShowAddLead(true)}
-                    className="mt-3 text-xs bg-brand-500 hover:bg-brand-600 text-white font-semibold px-4 py-2 rounded-lg shadow-sm transition-all cursor-pointer"
-                    style={{ minHeight: '38px' }}
-                  >
-                    Cadastrar Primeiro Interessado
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="py-16 flex flex-col items-center justify-center bg-white rounded-xl border border-dashed border-slate-200">
+              <Users className="h-10 w-10 text-slate-300 stroke-[1.5] mb-2" />
+              <p className="text-slate-500 text-xs font-semibold text-center select-none font-sans">Nenhum interessado cadastrado até o momento.</p>
+              {!isSocio && (
+                <button
+                  onClick={() => setShowAddLead(true)}
+                  className="mt-3 text-xs bg-brand-500 hover:bg-brand-600 text-white font-semibold px-4 py-2 rounded-lg shadow-sm transition-all cursor-pointer"
+                  style={{ minHeight: '38px' }}
+                >
+                  Cadastrar Primeiro Interessado
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
