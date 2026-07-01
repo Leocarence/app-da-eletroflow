@@ -82,3 +82,14 @@ export interface AccessLog {
   timestamp: string; // ISO string standard BRL-timezone format
   deviceInfo: string; // Browser/useragent snippet
 }
+
+export interface InterestedLead {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  notes?: string;
+  createdAt: string; // ISO or BRL string
+  preferredVehicleType?: string;
+}
+

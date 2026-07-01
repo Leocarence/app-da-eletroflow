@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Vehicle, Rental, Transaction, FutureExpense, FutureExpenseInstallment } from './types';
+import { Vehicle, Rental, Transaction, FutureExpense, FutureExpenseInstallment, InterestedLead } from './types';
 import { getBrasiliaDateStr, toLocalDateStr, getBrasiliaUiDateStr } from './utils/dateUtils';
 import {
   INITIAL_VEHICLES,
@@ -69,18 +69,75 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'financials' | 'transactions' | 'vehicles' | 'rentals' | 'users'>('dashboard');
 
   // Security / Authentication State
-  const [users, setUsers] = useState<AppUser[]>([]);
-  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
-  const [accessLogs, setAccessLogs] = useState<AccessLog[]>([]);
+  const [users, setUsers] = useState<AppUser[]>(() => {
+    try {
+      const stored = localStorage.getItem('loca_users');
+      return stored ? JSON.parse(stored) : INITIAL_USERS;
+    } catch (e) {
+      return INITIAL_USERS;
+    }
+  });
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(() => {
+    try {
+      const stored = localStorage.getItem('loca_current_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+  const [accessLogs, setAccessLogs] = useState<AccessLog[]>(() => {
+    try {
+      const stored = localStorage.getItem('loca_access_logs');
+      return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [interestedLeads, setInterestedLeads] = useState<InterestedLead[]>(() => {
+    try {
+      const stored = localStorage.getItem('loca_interested_leads');
+      return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      return [];
+    }
+  });
 
   // Dashboard Sub-Financials visibility toggle (revenue, deposit, expenses)
   const [showSubFinancials, setShowSubFinancials] = useState(false);
 
   // Core Reactive Data Store with local persistence
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [rentals, setRentals] = useState<Rental[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [futureExpenses, setFutureExpenses] = useState<FutureExpense[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>(() => {
+    try {
+      const stored = localStorage.getItem('loca_vehicles');
+      return stored ? JSON.parse(stored) : INITIAL_VEHICLES;
+    } catch (e) {
+      return INITIAL_VEHICLES;
+    }
+  });
+  const [rentals, setRentals] = useState<Rental[]>(() => {
+    try {
+      const stored = localStorage.getItem('loca_rentals');
+      return stored ? JSON.parse(stored) : INITIAL_RENTALS;
+    } catch (e) {
+      return INITIAL_RENTALS;
+    }
+  });
+  const [transactions, setTransactions] = useState<Transaction[]>(() => {
+    try {
+      const stored = localStorage.getItem('loca_transactions');
+      return stored ? JSON.parse(stored) : INITIAL_TRANSACTIONS;
+    } catch (e) {
+      return INITIAL_TRANSACTIONS;
+    }
+  });
+  const [futureExpenses, setFutureExpenses] = useState<FutureExpense[]>(() => {
+    try {
+      const stored = localStorage.getItem('loca_future_expenses');
+      return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      return [];
+    }
+  });
 
   // Database Connection Telemetry status
   const [dbStatus, setDbStatus] = useState<{
@@ -132,6 +189,7 @@ export default function App() {
             const sFuture = serverBackup.futureExpenses || [];
             const sUsers = serverBackup.users || [];
             const sAccessLogs = serverBackup.accessLogs || [];
+            const sLeads = serverBackup.interestedLeads || [];
 
             // Safe State Updates (prevents screen flickers and only updates on difference)
             setVehicles(prev => {
@@ -182,6 +240,14 @@ export default function App() {
               return prev;
             });
 
+            setInterestedLeads(prev => {
+              if (JSON.stringify(prev) !== JSON.stringify(sLeads)) {
+                localStorage.setItem('loca_interested_leads', JSON.stringify(sLeads));
+                return sLeads;
+              }
+              return prev;
+            });
+
             // Sync safety backup
             const backupObj = { 
               vehicles: sVehicles, 
@@ -189,7 +255,8 @@ export default function App() {
               transactions: sTransactions, 
               futureExpenses: sFuture, 
               users: sUsers, 
-              accessLogs: sAccessLogs 
+              accessLogs: sAccessLogs,
+              interestedLeads: sLeads
             };
             localStorage.setItem('loca_db_safety_backup', JSON.stringify(backupObj));
           }
@@ -371,14 +438,17 @@ export default function App() {
     fList: FutureExpense[],
     uList?: AppUser[],
     aLogs?: AccessLog[],
+    leadsList?: InterestedLead[],
     isManualClick = false
   ) => {
     try {
       const activeUsers = uList || users;
       const activeLogs = aLogs || accessLogs;
+      const activeLeads = leadsList || interestedLeads;
       
       // Keep localStorage in key-value sync
       localStorage.setItem('loca_access_logs', JSON.stringify(activeLogs));
+      localStorage.setItem('loca_interested_leads', JSON.stringify(activeLeads));
       
       const response = await fetch('/api/save-data', {
         method: 'POST',
@@ -389,7 +459,8 @@ export default function App() {
           transactions: tList, 
           futureExpenses: fList,
           users: activeUsers,
-          accessLogs: activeLogs
+          accessLogs: activeLogs,
+          interestedLeads: activeLeads
         })
       });
       if (response.ok && isManualClick) {
@@ -414,6 +485,7 @@ export default function App() {
       let parsedFuture: FutureExpense[] = [];
       let parsedUsers: AppUser[] = [];
       let parsedAccessLogs: AccessLog[] = [];
+      let parsedLeads: InterestedLead[] = [];
 
       // Load session
       const storedSession = localStorage.getItem('loca_current_user');
@@ -435,6 +507,7 @@ export default function App() {
             parsedFuture = serverBackup.futureExpenses || [];
             parsedUsers = serverBackup.users || [];
             parsedAccessLogs = serverBackup.accessLogs || [];
+            parsedLeads = serverBackup.interestedLeads || [];
             console.log("Hydrated successfully from server persistent disk backup!");
           }
         }
@@ -450,7 +523,16 @@ export default function App() {
         const storedFuture = localStorage.getItem('loca_future_expenses');
         const storedUsers = localStorage.getItem('loca_users');
         const storedLogs = localStorage.getItem('loca_access_logs');
+        const storedLeads = localStorage.getItem('loca_interested_leads');
         const safetyBackup = localStorage.getItem('loca_db_safety_backup');
+
+        if (storedLeads) {
+          try {
+            parsedLeads = JSON.parse(storedLeads);
+          } catch (e) {
+            parsedLeads = [];
+          }
+        }
 
         if (storedFuture) {
           try {
@@ -495,7 +577,18 @@ export default function App() {
               parsedFuture = parsedBackup.futureExpenses || [];
               parsedUsers = parsedBackup.users || [];
               parsedAccessLogs = parsedBackup.accessLogs || [];
+              parsedLeads = parsedBackup.interestedLeads || [];
             }
+          } catch (e) {}
+        }
+      }
+
+      // Always check for leads fallback if still empty
+      if (parsedLeads.length === 0) {
+        const storedLeads = localStorage.getItem('loca_interested_leads');
+        if (storedLeads) {
+          try {
+            parsedLeads = JSON.parse(storedLeads);
           } catch (e) {}
         }
       }
@@ -604,6 +697,7 @@ export default function App() {
       setFutureExpenses(parsedFuture);
       setUsers(parsedUsers);
       setAccessLogs(parsedAccessLogs);
+      setInterestedLeads(parsedLeads);
 
       // Write standard local storage keys to keep things fully synced
       localStorage.setItem('loca_vehicles', JSON.stringify(parsedVehicles));
@@ -612,12 +706,21 @@ export default function App() {
       localStorage.setItem('loca_future_expenses', JSON.stringify(parsedFuture));
       localStorage.setItem('loca_users', JSON.stringify(parsedUsers));
       localStorage.setItem('loca_access_logs', JSON.stringify(parsedAccessLogs));
+      localStorage.setItem('loca_interested_leads', JSON.stringify(parsedLeads));
 
-      const backupObj = { vehicles: parsedVehicles, rentals: parsedRentals, transactions: parsedTransactions, futureExpenses: parsedFuture, users: parsedUsers, accessLogs: parsedAccessLogs };
+      const backupObj = { 
+        vehicles: parsedVehicles, 
+        rentals: parsedRentals, 
+        transactions: parsedTransactions, 
+        futureExpenses: parsedFuture, 
+        users: parsedUsers, 
+        accessLogs: parsedAccessLogs,
+        interestedLeads: parsedLeads
+      };
       localStorage.setItem('loca_db_safety_backup', JSON.stringify(backupObj));
 
       // Trigger server save to ensure files stay in perfect unison
-      persistToBackend(parsedVehicles, parsedRentals, parsedTransactions, parsedFuture, parsedUsers, parsedAccessLogs);
+      persistToBackend(parsedVehicles, parsedRentals, parsedTransactions, parsedFuture, parsedUsers, parsedAccessLogs, parsedLeads);
     };
 
     loadData();
@@ -659,6 +762,27 @@ export default function App() {
     setFutureExpenses(updated);
     localStorage.setItem('loca_future_expenses', JSON.stringify(updated));
     triggerAutoBackup(vehicles, rentals, transactions, updated);
+  };
+
+  const handleAddInterestedLead = (leadData: Omit<InterestedLead, 'id' | 'createdAt'>) => {
+    const newLead: InterestedLead = {
+      ...leadData,
+      id: 'lead_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      createdAt: new Date().toISOString()
+    };
+    const updated = [...interestedLeads, newLead];
+    setInterestedLeads(updated);
+    localStorage.setItem('loca_interested_leads', JSON.stringify(updated));
+    persistToBackend(vehicles, rentals, transactions, futureExpenses, users, accessLogs, updated);
+    showNotification('Interessado cadastrado com sucesso!', 'success');
+  };
+
+  const handleDeleteInterestedLead = (id: string) => {
+    const updated = interestedLeads.filter(l => l.id !== id);
+    setInterestedLeads(updated);
+    localStorage.setItem('loca_interested_leads', JSON.stringify(updated));
+    persistToBackend(vehicles, rentals, transactions, futureExpenses, users, accessLogs, updated);
+    showNotification('Interessado removido com sucesso!', 'success');
   };
 
   const syncAndSetUsers = (updated: AppUser[]) => {
@@ -709,7 +833,7 @@ export default function App() {
     localStorage.setItem('loca_future_expenses', JSON.stringify(futureExpenses));
     localStorage.setItem('loca_users', JSON.stringify(users));
     localStorage.setItem('loca_db_safety_backup', JSON.stringify(backupObj));
-    persistToBackend(vehicles, rentals, transactions, futureExpenses, users, accessLogs, true);
+    persistToBackend(vehicles, rentals, transactions, futureExpenses, users, accessLogs, interestedLeads, true);
   };
 
   // Export JSON physical backup file
@@ -2235,6 +2359,9 @@ export default function App() {
               onTerminateRental={handleTerminateRental}
               onDeleteRental={handleDeleteRental}
               currentUser={currentUser}
+              interestedLeads={interestedLeads}
+              onAddInterestedLead={handleAddInterestedLead}
+              onDeleteInterestedLead={handleDeleteInterestedLead}
             />
           </div>
         )}

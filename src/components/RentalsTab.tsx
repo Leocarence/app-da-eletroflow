@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Vehicle, Rental, Transaction } from '../types';
+import { Vehicle, Rental, Transaction, InterestedLead } from '../types';
 import { getBrasiliaDateStr, toLocalDateStr } from '../utils/dateUtils';
 import { 
   Plus, Car, User, Key, CheckCircle, AlertTriangle, Calendar, 
   DollarSign, X, ShieldCheck, Heart, UserCheck, CalendarDays, 
   Trash2, ArrowLeft, History, TrendingUp, HelpCircle, PhoneCall,
-  Edit3
+  Edit3, Users, Info
 } from 'lucide-react';
 
 interface RentalsTabProps {
@@ -17,6 +17,9 @@ interface RentalsTabProps {
   onTerminateRental: (id: string, returnDeposit: boolean, refundValue: number) => void;
   onDeleteRental: (id: string, purgeHistory: boolean) => void;
   currentUser?: any;
+  interestedLeads?: InterestedLead[];
+  onAddInterestedLead?: (lead: Omit<InterestedLead, 'id' | 'createdAt'>) => void;
+  onDeleteInterestedLead?: (id: string) => void;
 }
 
 export default function RentalsTab({
@@ -27,10 +30,21 @@ export default function RentalsTab({
   onUpdateRental,
   onTerminateRental,
   onDeleteRental,
-  currentUser
+  currentUser,
+  interestedLeads = [],
+  onAddInterestedLead,
+  onDeleteInterestedLead
 }: RentalsTabProps) {
   const isSocio = currentUser?.role === 'socio';
   // Modal toggle states
+  const [subTab, setSubTab] = useState<'list' | 'interested'>('list');
+  const [showAddLead, setShowAddLead] = useState(false);
+  const [newLeadName, setNewLeadName] = useState('');
+  const [newLeadPhone, setNewLeadPhone] = useState('');
+  const [newLeadEmail, setNewLeadEmail] = useState('');
+  const [newLeadPrefVehicle, setNewLeadPrefVehicle] = useState('');
+  const [newLeadNotes, setNewLeadNotes] = useState('');
+
   const [showStartRental, setShowStartRental] = useState(false);
   const [showEndRentalModal, setShowEndRentalModal] = useState<Rental | null>(null);
   const [selectedRentalId, setSelectedRentalId] = useState<string | null>(null);
@@ -150,6 +164,27 @@ export default function RentalsTab({
     if (selectedRentalId === showEndRentalModal.id) {
       setSelectedRentalId(null);
     }
+  };
+
+  const handleLeadSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onAddInterestedLead) return;
+
+    onAddInterestedLead({
+      name: newLeadName,
+      phone: newLeadPhone,
+      email: newLeadEmail || undefined,
+      preferredVehicleType: newLeadPrefVehicle || undefined,
+      notes: newLeadNotes || undefined
+    });
+
+    // Reset fields
+    setNewLeadName('');
+    setNewLeadPhone('');
+    setNewLeadEmail('');
+    setNewLeadPrefVehicle('');
+    setNewLeadNotes('');
+    setShowAddLead(false);
   };
 
   const formatCurrency = (val: number) => {
@@ -798,11 +833,17 @@ export default function RentalsTab({
       {/* Tab Header Action Bar */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl border border-slate-100 shadow-premium">
         <div>
-          <h2 className="font-display font-bold text-slate-800 text-xl">Gestão de Contratos</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Gerencie os contratos de locação semanal dos motoristas, controle caução e datas.</p>
+          <h2 className="font-display font-bold text-slate-800 text-xl">
+            {subTab === 'list' ? 'Gestão de Contratos' : 'Interessados em Locações'}
+          </h2>
+          <p className="text-xs text-slate-400 mt-0.5">
+            {subTab === 'list' 
+              ? 'Gerencie os contratos de locação semanal dos motoristas, controle caução e datas.' 
+              : 'Lista de motoristas interessados em locações de veículos futuros para captação direta.'}
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          {!isSocio && (
+        <div className="flex items-center gap-2 font-sans">
+          {!isSocio && subTab === 'list' && (
             <button
               onClick={() => {
                 const available = vehicles.find(v => v.status === 'available');
@@ -818,107 +859,290 @@ export default function RentalsTab({
               Nova Locação Semanal
             </button>
           )}
-        </div>
-      </div>
-
-      {/* Contract Listing */}
-      <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-premium space-y-4">
-        <div className="flex items-center justify-between pb-1 border-b border-slate-50">
-          <h3 className="font-display font-semibold text-slate-700 text-sm flex items-center gap-2">
-            <CalendarDays className="h-4 w-4 text-indigo-500" />
-            Contratos Semanais ({rentals.filter(r => !r.isDeleted).length})
-          </h3>
-          <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Clique no contrato para visualizar desdobramento individual</span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {rentals.filter(r => !r.isDeleted).map((r) => {
-            const vehicle = vehicles.find(v => v.id === r.vehicleId);
-            // Calculate days remaining
-            const today = new Date();
-            const endDateObj = new Date(r.endDate + 'T00:00:00');
-            const msDiff = endDateObj.getTime() - today.getTime();
-            const daysLeft = Math.ceil(msDiff / (1000 * 3600 * 24));
-
-            return (
-              <div
-                key={r.id}
-                onClick={() => setSelectedRentalId(r.id)}
-                className="bg-slate-50/55 hover:bg-white rounded-xl border border-slate-100 hover:border-brand-200 p-4 shadow-sm hover:shadow-premium transition-all duration-250 cursor-pointer relative overflow-hidden flex flex-col justify-between group"
-              >
-                {/* Contract indicator border */}
-                <div className={`absolute top-0 left-0 right-0 h-1 ${r.status === 'active' ? 'bg-indigo-500' : 'bg-slate-300'}`}></div>
-
-                <div>
-                  <div className="flex justify-between items-start mb-2 mt-4.1">
-                    <div>
-                      <h4 className="font-display font-bold text-slate-800 group-hover:text-brand-700 text-sm">{r.tenantName}</h4>
-                      {r.phone && <p className="text-[10px] text-slate-400 font-mono mt-0.5">{r.phone}</p>}
-                    </div>
-                    <div>
-                      {r.status === 'active' ? (
-                        daysLeft > 0 ? (
-                          <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded" title="Restantes para os 90 dias estimados">
-                            {daysLeft}d restantes (Est.)
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-150 px-2 py-0.5 rounded" title="Prazo indeterminado automático">
-                            Prazo Indeterminado
-                          </span>
-                        )
-                      ) : (
-                        <span className="text-[10px] font-semibold text-slate-550 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
-                          Finalizado
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Vehicle summary inside contract card */}
-                  <div className="bg-white group-hover:bg-indigo-50/20 p-2.5 rounded-lg text-xs space-y-1 my-3 border border-slate-100/30">
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Veículo:</span>
-                      <span className="font-semibold text-slate-800">{vehicle?.brandModel || 'Não Encontrado'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Placa:</span>
-                      <span className="font-mono font-medium text-slate-700">{vehicle?.plate}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Aluguel Semanal:</span>
-                      <span className="font-bold text-slate-800 font-mono">{formatCurrency(r.weeklyRate)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Caução Retido:</span>
-                      <span className="font-bold text-brand-600 font-mono">{formatCurrency(r.depositValue)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex justify-between items-center text-[10px] text-slate-500 font-mono pt-2 border-t border-slate-100/50 mt-1">
-                  <span>De {new Date(r.startDate + 'T00:00:00').toLocaleDateString('pt-BR')} até {new Date(r.endDate + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
-                  <span className="text-brand-500 group-hover:underline font-bold text-[9px] uppercase tracking-wider flex items-center gap-0.5 font-sans">
-                    Ver Contrato →
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-
-          {rentals.length === 0 && (
-            <div className="col-span-full py-12 flex flex-col items-center justify-center bg-white rounded-xl border border-dashed border-slate-200">
-              <Key className="h-10 w-10 text-slate-300 stroke-[1.5] mb-2" />
-              <p className="text-slate-500 text-xs font-semibold text-center select-none font-sans">Nenhum contrato ativo neste momento.</p>
-              <button
-                onClick={() => setShowStartRental(true)}
-                className="mt-2 text-xs text-indigo-500 font-semibold hover:underline"
-              >
-                Criar o primeiro contrato
-              </button>
-            </div>
+          {!isSocio && subTab === 'interested' && (
+            <button
+              onClick={() => setShowAddLead(true)}
+              className="flex items-center gap-2 bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg text-xs font-semibold font-sans transition-all shadow-md shadow-brand-500/10"
+              id="open-add-lead-btn"
+            >
+              <Plus className="h-4 w-4" />
+              Cadastrar Interessado
+            </button>
           )}
         </div>
       </div>
+
+      {/* Sub-Tabs Selector */}
+      <div className="flex border-b border-slate-200/80 gap-1 bg-white p-1 rounded-xl border border-slate-100/50 shadow-xs">
+        <button
+          onClick={() => setSubTab('list')}
+          className={`px-4 py-2.5 text-xs font-bold flex items-center gap-2 rounded-lg transition-all font-sans cursor-pointer ${
+            subTab === 'list'
+              ? 'bg-brand-500 text-white shadow-xs'
+              : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+          }`}
+        >
+          <CalendarDays className="h-4 w-4" />
+          Contratos Semanais
+        </button>
+        <button
+          onClick={() => setSubTab('interested')}
+          className={`px-4 py-2.5 text-xs font-bold flex items-center gap-2 rounded-lg transition-all font-sans cursor-pointer ${
+            subTab === 'interested'
+              ? 'bg-brand-500 text-white shadow-xs'
+              : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+          }`}
+        >
+          <Users className="h-4 w-4" />
+          Lista de Interessados
+          {interestedLeads.length > 0 && (
+            <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
+              subTab === 'interested' ? 'bg-white/20 text-white' : 'bg-brand-50 text-brand-700'
+            }`}>
+              {interestedLeads.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Conditional Content */}
+      {subTab === 'list' ? (
+        /* Contract Listing */
+        <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-premium space-y-4 animate-fade-in">
+          <div className="flex items-center justify-between pb-1 border-b border-slate-50">
+            <h3 className="font-display font-semibold text-slate-700 text-sm flex items-center gap-2">
+              <CalendarDays className="h-4 w-4 text-indigo-500" />
+              Contratos Semanais ({rentals.filter(r => !r.isDeleted).length})
+            </h3>
+            <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Clique no contrato para visualizar desdobramento individual</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {rentals.filter(r => !r.isDeleted).map((r) => {
+              const vehicle = vehicles.find(v => v.id === r.vehicleId);
+              // Calculate days remaining
+              const today = new Date();
+              const endDateObj = new Date(r.endDate + 'T00:00:00');
+              const msDiff = endDateObj.getTime() - today.getTime();
+              const daysLeft = Math.ceil(msDiff / (1000 * 3600 * 24));
+
+              return (
+                <div
+                  key={r.id}
+                  onClick={() => setSelectedRentalId(r.id)}
+                  className="bg-slate-50/55 hover:bg-white rounded-xl border border-slate-100 hover:border-brand-200 p-4 shadow-sm hover:shadow-premium transition-all duration-250 cursor-pointer relative overflow-hidden flex flex-col justify-between group"
+                >
+                  {/* Contract indicator border */}
+                  <div className={`absolute top-0 left-0 right-0 h-1 ${r.status === 'active' ? 'bg-indigo-500' : 'bg-slate-300'}`}></div>
+
+                  <div>
+                    <div className="flex justify-between items-start mb-2 mt-4.1">
+                      <div>
+                        <h4 className="font-display font-bold text-slate-800 group-hover:text-brand-700 text-sm">{r.tenantName}</h4>
+                        {r.phone && <p className="text-[10px] text-slate-400 font-mono mt-0.5">{r.phone}</p>}
+                      </div>
+                      <div>
+                        {r.status === 'active' ? (
+                          daysLeft > 0 ? (
+                            <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded" title="Restantes para os 90 dias estimados">
+                              {daysLeft}d restantes (Est.)
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-150 px-2 py-0.5 rounded" title="Prazo indeterminado automático">
+                              Prazo Indeterminado
+                            </span>
+                          )
+                        ) : (
+                          <span className="text-[10px] font-semibold text-slate-550 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
+                            Finalizado
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Vehicle summary inside contract card */}
+                    <div className="bg-white group-hover:bg-indigo-50/20 p-2.5 rounded-lg text-xs space-y-1 my-3 border border-slate-100/30">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Veículo:</span>
+                        <span className="font-semibold text-slate-800">{vehicle?.brandModel || 'Não Encontrado'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Placa:</span>
+                        <span className="font-mono font-medium text-slate-700">{vehicle?.plate}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Aluguel Semanal:</span>
+                        <span className="font-bold text-slate-800 font-mono">{formatCurrency(r.weeklyRate)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Caução Retido:</span>
+                        <span className="font-bold text-brand-600 font-mono">{formatCurrency(r.depositValue)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center text-[10px] text-slate-500 font-mono pt-2 border-t border-slate-100/50 mt-1">
+                    <span>De {new Date(r.startDate + 'T00:00:00').toLocaleDateString('pt-BR')} até {new Date(r.endDate + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
+                    <span className="text-brand-500 group-hover:underline font-bold text-[9px] uppercase tracking-wider flex items-center gap-0.5 font-sans">
+                      Ver Contrato →
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+
+            {rentals.length === 0 && (
+              <div className="col-span-full py-12 flex flex-col items-center justify-center bg-white rounded-xl border border-dashed border-slate-200">
+                <Key className="h-10 w-10 text-slate-300 stroke-[1.5] mb-2" />
+                <p className="text-slate-500 text-xs font-semibold text-center select-none font-sans">Nenhum contrato ativo neste momento.</p>
+                <button
+                  onClick={() => setShowStartRental(true)}
+                  className="mt-2 text-xs text-indigo-500 font-semibold hover:underline cursor-pointer"
+                >
+                  Criar o primeiro contrato
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* Interested Leads View */
+        <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-premium space-y-4 animate-fade-in">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-1 border-b border-slate-50 gap-2">
+            <div>
+              <h3 className="font-display font-semibold text-slate-700 text-sm flex items-center gap-2">
+                <Users className="h-4.5 w-4.5 text-indigo-500" />
+                Interessados Cadastrados ({interestedLeads.length})
+              </h3>
+              <p className="text-[10px] text-slate-400 mt-0.5 font-medium">Organizado por ordem de cadastro (Mais antigos primeiro)</p>
+            </div>
+            {!isSocio && (
+              <button
+                onClick={() => setShowAddLead(true)}
+                className="flex items-center gap-1.5 bg-brand-50 text-brand-600 hover:bg-brand-100 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                style={{ minHeight: '30px' }}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Novo Cadastro
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {interestedLeads
+              .slice()
+              .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+              .map((lead) => {
+                const cleanPhone = lead.phone.replace(/\D/g, '');
+                const waLink = `https://wa.me/55${cleanPhone}`;
+                return (
+                  <div
+                    key={lead.id}
+                    className="bg-slate-50/55 hover:bg-white rounded-xl border border-slate-100 hover:border-brand-200 p-4 shadow-sm hover:shadow-premium transition-all duration-250 relative overflow-hidden flex flex-col justify-between group"
+                  >
+                    <div>
+                      {/* Name and registration date */}
+                      <div className="flex justify-between items-start mb-2 mt-1">
+                        <div>
+                          <h4 className="font-display font-bold text-slate-800 text-sm">{lead.name}</h4>
+                          <span className="text-[9px] text-slate-400 font-mono block mt-0.5">
+                            Cadastrado em: {new Date(lead.createdAt).toLocaleDateString('pt-BR', { dateStyle: 'short' })}
+                          </span>
+                        </div>
+                        <div className="flex gap-1 items-center">
+                          {!isSocio && (
+                            <button
+                              onClick={() => {
+                                // Pre-fill start rental form
+                                setTenantName(lead.name);
+                                setTenantPhone(lead.phone);
+                                const available = vehicles.find(v => v.status === 'available');
+                                if (available) {
+                                  handleRentVehicleChange(available.id);
+                                }
+                                setSubTab('list');
+                                setShowStartRental(true);
+                              }}
+                              className="text-[10px] font-bold text-brand-650 bg-brand-50 hover:bg-brand-100 border border-brand-100 px-2 py-1 rounded transition-all flex items-center gap-0.5 cursor-pointer"
+                              title="Converter este interessado em locação ativa"
+                              style={{ minHeight: '30px' }}
+                            >
+                              <Key className="h-3 w-3" />
+                              Alugar
+                            </button>
+                          )}
+                          {!isSocio && onDeleteInterestedLead && (
+                            <button
+                              onClick={() => onDeleteInterestedLead(lead.id)}
+                              className="text-slate-400 hover:text-rose-600 p-1.5 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
+                              style={{ minWidth: '32px', minHeight: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                              title="Remover cadastro"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Lead Contact Details */}
+                      <div className="bg-white p-2.5 rounded-lg text-xs space-y-1.5 my-3 border border-slate-100/30">
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-400 font-sans">Telefone:</span>
+                          <a
+                            href={waLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-mono font-semibold text-emerald-600 hover:underline flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded text-[11px]"
+                            style={{ minHeight: '24px' }}
+                          >
+                            <PhoneCall className="h-3 w-3 inline" />
+                            {lead.phone}
+                          </a>
+                        </div>
+                        {lead.email && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-400 font-sans">E-mail:</span>
+                            <span className="font-medium text-slate-700 font-mono break-all text-right">{lead.email}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-400 font-sans">Veículo Desejado:</span>
+                          <span className="font-bold text-brand-600 bg-brand-50/50 px-2 py-0.5 rounded text-[10px] font-sans">
+                            {lead.preferredVehicleType || 'Qualquer Disponível'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Additional notes if any */}
+                      {lead.notes && (
+                        <div className="bg-slate-100/65 p-2.5 rounded-lg text-[11px] text-slate-500 leading-normal flex items-start gap-1.5 border border-slate-100/40 mt-2 font-sans">
+                          <Info className="h-3.5 w-3.5 text-slate-400 mt-0.5 shrink-0" />
+                          <p className="italic">{lead.notes}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+
+            {interestedLeads.length === 0 && (
+              <div className="col-span-full py-16 flex flex-col items-center justify-center bg-white rounded-xl border border-dashed border-slate-200">
+                <Users className="h-10 w-10 text-slate-300 stroke-[1.5] mb-2" />
+                <p className="text-slate-500 text-xs font-semibold text-center select-none font-sans">Nenhum interessado cadastrado até o momento.</p>
+                {!isSocio && (
+                  <button
+                    onClick={() => setShowAddLead(true)}
+                    className="mt-3 text-xs bg-brand-500 hover:bg-brand-600 text-white font-semibold px-4 py-2 rounded-lg shadow-sm transition-all cursor-pointer"
+                    style={{ minHeight: '38px' }}
+                  >
+                    Cadastrar Primeiro Interessado
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* MODAL: START RENTAL */}
       {showStartRental && (
@@ -1303,6 +1527,101 @@ export default function RentalsTab({
                   className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-semibold font-sans transition-all shadow-premium"
                 >
                   Salvar Alterações
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: REGISTER INTERESTED LEAD */}
+      {showAddLead && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-premium-lg border border-slate-100 transform scale-100 transition-all font-sans">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-display font-bold text-slate-800 text-lg flex items-center gap-2">
+                <Users className="h-5 w-5 text-brand-500" />
+                Cadastrar Novo Interessado
+              </h3>
+              <button
+                onClick={() => setShowAddLead(false)}
+                className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleLeadSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Nome Completo (Locatário)</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Carlos Eduardo de Oliveira"
+                  value={newLeadName}
+                  onChange={(e) => setNewLeadName(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500 font-sans font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Telefone WhatsApp</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: (11) 98888-7777"
+                  value={newLeadPhone}
+                  onChange={(e) => setNewLeadPhone(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500 font-sans font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">E-mail (Opcional)</label>
+                <input
+                  type="email"
+                  placeholder="Ex: carloseduardo@gmail.com"
+                  value={newLeadEmail}
+                  onChange={(e) => setNewLeadEmail(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500 font-sans"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Preferência de Veículo (Opcional)</label>
+                <input
+                  type="text"
+                  placeholder="Ex: Renault Kwid E-Tech, BYD Dolphin Mini"
+                  value={newLeadPrefVehicle}
+                  onChange={(e) => setNewLeadPrefVehicle(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500 font-sans"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Observações / Notas (Opcional)</label>
+                <textarea
+                  placeholder="Ex: Busca carro elétrico econômico. Preferência por contratos longos de mais de 3 meses."
+                  value={newLeadNotes}
+                  onChange={(e) => setNewLeadNotes(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500 font-sans h-20 resize-none"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-50 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddLead(false)}
+                  className="px-4 py-2 border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-lg text-xs font-semibold transition-all font-sans cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-bold transition-all shadow-md shadow-brand-500/10 font-sans cursor-pointer"
+                  style={{ minHeight: '38px' }}
+                >
+                  Confirmar Cadastro
                 </button>
               </div>
             </form>
