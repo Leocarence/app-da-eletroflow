@@ -42,7 +42,7 @@ export default function RentalsTab({
   const [newLeadName, setNewLeadName] = useState('');
   const [newLeadPhone, setNewLeadPhone] = useState('');
   const [newLeadEmail, setNewLeadEmail] = useState('');
-  const [newLeadPrefVehicle, setNewLeadPrefVehicle] = useState('');
+  const [newLeadContactDate, setNewLeadContactDate] = useState(getBrasiliaDateStr());
   const [newLeadNotes, setNewLeadNotes] = useState('');
 
   const [showStartRental, setShowStartRental] = useState(false);
@@ -174,7 +174,7 @@ export default function RentalsTab({
       name: newLeadName,
       phone: newLeadPhone,
       email: newLeadEmail || undefined,
-      preferredVehicleType: newLeadPrefVehicle || undefined,
+      contactDate: newLeadContactDate,
       notes: newLeadNotes || undefined
     });
 
@@ -182,13 +182,22 @@ export default function RentalsTab({
     setNewLeadName('');
     setNewLeadPhone('');
     setNewLeadEmail('');
-    setNewLeadPrefVehicle('');
+    setNewLeadContactDate(getBrasiliaDateStr());
     setNewLeadNotes('');
     setShowAddLead(false);
   };
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+  };
+
+  const formatPhoneNumber = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 11);
+    if (digits.length === 0) return '';
+    if (digits.length <= 2) return `(${digits}`;
+    if (digits.length <= 6) return `(${digits.slice(0, 2)})${digits.slice(2)}`;
+    if (digits.length <= 10) return `(${digits.slice(0, 2)})${digits.slice(2, 6)}-${digits.slice(6)}`;
+    return `(${digits.slice(0, 2)})${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
   };
 
   // Find selected rental
@@ -1014,7 +1023,7 @@ export default function RentalsTab({
                 <Users className="h-4.5 w-4.5 text-indigo-500" />
                 Interessados Cadastrados ({interestedLeads.length})
               </h3>
-              <p className="text-[10px] text-slate-400 mt-0.5 font-medium">Organizado por ordem de cadastro (Mais antigos primeiro)</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 font-medium">Organizado por data de contato (Primeiros contatos no topo)</p>
             </div>
             {!isSocio && (
               <button
@@ -1031,7 +1040,14 @@ export default function RentalsTab({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {interestedLeads
               .slice()
-              .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+              .sort((a, b) => {
+                const dateA = a.contactDate || '';
+                const dateB = b.contactDate || '';
+                if (dateA !== dateB) {
+                  return dateA.localeCompare(dateB);
+                }
+                return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+              })
               .map((lead) => {
                 const cleanPhone = lead.phone.replace(/\D/g, '');
                 const waLink = `https://wa.me/55${cleanPhone}`;
@@ -1041,10 +1057,13 @@ export default function RentalsTab({
                     className="bg-slate-50/55 hover:bg-white rounded-xl border border-slate-100 hover:border-brand-200 p-4 shadow-sm hover:shadow-premium transition-all duration-250 relative overflow-hidden flex flex-col justify-between group"
                   >
                     <div>
-                      {/* Name and registration date */}
+                      {/* Name and registration / contact date */}
                       <div className="flex justify-between items-start mb-2 mt-1">
                         <div>
                           <h4 className="font-display font-bold text-slate-800 text-sm">{lead.name}</h4>
+                          <span className="text-[10px] text-brand-600 font-bold block mt-0.5 font-sans">
+                            Contato em: {lead.contactDate ? new Date(lead.contactDate + 'T00:00:00').toLocaleDateString('pt-BR') : 'N/A'}
+                          </span>
                           <span className="text-[9px] text-slate-400 font-mono block mt-0.5">
                             Cadastrado em: {new Date(lead.createdAt).toLocaleDateString('pt-BR', { dateStyle: 'short' })}
                           </span>
@@ -1105,12 +1124,6 @@ export default function RentalsTab({
                             <span className="font-medium text-slate-700 font-mono break-all text-right">{lead.email}</span>
                           </div>
                         )}
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-400 font-sans">Veículo Desejado:</span>
-                          <span className="font-bold text-brand-600 bg-brand-50/50 px-2 py-0.5 rounded text-[10px] font-sans">
-                            {lead.preferredVehicleType || 'Qualquer Disponível'}
-                          </span>
-                        </div>
                       </div>
 
                       {/* Additional notes if any */}
@@ -1564,16 +1577,30 @@ export default function RentalsTab({
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Telefone WhatsApp</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: (11) 98888-7777"
-                  value={newLeadPhone}
-                  onChange={(e) => setNewLeadPhone(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500 font-sans font-medium"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Telefone WhatsApp</label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={14}
+                    placeholder="Ex: (31) 98524-1922"
+                    value={newLeadPhone}
+                    onChange={(e) => setNewLeadPhone(formatPhoneNumber(e.target.value))}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500 font-sans font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Data do Contato</label>
+                  <input
+                    type="date"
+                    required
+                    value={newLeadContactDate}
+                    onChange={(e) => setNewLeadContactDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500 font-sans font-medium"
+                  />
+                </div>
               </div>
 
               <div>
@@ -1583,17 +1610,6 @@ export default function RentalsTab({
                   placeholder="Ex: carloseduardo@gmail.com"
                   value={newLeadEmail}
                   onChange={(e) => setNewLeadEmail(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500 font-sans"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Preferência de Veículo (Opcional)</label>
-                <input
-                  type="text"
-                  placeholder="Ex: Renault Kwid E-Tech, BYD Dolphin Mini"
-                  value={newLeadPrefVehicle}
-                  onChange={(e) => setNewLeadPrefVehicle(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500 font-sans"
                 />
               </div>

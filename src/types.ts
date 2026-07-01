@@ -90,6 +90,6 @@ export interface InterestedLead {
   email?: string;
   notes?: string;
   createdAt: string; // ISO or BRL string
-  preferredVehicleType?: string;
+  contactDate: string; // YYYY-MM-DD
 }
 
