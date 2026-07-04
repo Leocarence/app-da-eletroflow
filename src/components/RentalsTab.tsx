@@ -866,16 +866,14 @@ export default function RentalsTab({
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl border border-slate-100 shadow-premium">
         <div>
           <h2 className="font-display font-bold text-slate-800 text-xl">
-            {subTab === 'list' ? 'Gestão de Contratos' : 'Interessados em Locações'}
+            Gestão de Locações & Contratos
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            {subTab === 'list' 
-              ? 'Gerencie os contratos de locação semanal dos motoristas, controle caução e datas.' 
-              : 'Lista de motoristas interessados em locações de veículos futuros para captação direta.'}
+            Gerencie contratos de locação semanal dos motoristas, controle caução e acompanhe a fila de interessados.
           </p>
         </div>
         <div className="flex items-center gap-2 font-sans">
-          {!isSocio && subTab === 'list' && (
+          {!isSocio && (
             <button
               onClick={() => {
                 const available = vehicles.find(v => v.status === 'available');
@@ -891,81 +889,56 @@ export default function RentalsTab({
               Nova Locação Semanal
             </button>
           )}
-          {!isSocio && subTab === 'interested' && (
-            <button
-              onClick={() => setShowAddLead(true)}
-              className="flex items-center gap-2 bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg text-xs font-semibold font-sans transition-all shadow-md shadow-brand-500/10"
-              id="open-add-lead-btn"
-            >
-              <Plus className="h-4 w-4" />
-              Cadastrar Interessado
-            </button>
-          )}
         </div>
       </div>
 
-      {/* Sub-Tabs Selector */}
-      <div className="flex border-b border-slate-200/80 gap-1 bg-white p-1 rounded-xl border border-slate-100/50 shadow-xs">
-        <button
-          onClick={() => setSubTab('list')}
-          className={`px-4 py-2.5 text-xs font-bold flex items-center gap-2 rounded-lg transition-all font-sans cursor-pointer ${
-            subTab === 'list'
-              ? 'bg-brand-500 text-white shadow-xs'
-              : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-          }`}
-        >
-          <CalendarDays className="h-4 w-4" />
-          Contratos Semanais (Ativos)
-          {rentals.filter(r => r.status === 'active' && !r.isDeleted).length > 0 && (
-            <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
-              subTab === 'list' ? 'bg-white/20 text-white' : 'bg-brand-50 text-brand-700'
-            }`}>
-              {rentals.filter(r => r.status === 'active' && !r.isDeleted).length}
-            </span>
-          )}
-        </button>
-        
-        <button
-          onClick={() => setSubTab('closed')}
-          className={`px-4 py-2.5 text-xs font-bold flex items-center gap-2 rounded-lg transition-all font-sans cursor-pointer ${
-            subTab === 'closed'
-              ? 'bg-brand-500 text-white shadow-xs'
-              : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-          }`}
-        >
-          <History className="h-4 w-4" />
-          Contratos Encerrados
-          {rentals.filter(r => r.status === 'completed' && !r.isDeleted).length > 0 && (
-            <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
-              subTab === 'closed' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
-            }`}>
-              {rentals.filter(r => r.status === 'completed' && !r.isDeleted).length}
-            </span>
-          )}
-        </button>
+      {/* Main Grid Layout: left holds contracts list/history, right holds waiting list */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Column (Main Contracts area) */}
+        <div className="lg:col-span-8 xl:col-span-9 space-y-6">
+          {/* Sub-Tabs Selector */}
+          <div className="flex border-b border-slate-200/80 gap-1 bg-white p-1 rounded-xl border border-slate-100/50 shadow-xs max-w-md">
+            <button
+              onClick={() => setSubTab('list')}
+              className={`px-4 py-2.5 text-xs font-bold flex items-center gap-2 rounded-lg transition-all font-sans cursor-pointer ${
+                subTab === 'list'
+                  ? 'bg-brand-500 text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <CalendarDays className="h-4 w-4" />
+              Contratos Semanais Ativos
+              {rentals.filter(r => r.status === 'active' && !r.isDeleted).length > 0 && (
+                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
+                  subTab === 'list' ? 'bg-white/20 text-white' : 'bg-brand-50 text-brand-700'
+                }`}>
+                  {rentals.filter(r => r.status === 'active' && !r.isDeleted).length}
+                </span>
+              )}
+            </button>
+            
+            <button
+              onClick={() => setSubTab('closed')}
+              className={`px-4 py-2.5 text-xs font-bold flex items-center gap-2 rounded-lg transition-all font-sans cursor-pointer ${
+                subTab === 'closed'
+                  ? 'bg-brand-500 text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <History className="h-4 w-4" />
+              Contratos Encerrados
+              {rentals.filter(r => r.status === 'completed' && !r.isDeleted).length > 0 && (
+                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
+                  subTab === 'closed' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                }`}>
+                  {rentals.filter(r => r.status === 'completed' && !r.isDeleted).length}
+                </span>
+              )}
+            </button>
+          </div>
 
-        <button
-          onClick={() => setSubTab('interested')}
-          className={`px-4 py-2.5 text-xs font-bold flex items-center gap-2 rounded-lg transition-all font-sans cursor-pointer ${
-            subTab === 'interested'
-              ? 'bg-brand-500 text-white shadow-xs'
-              : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-          }`}
-        >
-          <Users className="h-4 w-4" />
-          Lista de Interessados
-          {interestedLeads.length > 0 && (
-            <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
-              subTab === 'interested' ? 'bg-white/20 text-white' : 'bg-brand-50 text-brand-700'
-            }`}>
-              {interestedLeads.length}
-            </span>
-          )}
-        </button>
-      </div>
-
-      {/* Conditional Content */}
-      {subTab === 'list' && (
+          {/* Conditional Content */}
+          {subTab === 'list' && (
         /* Contract Listing */
         <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-premium space-y-4 animate-fade-in">
           <div className="flex items-center justify-between pb-1 border-b border-slate-50">
@@ -1151,140 +1124,134 @@ export default function RentalsTab({
         </div>
       )}
 
-      {subTab === 'interested' && (
-        /* Interested Leads View */
-        <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-premium space-y-4 animate-fade-in">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-1 border-b border-slate-50 gap-2">
-            <div>
-              <h3 className="font-display font-semibold text-slate-700 text-sm flex items-center gap-2">
-                <Users className="h-4.5 w-4.5 text-indigo-500" />
-                Interessados Cadastrados ({interestedLeads.length})
-              </h3>
-              <p className="text-[10px] text-slate-400 mt-0.5 font-medium">Organizado por data de contato (Primeiros contatos no topo)</p>
-            </div>
-            {!isSocio && (
-              <button
-                onClick={() => setShowAddLead(true)}
-                className="flex items-center gap-1.5 bg-brand-50 text-brand-600 hover:bg-brand-100 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer"
-                style={{ minHeight: '30px' }}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Novo Cadastro
-              </button>
-            )}
-          </div>
+        </div>
 
-          {interestedLeads.length > 0 ? (
-            <div className="overflow-x-auto border border-slate-100 rounded-xl">
-              <table className="w-full min-w-[700px] border-collapse text-left text-xs text-slate-600 font-sans">
-                <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-100">
-                  <tr>
-                    <th scope="col" className="px-4 py-3.5">Data de Contato</th>
-                    <th scope="col" className="px-4 py-3.5">Nome</th>
-                    <th scope="col" className="px-4 py-3.5">WhatsApp / Telefone</th>
-                    <th scope="col" className="px-4 py-3.5">E-mail</th>
-                    <th scope="col" className="px-4 py-3.5">Observações</th>
-                    {!isSocio && <th scope="col" className="px-4 py-3.5 text-right">Ações</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
-                  {interestedLeads
-                    .slice()
-                    .sort((a, b) => {
-                      const dateA = a.contactDate || '';
-                      const dateB = b.contactDate || '';
-                      if (dateA !== dateB) {
-                        return dateA.localeCompare(dateB);
-                      }
-                      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-                    })
-                    .map((lead) => {
-                      const cleanPhone = lead.phone.replace(/\D/g, '');
-                      const waLink = `https://wa.me/55${cleanPhone}`;
-                      return (
-                        <tr key={lead.id} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="px-4 py-3 font-semibold text-brand-600 whitespace-nowrap">
-                            {lead.contactDate ? new Date(lead.contactDate + 'T00:00:00').toLocaleDateString('pt-BR') : 'N/A'}
-                          </td>
-                          <td className="px-4 py-3 font-bold text-slate-800">
-                            {lead.name}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <a
-                              href={waLink}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="font-mono font-semibold text-emerald-600 hover:underline inline-flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded text-[11px]"
-                              style={{ minHeight: '24px' }}
-                            >
-                              <PhoneCall className="h-3 w-3" />
-                              {lead.phone}
-                            </a>
-                          </td>
-                          <td className="px-4 py-3 font-mono text-slate-500 max-w-[150px] truncate" title={lead.email}>
-                            {lead.email || '-'}
-                          </td>
-                          <td className="px-4 py-3 text-slate-500 max-w-[200px] truncate" title={lead.notes}>
-                            {lead.notes || <span className="text-slate-300 italic">Sem observações</span>}
-                          </td>
-                          {!isSocio && (
-                            <td className="px-4 py-3 text-right whitespace-nowrap">
-                              <div className="inline-flex items-center gap-2">
-                                <button
-                                  onClick={() => {
-                                    // Pre-fill start rental form
-                                    setTenantName(lead.name);
-                                    setTenantPhone(lead.phone);
-                                    const available = vehicles.find(v => v.status === 'available');
-                                    if (available) {
-                                      handleRentVehicleChange(available.id);
-                                    }
-                                    setSubTab('list');
-                                    setShowStartRental(true);
-                                  }}
-                                  className="text-[10px] font-bold text-brand-650 bg-brand-50 hover:bg-brand-100 border border-brand-100 px-2.5 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer"
-                                  title="Converter este interessado em locação ativa"
-                                  style={{ minHeight: '28px' }}
-                                >
-                                  <Key className="h-3.5 w-3.5" />
-                                  Alugar
-                                </button>
-                                {onDeleteInterestedLead && (
-                                  <button
-                                    onClick={() => onDeleteInterestedLead(lead.id)}
-                                    className="text-slate-400 hover:text-rose-600 p-1 hover:bg-rose-50 rounded-md transition-all cursor-pointer"
-                                    style={{ minWidth: '28px', minHeight: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                    title="Remover cadastro"
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          )}
-                        </tr>
-                      );
-                    })}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="py-16 flex flex-col items-center justify-center bg-white rounded-xl border border-dashed border-slate-200">
-              <Users className="h-10 w-10 text-slate-300 stroke-[1.5] mb-2" />
-              <p className="text-slate-500 text-xs font-semibold text-center select-none font-sans">Nenhum interessado cadastrado até o momento.</p>
+        {/* Right Column: Fila de Espera / Interessados (CRM/Waitlist) */}
+        <div className="lg:col-span-4 xl:col-span-3">
+          <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-premium space-y-4 animate-fade-in">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-50 gap-2">
+              <div>
+                <h3 className="font-display font-semibold text-slate-700 text-sm flex items-center gap-2">
+                  <Users className="h-4.5 w-4.5 text-indigo-500" />
+                  Fila de Espera ({interestedLeads.length})
+                </h3>
+                <p className="text-[10px] text-slate-400 mt-0.5 font-medium">Interessados em locações futuras</p>
+              </div>
               {!isSocio && (
                 <button
                   onClick={() => setShowAddLead(true)}
-                  className="mt-3 text-xs bg-brand-500 hover:bg-brand-600 text-white font-semibold px-4 py-2 rounded-lg shadow-sm transition-all cursor-pointer"
-                  style={{ minHeight: '38px' }}
+                  className="flex items-center gap-1 bg-brand-50 hover:bg-brand-100 text-brand-600 border border-brand-100 px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                  style={{ minHeight: '28px' }}
+                  title="Cadastrar novo interessado"
                 >
-                  Cadastrar Primeiro Interessado
+                  <Plus className="h-3.5 w-3.5" />
+                  Cadastrar
                 </button>
               )}
             </div>
-          )}
+
+            <div className="space-y-3.5 max-h-[620px] overflow-y-auto pr-1">
+              {interestedLeads.length > 0 ? (
+                interestedLeads
+                  .slice()
+                  .sort((a, b) => {
+                    const dateA = a.contactDate || '';
+                    const dateB = b.contactDate || '';
+                    if (dateA !== dateB) {
+                      return dateA.localeCompare(dateB);
+                    }
+                    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+                  })
+                  .map((lead) => {
+                    const cleanPhone = lead.phone.replace(/\D/g, '');
+                    const waLink = `https://wa.me/55${cleanPhone}`;
+                    return (
+                      <div
+                        key={lead.id}
+                        className="bg-slate-50/50 hover:bg-white rounded-xl border border-slate-100 p-3.5 hover:shadow-premium transition-all relative flex flex-col justify-between group"
+                      >
+                        <div>
+                          <div className="flex justify-between items-start gap-2 mb-1.5">
+                            <div className="min-w-0">
+                              <h4 className="font-display font-bold text-slate-800 text-xs truncate group-hover:text-brand-600 transition-colors">
+                                {lead.name}
+                              </h4>
+                              <span className="text-[9px] font-mono text-slate-400 block mt-0.5">
+                                Contato: {lead.contactDate ? new Date(lead.contactDate + 'T00:00:00').toLocaleDateString('pt-BR') : 'N/A'}
+                              </span>
+                            </div>
+
+                            {!isSocio && onDeleteInterestedLead && (
+                              <button
+                                onClick={() => onDeleteInterestedLead(lead.id)}
+                                className="text-slate-400 hover:text-rose-600 p-1 hover:bg-rose-50 rounded-md transition-all cursor-pointer opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                title="Remover cadastro"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
+
+                          {lead.notes && (
+                            <p className="text-[10px] text-slate-500 bg-white/60 p-2 rounded-lg border border-slate-100/30 mb-2 mt-1.5 line-clamp-2 font-sans" title={lead.notes}>
+                              {lead.notes}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-between gap-1.5 pt-2.5 border-t border-slate-100/60 mt-1.5">
+                          <a
+                            href={waLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-mono font-bold text-emerald-600 hover:underline inline-flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100/80 px-2 py-1.5 rounded-lg text-[10px]"
+                            style={{ minHeight: '24px' }}
+                          >
+                            <PhoneCall className="h-3 w-3" />
+                            WhatsApp
+                          </a>
+
+                          {!isSocio && (
+                            <button
+                              onClick={() => {
+                                setTenantName(lead.name);
+                                setTenantPhone(lead.phone);
+                                const available = vehicles.find(v => v.status === 'available');
+                                if (available) {
+                                  handleRentVehicleChange(available.id);
+                                }
+                                setShowStartRental(true);
+                              }}
+                              className="text-[10px] font-bold text-brand-650 bg-brand-50 hover:bg-brand-100 border border-brand-100 px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-0.5 cursor-pointer"
+                              style={{ minHeight: '24px' }}
+                              title="Iniciar locação semanal com este motorista"
+                            >
+                              <Key className="h-3 w-3" />
+                              Alugar
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+              ) : (
+                <div className="py-12 flex flex-col items-center justify-center bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                  <Users className="h-8 w-8 text-slate-300 stroke-[1.5] mb-2" />
+                  <p className="text-slate-400 text-[10px] font-semibold text-center select-none font-sans px-4">Fila de espera vazia no momento.</p>
+                  {!isSocio && (
+                    <button
+                      onClick={() => setShowAddLead(true)}
+                      className="mt-3 text-[10px] bg-brand-500 hover:bg-brand-600 text-white font-bold px-3 py-1.5 rounded-lg shadow-xs transition-all cursor-pointer"
+                    >
+                      Cadastrar Primeiro
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-      )}
+      </div>
 
       {/* MODAL: START RENTAL */}
       {showStartRental && (
