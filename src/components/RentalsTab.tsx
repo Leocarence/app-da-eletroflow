@@ -37,7 +37,7 @@ export default function RentalsTab({
 }: RentalsTabProps) {
   const isSocio = currentUser?.role === 'socio';
   // Modal toggle states
-  const [subTab, setSubTab] = useState<'list' | 'interested'>('list');
+  const [subTab, setSubTab] = useState<'list' | 'closed' | 'interested'>('list');
   const [showAddLead, setShowAddLead] = useState(false);
   const [newLeadName, setNewLeadName] = useState('');
   const [newLeadPhone, setNewLeadPhone] = useState('');
@@ -62,7 +62,7 @@ export default function RentalsTab({
   const [editRentEndDate, setEditRentEndDate] = useState('');
   const [editRentWeeklyRate, setEditRentWeeklyRate] = useState(1300);
   const [editRentDepositValue, setEditRentDepositValue] = useState(2600);
-  const [editRentStatus, setEditRentStatus] = useState<'active' | 'terminated'>('active');
+  const [editRentStatus, setEditRentStatus] = useState<'active' | 'completed'>('active');
 
   const openEditRentalModal = (r: Rental) => {
     setEditRentId(r.id);
@@ -206,12 +206,21 @@ export default function RentalsTab({
   // Details extraction for selected contract
   const getRentalData = (r: Rental) => {
     const vehicle = vehicles.find(v => v.id === r.vehicleId);
+    const isTerminated = r.status === 'completed';
     
     // Find transactions tagged with this vehicle, but specifically during or related to this rental's tenant
     const relativeTransactions = transactions
       .filter(t => {
         // Must match vehicle
         if (t.vehicleId !== r.vehicleId) return false;
+
+        // If terminated, we specifically fetch all transactions dated between r.startDate and r.endDate
+        if (isTerminated) {
+          const tDate = t.date;
+          const start = r.startDate;
+          const end = r.endDate || getBrasiliaDateStr();
+          return tDate >= start && tDate <= end;
+        }
         
         const descLower = (t.description || '').toLowerCase();
         const catLower = (t.category || '').toLowerCase();
@@ -265,16 +274,21 @@ export default function RentalsTab({
       .filter(t => t.type === 'caucao_recebido')
       .reduce((sum, t) => sum + t.value, 0);
 
+    const vehicleExpenses = relativeTransactions
+      .filter(t => t.type === 'despesa')
+      .reduce((sum, t) => sum + t.value, 0);
+
     return {
       vehicle,
       relativeTransactions,
       rentReceived,
-      depositReceived
+      depositReceived,
+      vehicleExpenses
     };
   };
 
   if (selectedRental) {
-    const { vehicle, relativeTransactions, rentReceived, depositReceived } = getRentalData(selectedRental);
+    const { vehicle, relativeTransactions, rentReceived, depositReceived, vehicleExpenses } = getRentalData(selectedRental);
     
     // Calculate days remaining
     const today = new Date();
@@ -478,16 +492,25 @@ export default function RentalsTab({
               </h3>
               
               {/* Financial Quick Cards */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100/35">
-                  <span className="text-[10px] text-emerald-600 font-bold block mb-1 uppercase">Semanas Pagas (Aluguéis)</span>
+                  <span className="text-[10px] text-emerald-600 font-bold block mb-1 uppercase">Receitas de Aluguel</span>
                   <span className="text-lg font-bold font-mono text-emerald-600">{formatCurrency(rentReceived)}</span>
-                  <span className="text-[10px] text-slate-400 block mt-1">Estima: {Math.round(rentReceived / selectedRental.weeklyRate)} semanas quitadas</span>
+                  <span className="text-[10px] text-slate-400 block mt-1">Estima: {selectedRental.weeklyRate > 0 ? Math.round(rentReceived / selectedRental.weeklyRate) : 0} semanas pagas</span>
                 </div>
-                <div className="bg-amber-50/50 p-4 rounded-xl border border-amber-100/35">
-                  <span className="text-[10px] text-amber-600 font-bold block mb-1 uppercase">Caução Lançado em Caixa</span>
-                  <span className="text-lg font-bold font-mono text-amber-600">{formatCurrency(depositReceived)}</span>
-                  <span className="text-[10px] text-slate-400 block mt-1">Caução retido pela empresa</span>
+                
+                <div className="bg-rose-50/50 p-4 rounded-xl border border-rose-100/35">
+                  <span className="text-[10px] text-rose-600 font-bold block mb-1 uppercase">Custos do Veículo (Oficina)</span>
+                  <span className="text-lg font-bold font-mono text-rose-600">{formatCurrency(vehicleExpenses)}</span>
+                  <span className="text-[10px] text-slate-400 block mt-1">Lançados no veículo durante a vigência</span>
+                </div>
+
+                <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100/35">
+                  <span className="text-[10px] text-indigo-650 text-indigo-600 font-bold block mb-1 uppercase">Resultado Líquido</span>
+                  <span className={`text-lg font-bold font-mono ${rentReceived - vehicleExpenses >= 0 ? 'text-indigo-600' : 'text-rose-500'}`}>
+                    {formatCurrency(rentReceived - vehicleExpenses)}
+                  </span>
+                  <span className="text-[10px] text-slate-400 block mt-1">Caução Retido: {formatCurrency(depositReceived)}</span>
                 </div>
               </div>
 
@@ -892,8 +915,35 @@ export default function RentalsTab({
           }`}
         >
           <CalendarDays className="h-4 w-4" />
-          Contratos Semanais
+          Contratos Semanais (Ativos)
+          {rentals.filter(r => r.status === 'active' && !r.isDeleted).length > 0 && (
+            <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
+              subTab === 'list' ? 'bg-white/20 text-white' : 'bg-brand-50 text-brand-700'
+            }`}>
+              {rentals.filter(r => r.status === 'active' && !r.isDeleted).length}
+            </span>
+          )}
         </button>
+        
+        <button
+          onClick={() => setSubTab('closed')}
+          className={`px-4 py-2.5 text-xs font-bold flex items-center gap-2 rounded-lg transition-all font-sans cursor-pointer ${
+            subTab === 'closed'
+              ? 'bg-brand-500 text-white shadow-xs'
+              : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+          }`}
+        >
+          <History className="h-4 w-4" />
+          Contratos Encerrados
+          {rentals.filter(r => r.status === 'completed' && !r.isDeleted).length > 0 && (
+            <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
+              subTab === 'closed' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+            }`}>
+              {rentals.filter(r => r.status === 'completed' && !r.isDeleted).length}
+            </span>
+          )}
+        </button>
+
         <button
           onClick={() => setSubTab('interested')}
           className={`px-4 py-2.5 text-xs font-bold flex items-center gap-2 rounded-lg transition-all font-sans cursor-pointer ${
@@ -915,19 +965,19 @@ export default function RentalsTab({
       </div>
 
       {/* Conditional Content */}
-      {subTab === 'list' ? (
+      {subTab === 'list' && (
         /* Contract Listing */
         <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-premium space-y-4 animate-fade-in">
           <div className="flex items-center justify-between pb-1 border-b border-slate-50">
             <h3 className="font-display font-semibold text-slate-700 text-sm flex items-center gap-2">
               <CalendarDays className="h-4 w-4 text-indigo-500" />
-              Contratos Semanais ({rentals.filter(r => !r.isDeleted).length})
+              Contratos Semanais Ativos ({rentals.filter(r => r.status === 'active' && !r.isDeleted).length})
             </h3>
             <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Clique no contrato para visualizar desdobramento individual</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {rentals.filter(r => !r.isDeleted).map((r) => {
+            {rentals.filter(r => r.status === 'active' && !r.isDeleted).map((r) => {
               const vehicle = vehicles.find(v => v.id === r.vehicleId);
               // Calculate days remaining
               const today = new Date();
@@ -942,7 +992,7 @@ export default function RentalsTab({
                   className="bg-slate-50/55 hover:bg-white rounded-xl border border-slate-100 hover:border-brand-200 p-4 shadow-sm hover:shadow-premium transition-all duration-250 cursor-pointer relative overflow-hidden flex flex-col justify-between group"
                 >
                   {/* Contract indicator border */}
-                  <div className={`absolute top-0 left-0 right-0 h-1 ${r.status === 'active' ? 'bg-indigo-500' : 'bg-slate-300'}`}></div>
+                  <div className="absolute top-0 left-0 right-0 h-1 bg-indigo-500"></div>
 
                   <div>
                     <div className="flex justify-between items-start mb-2 mt-4.1">
@@ -951,19 +1001,13 @@ export default function RentalsTab({
                         {r.phone && <p className="text-[10px] text-slate-400 font-mono mt-0.5">{r.phone}</p>}
                       </div>
                       <div>
-                        {r.status === 'active' ? (
-                          daysLeft > 0 ? (
-                            <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded" title="Restantes para os 90 dias estimados">
-                              {daysLeft}d restantes (Est.)
-                            </span>
-                          ) : (
-                            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-150 px-2 py-0.5 rounded" title="Prazo indeterminado automático">
-                              Prazo Indeterminado
-                            </span>
-                          )
+                        {daysLeft > 0 ? (
+                          <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded" title="Restantes para os 90 dias estimados">
+                            {daysLeft}d restantes (Est.)
+                          </span>
                         ) : (
-                          <span className="text-[10px] font-semibold text-slate-550 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
-                            Finalizado
+                          <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-150 px-2 py-0.5 rounded" title="Prazo indeterminado automático">
+                            Prazo Indeterminado
                           </span>
                         )}
                       </div>
@@ -1000,7 +1044,7 @@ export default function RentalsTab({
               );
             })}
 
-            {rentals.length === 0 && (
+            {rentals.filter(r => r.status === 'active' && !r.isDeleted).length === 0 && (
               <div className="col-span-full py-12 flex flex-col items-center justify-center bg-white rounded-xl border border-dashed border-slate-200">
                 <Key className="h-10 w-10 text-slate-300 stroke-[1.5] mb-2" />
                 <p className="text-slate-500 text-xs font-semibold text-center select-none font-sans">Nenhum contrato ativo neste momento.</p>
@@ -1014,7 +1058,100 @@ export default function RentalsTab({
             )}
           </div>
         </div>
-      ) : (
+      )}
+
+      {subTab === 'closed' && (
+        /* Closed/Concluded Contract Listing */
+        <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-premium space-y-4 animate-fade-in">
+          <div className="flex items-center justify-between pb-1 border-b border-slate-50">
+            <h3 className="font-display font-semibold text-slate-700 text-sm flex items-center gap-2">
+              <History className="h-4 w-4 text-slate-500" />
+              Contratos Concluídos & Encerrados ({rentals.filter(r => r.status === 'completed' && !r.isDeleted).length})
+            </h3>
+            <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Clique no contrato para visualizar a prestação de contas consolidada</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {rentals.filter(r => r.status === 'completed' && !r.isDeleted).map((r) => {
+              const vehicle = vehicles.find(v => v.id === r.vehicleId);
+              const { rentReceived, vehicleExpenses } = getRentalData(r);
+
+              return (
+                <div
+                  key={r.id}
+                  onClick={() => setSelectedRentalId(r.id)}
+                  className="bg-slate-50/55 hover:bg-white rounded-xl border border-slate-100 hover:border-brand-200 p-4 shadow-sm hover:shadow-premium transition-all duration-250 cursor-pointer relative overflow-hidden flex flex-col justify-between group"
+                >
+                  {/* Closed indicator border */}
+                  <div className="absolute top-0 left-0 right-0 h-1 bg-slate-400"></div>
+
+                  <div>
+                    <div className="flex justify-between items-start mb-2 mt-4">
+                      <div>
+                        <h4 className="font-display font-bold text-slate-800 group-hover:text-brand-700 text-sm">{r.tenantName}</h4>
+                        {r.phone && <p className="text-[10px] text-slate-400 font-mono mt-0.5">{r.phone}</p>}
+                      </div>
+                      <span className="text-[9px] bg-slate-100 text-slate-600 font-bold px-2 py-0.5 rounded border border-slate-200 uppercase">
+                        Encerrado
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3.5 my-3 bg-white p-2.5 rounded-xl border border-slate-100/40 text-[11px] font-sans">
+                      <div>
+                        <span className="text-slate-400 block text-[9px] font-bold uppercase">Veículo Locado</span>
+                        <strong className="text-slate-700 truncate block">
+                          {vehicle ? vehicle.brandModel : 'Não localizado'}
+                        </strong>
+                        {vehicle && <span className="font-mono text-[9px] text-slate-500">{vehicle.plate}</span>}
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[9px] font-bold uppercase">Período de Vigência</span>
+                        <span className="font-mono text-slate-600 block mt-0.5">
+                          {r.startDate ? new Date(r.startDate + 'T00:00:00').toLocaleDateString('pt-BR') : 'N/D'}
+                        </span>
+                        <span className="font-mono font-bold text-slate-700 block">
+                          até {r.endDate ? new Date(r.endDate + 'T00:00:00').toLocaleDateString('pt-BR') : 'N/D'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between items-center text-xs pt-2.5 border-t border-slate-100/50">
+                      <div>
+                        <span className="text-[9px] text-slate-450 block font-bold uppercase">Aluguéis Pagos</span>
+                        <span className="font-mono font-bold text-emerald-600">{formatCurrency(rentReceived)}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[9px] text-slate-450 block font-bold uppercase">Custos do Veículo</span>
+                        <span className="font-mono font-bold text-rose-500">{formatCurrency(vehicleExpenses)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3.5 pt-2.5 border-t border-slate-100/50 flex items-center justify-between text-[10px]">
+                    <span className={`font-bold px-2 py-0.5 rounded ${
+                      rentReceived - vehicleExpenses >= 0 ? 'bg-indigo-50 text-indigo-700' : 'bg-rose-50 text-rose-700'
+                    }`}>
+                      Lucro Líquido: {formatCurrency(rentReceived - vehicleExpenses)}
+                    </span>
+                    <span className="text-brand-500 group-hover:underline font-bold text-[9px] uppercase tracking-wider flex items-center gap-0.5 font-sans">
+                      DRE Completo →
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+
+            {rentals.filter(r => r.status === 'completed' && !r.isDeleted).length === 0 && (
+              <div className="col-span-full py-12 flex flex-col items-center justify-center bg-white rounded-xl border border-dashed border-slate-200">
+                <History className="h-10 w-10 text-slate-300 stroke-[1.5] mb-2" />
+                <p className="text-slate-500 text-xs font-semibold text-center select-none font-sans">Nenhum contrato concluído ou encerrado.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {subTab === 'interested' && (
         /* Interested Leads View */
         <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-premium space-y-4 animate-fade-in">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-1 border-b border-slate-50 gap-2">
@@ -1208,9 +1345,10 @@ export default function RentalsTab({
                   <label className="block text-xs font-medium text-slate-500 mb-1">Telefone do Motorista (Opcional)</label>
                   <input
                     type="text"
-                    placeholder="Ex: (21) 99999-8888"
+                    placeholder="Ex: (31) 98524-1922"
                     value={tenantPhone}
-                    onChange={(e) => setTenantPhone(e.target.value)}
+                    onChange={(e) => setTenantPhone(formatPhoneNumber(e.target.value))}
+                    maxLength={14}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500 font-sans"
                   />
                 </div>
@@ -1454,9 +1592,10 @@ export default function RentalsTab({
                   <input
                     type="text"
                     value={editRentPhone}
-                    onChange={(e) => setEditRentPhone(e.target.value)}
+                    onChange={(e) => setEditRentPhone(formatPhoneNumber(e.target.value))}
+                    maxLength={14}
                     className="w-full font-mono text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all text-slate-755"
-                    placeholder="Ex: (11) 99999-9999"
+                    placeholder="Ex: (31) 98524-1922"
                   />
                 </div>
 
@@ -1510,11 +1649,11 @@ export default function RentalsTab({
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 font-sans">Status do Contrato</label>
                   <select
                     value={editRentStatus}
-                    onChange={(e) => setEditRentStatus(e.target.value as 'active' | 'terminated')}
+                    onChange={(e) => setEditRentStatus(e.target.value as 'active' | 'completed')}
                     className="w-full text-xs font-sans px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all bg-white text-slate-755"
                   >
                     <option value="active">ATIVO</option>
-                    <option value="terminated">FINALIZADO</option>
+                    <option value="completed">FINALIZADO</option>
                   </select>
                 </div>
               </div>

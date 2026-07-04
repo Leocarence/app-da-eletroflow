@@ -2191,14 +2191,6 @@ export default function App() {
                       </h3>
                       <p className="text-xs text-slate-400">Registros financeiros consolidados (previstas em cinza).</p>
                     </div>
-                    <button
-                      onClick={handleHardReset}
-                      className="text-[10px] text-slate-400 hover:text-red-500 font-semibold flex items-center gap-1 underline transition-all cursor-pointer self-start sm:self-center"
-                      title="Cuidado: isso redefinirá os dados aos demonstrativos originais"
-                    >
-                      <RefreshCcw className="h-3 w-3" />
-                      Restaurar Dados de Demonstração
-                    </button>
                   </div>
 
                   <div className="overflow-y-auto max-h-[350px] border border-slate-100 rounded-xl">
@@ -2339,11 +2331,15 @@ export default function App() {
               vehicles={vehicles}
               rentals={rentals}
               transactions={transactions}
+              futureExpenses={futureExpenses}
               onAddVehicle={handleAddVehicle}
               onUpdateVehicle={handleUpdateVehicle}
               onUpdateVehicleStatus={handleUpdateVehicleStatus}
               onDeleteVehicle={handleDeleteVehicle}
               currentUser={currentUser}
+              onAddTransaction={handleAddTransaction}
+              onUpdateTransaction={handleUpdateTransaction}
+              onDeleteTransaction={handleDeleteTransaction}
             />
           </div>
         )}
