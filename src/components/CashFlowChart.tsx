@@ -591,137 +591,125 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
 
   return (
     <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-premium flex flex-col h-full relative overflow-x-hidden w-full">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-        <div>
+      <div className="flex flex-col gap-4 mb-4">
+        <div className="flex items-center justify-between">
           <h3 className="font-display font-semibold text-slate-800 text-lg flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-emerald-500" />
             Fluxo de Caixa Geral
           </h3>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 w-full items-stretch">
           {/* Filtro de Período Customizado */}
-          <div className="flex flex-wrap items-center gap-2 bg-slate-50 p-1 rounded-lg border border-slate-200">
-            <span className="text-[10px] text-slate-500 font-bold px-1.5 uppercase tracking-wider">Período:</span>
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] text-slate-400 font-medium">De</span>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-brand-500 cursor-pointer shadow-xs"
-                id="chart-start-date"
-              />
+          <div className="flex flex-col gap-1.5 p-2 bg-slate-50 rounded-xl border border-slate-200 w-full justify-between">
+            <span className="text-[10px] text-slate-500 font-bold px-1 uppercase tracking-wider text-center block">Período</span>
+            <div className="grid grid-cols-2 gap-1.5 w-full">
+              <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-md px-1.5 py-1 shadow-xs w-full">
+                <span className="text-[9px] text-slate-400 font-semibold select-none">De</span>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="bg-transparent border-none text-slate-700 text-xs font-bold focus:outline-none w-full cursor-pointer p-0"
+                  id="chart-start-date"
+                />
+              </div>
+              <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-md px-1.5 py-1 shadow-xs w-full">
+                <span className="text-[9px] text-slate-400 font-semibold select-none">Até</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="bg-transparent border-none text-slate-700 text-xs font-bold focus:outline-none w-full cursor-pointer p-0"
+                  id="chart-end-date"
+                />
+              </div>
             </div>
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] text-slate-400 font-medium">Até</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-brand-500 cursor-pointer shadow-xs"
-                id="chart-end-date"
-              />
-            </div>
-          </div>
-
-          {/* Zoom Controls */}
-          <div className="flex items-center gap-1 bg-slate-105 p-1 rounded-lg border border-slate-200">
-            <button
-              onClick={() => setZoomLevel(Math.max(1, zoomLevel - 0.5))}
-              disabled={zoomLevel <= 1}
-              className="p-1 rounded text-slate-500 hover:bg-white hover:text-slate-800 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
-              title="Reduzir Zoom (Mais compacto)"
-            >
-              <Minus className="h-3 w-3" />
-            </button>
-            <span className="text-[10px] font-mono font-bold text-slate-700 min-w-[28px] text-center select-none" title="Zoom da linha do tempo">
-              {zoomLevel.toFixed(1)}x
-            </span>
-            <button
-              onClick={() => setZoomLevel(Math.min(4, zoomLevel + 0.5))}
-              disabled={zoomLevel >= 4}
-              className="p-1 rounded text-slate-500 hover:bg-white hover:text-slate-800 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
-              title="Aumentar Zoom (Rolar para ver mais detalhes)"
-            >
-              <Plus className="h-3 w-3" />
-            </button>
           </div>
 
           {/* Include Caução Toggle */}
-          <button
-            onClick={() => setIncludeCaucao(!includeCaucao)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold select-none border transition-all cursor-pointer ${
-              includeCaucao 
-                ? 'bg-amber-50 text-amber-850 border-amber-200 shadow-sm'
-                : 'bg-slate-50 text-slate-500 border-slate-150'
-            }`}
-            title="Contabilizar cauções líquidos no saldo geral"
-          >
-            {includeCaucao ? (
-              <CheckSquare className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-            ) : (
-              <Square className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-            )}
-            <span>Contabilizar Cauções</span>
-          </button>
-
-          {/* Diário vs Semanal vs Mensal Switcher */}
-          <div className="flex items-center gap-1 bg-slate-105 p-1 rounded-lg">
+          <div className="flex flex-col gap-1.5 p-2 bg-slate-50 rounded-xl border border-slate-200 w-full justify-between">
+            <span className="text-[10px] text-slate-500 font-bold px-1 uppercase tracking-wider text-center block">Cauções</span>
             <button
-              onClick={() => setTimeFrame('diario')}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition-all-custom ${
-                timeFrame === 'diario'
-                  ? 'bg-white text-slate-800 shadow-sm font-bold'
-                  : 'text-slate-500 hover:text-slate-800'
+              onClick={() => setIncludeCaucao(!includeCaucao)}
+              className={`flex items-center justify-center gap-1.5 p-1.5 rounded-md border transition-all cursor-pointer w-full text-xs font-bold shadow-xs h-[34px] ${
+                includeCaucao 
+                  ? 'bg-amber-50 text-amber-850 border-amber-200'
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
               }`}
+              title="Contabilizar cauções líquidos no saldo geral"
             >
-              Diário
-            </button>
-            <button
-              onClick={() => setTimeFrame('semanal')}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition-all-custom ${
-                timeFrame === 'semanal'
-                  ? 'bg-white text-slate-800 shadow-sm font-bold'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              Semanal
-            </button>
-            <button
-              onClick={() => setTimeFrame('mensal')}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition-all-custom ${
-                timeFrame === 'mensal'
-                  ? 'bg-white text-slate-800 shadow-sm font-bold'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              Mensal
+              {includeCaucao ? (
+                <CheckSquare className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+              ) : (
+                <Square className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+              )}
+              <span>Contabilizar</span>
             </button>
           </div>
 
+          {/* Diário vs Semanal vs Mensal Switcher */}
+          <div className="flex flex-col gap-1.5 p-2 bg-slate-50 rounded-xl border border-slate-200 w-full justify-between">
+            <span className="text-[10px] text-slate-500 font-bold px-1 uppercase tracking-wider text-center block">Visualização</span>
+            <div className="grid grid-cols-3 gap-1 bg-white border border-slate-200 rounded-md p-0.5 shadow-xs w-full h-[34px]">
+              <button
+                onClick={() => setTimeFrame('diario')}
+                className={`py-1 text-[10px] font-bold rounded transition-all cursor-pointer text-center ${
+                  timeFrame === 'diario'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Diário
+              </button>
+              <button
+                onClick={() => setTimeFrame('semanal')}
+                className={`py-1 text-[10px] font-bold rounded transition-all cursor-pointer text-center ${
+                  timeFrame === 'semanal'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Semanal
+              </button>
+              <button
+                onClick={() => setTimeFrame('mensal')}
+                className={`py-1 text-[10px] font-bold rounded transition-all cursor-pointer text-center ${
+                  timeFrame === 'mensal'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Mensal
+              </button>
+            </div>
+          </div>
+
           {/* Acumulado vs Periodo Switcher */}
-          <div className="flex items-center gap-1 bg-slate-105 p-1 rounded-lg font-sans">
-            <button
-              onClick={() => setChartMode('acumulado')}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition-all-custom ${
-                chartMode === 'acumulado'
-                  ? 'bg-white text-slate-800 shadow-sm font-bold'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              Saldo Acumulado
-            </button>
-            <button
-              onClick={() => setChartMode('diario')}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition-all-custom ${
-                chartMode === 'diario'
-                  ? 'bg-white text-slate-800 shadow-sm font-bold'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              {timeFrame === 'diario' ? 'Lançamentos' : timeFrame === 'semanal' ? 'Lançamentos' : 'Mensais'}
-            </button>
+          <div className="flex flex-col gap-1.5 p-2 bg-slate-50 rounded-xl border border-slate-200 w-full justify-between">
+            <span className="text-[10px] text-slate-500 font-bold px-1 uppercase tracking-wider text-center block">Tipo de Gráfico</span>
+            <div className="grid grid-cols-2 gap-1 bg-white border border-slate-200 rounded-md p-0.5 shadow-xs w-full h-[34px]">
+              <button
+                onClick={() => setChartMode('acumulado')}
+                className={`py-1 text-[10px] font-bold rounded transition-all cursor-pointer text-center ${
+                  chartMode === 'acumulado'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Acumulado
+              </button>
+              <button
+                onClick={() => setChartMode('diario')}
+                className={`py-1 text-[10px] font-bold rounded transition-all cursor-pointer text-center ${
+                  chartMode === 'diario'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                {timeFrame === 'diario' ? 'Lançamentos' : timeFrame === 'semanal' ? 'Lançamentos' : 'Mensais'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1179,45 +1167,89 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
       </div>
     </div>
 
-      {/* Legend below the chart - Interactive toggles */}
-      <div className="flex flex-wrap items-center justify-center gap-4 mt-3 pt-3 border-t border-slate-100 text-xs font-semibold select-none font-sans">
+      {/* Legend and Zoom Control Box below the chart */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mt-3 pt-3 border-t border-slate-100 font-sans items-stretch">
         <button
+          type="button"
           onClick={() => setShowReceitas(!showReceitas)}
-          className={`flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all cursor-pointer ${
+          className={`flex items-center gap-2 px-2.5 py-1 rounded-xl border transition-all cursor-pointer shadow-xs h-[38px] text-left w-full ${
             showReceitas
-              ? 'bg-emerald-50 text-emerald-800 border-emerald-200 shadow-sm'
-              : 'bg-slate-50 text-slate-400 border-slate-150 line-through opacity-50'
+              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+              : 'bg-white text-slate-400 border-slate-200 line-through opacity-60 hover:bg-slate-50'
           }`}
           title="Clique para ocultar/exibir receitas estimadas"
         >
-          <span className={`h-2.5 w-2.5 rounded-full ${showReceitas ? 'bg-emerald-500' : 'bg-slate-350'}`}></span>
-          <span>{chartMode === 'acumulado' ? 'Receitas Acumuladas' : 'Receitas'}</span>
-        </button>
-        <button
-          onClick={() => setShowDespesas(!showDespesas)}
-          className={`flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all cursor-pointer ${
-            showDespesas
-              ? 'bg-rose-50 text-rose-800 border-rose-200 shadow-sm'
-              : 'bg-slate-50 text-slate-400 border-slate-150 line-through opacity-50'
-          }`}
-          title="Clique para ocultar/exibir despesas estimadas"
-        >
-          <span className={`h-2.5 w-2.5 rounded-full ${showDespesas ? 'bg-rose-500' : 'bg-slate-350'}`}></span>
-          <span>{chartMode === 'acumulado' ? 'Despesas Acumuladas' : 'Despesas'}</span>
+          <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${showReceitas ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`}></span>
+          <div className="flex flex-col min-w-0">
+            <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider leading-none">Receitas</span>
+            <span className="text-[10px] font-bold truncate leading-tight mt-0.5">{chartMode === 'acumulado' ? 'Receitas Acumuladas' : 'Receitas'}</span>
+          </div>
         </button>
 
         <button
+          type="button"
+          onClick={() => setShowDespesas(!showDespesas)}
+          className={`flex items-center gap-2 px-2.5 py-1 rounded-xl border transition-all cursor-pointer shadow-xs h-[38px] text-left w-full ${
+            showDespesas
+              ? 'bg-rose-50 text-rose-800 border-rose-200'
+              : 'bg-white text-slate-400 border-slate-200 line-through opacity-60 hover:bg-slate-50'
+          }`}
+          title="Clique para ocultar/exibir despesas estimadas"
+        >
+          <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${showDespesas ? 'bg-rose-500' : 'bg-slate-300'}`}></span>
+          <div className="flex flex-col min-w-0">
+            <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider leading-none">Despesas</span>
+            <span className="text-[10px] font-bold truncate leading-tight mt-0.5">{chartMode === 'acumulado' ? 'Despesas Acumuladas' : 'Despesas'}</span>
+          </div>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setShowSaldo(!showSaldo)}
-          className={`flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all cursor-pointer ${
+          className={`flex items-center gap-2 px-2.5 py-1 rounded-xl border transition-all cursor-pointer shadow-xs h-[38px] text-left w-full ${
             showSaldo
-              ? 'bg-indigo-50 text-indigo-800 border-indigo-200 shadow-sm'
-              : 'bg-slate-50 text-slate-400 border-slate-150 line-through opacity-50'
+              ? 'bg-indigo-50 text-indigo-800 border-indigo-200'
+              : 'bg-white text-slate-400 border-slate-200 line-through opacity-60 hover:bg-slate-50'
           }`}
           title="Clique para ocultar/exibir a linha de evolução do caixa geral"
         >
-          <span className={`h-2.5 w-2.5 rounded-full ${showSaldo ? 'bg-[#3b42c4]' : 'bg-slate-350'}`}></span>
-          <span>Evolução Caixa Geral {includeCaucao ? '(Com Cauções)' : '(Sem Cauções)'}</span>
+          <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${showSaldo ? 'bg-[#3b42c4]' : 'bg-slate-300'}`}></span>
+          <div className="flex flex-col min-w-0">
+            <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider leading-none">Saldo Geral</span>
+            <span className="text-[10px] font-bold truncate leading-tight mt-0.5">Evolução {includeCaucao ? '(Com Caução)' : '(Sem Caução)'}</span>
+          </div>
         </button>
+
+        {/* Zoom Controls at the bottom, matching the top styles */}
+        <div className="flex items-center justify-between gap-2 px-2.5 py-1 bg-slate-50 rounded-xl border border-slate-200 w-full h-[38px] shadow-xs">
+          <div className="flex flex-col">
+            <span className="text-[8px] text-slate-500 font-bold uppercase tracking-wider leading-none">Zoom</span>
+            <span className="text-[10px] font-bold text-slate-700 leading-none mt-0.5">Linha do Tempo</span>
+          </div>
+          <div className="flex items-center justify-between bg-white border border-slate-200 rounded-md p-0.5 shadow-xs w-20 h-6">
+            <button
+              type="button"
+              onClick={() => setZoomLevel(Math.max(1, zoomLevel - 0.5))}
+              disabled={zoomLevel <= 1}
+              className="p-0.5 rounded text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer flex items-center justify-center h-full w-6"
+              title="Reduzir Zoom (Mais compacto)"
+            >
+              <Minus className="h-2.5 w-2.5" />
+            </button>
+            <span className="text-[10px] font-mono font-bold text-slate-700 select-none">
+              {zoomLevel.toFixed(1)}x
+            </span>
+            <button
+              type="button"
+              onClick={() => setZoomLevel(Math.min(4, zoomLevel + 0.5))}
+              disabled={zoomLevel >= 4}
+              className="p-0.5 rounded text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer flex items-center justify-center h-full w-6"
+              title="Aumentar Zoom (Rolar para ver mais detalhes)"
+            >
+              <Plus className="h-2.5 w-2.5" />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
