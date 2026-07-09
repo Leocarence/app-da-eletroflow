@@ -1575,7 +1575,7 @@ export default function App() {
                 </div>
                 <div className="flex flex-col text-left truncate justify-center">
                   <span className="text-[7.5px] xl:text-[8.5px] uppercase tracking-wider text-emerald-300 font-extrabold font-mono leading-none">
-                    {currentUser?.role === 'admin' ? 'ADMIN' : currentUser?.role === 'socio' ? 'SÓCIO' : 'OP'}
+                    {currentUser?.email === 'leojoex@hotmail.com' ? 'DEV' : currentUser?.role === 'admin' ? 'ADMIN' : currentUser?.role === 'socio' ? 'SÓCIO' : 'OP'}
                   </span>
                   <span className="text-[10px] xl:text-[11.5px] text-white font-black tracking-wide leading-none mt-0.5 truncate" title={currentUser?.name}>
                     {currentUser?.name || 'Acesso Ativo'}
@@ -1594,7 +1594,7 @@ export default function App() {
               </button>
 
               {/* MONGODB CLOUD CONFIG INDICATOR */}
-              {dbStatus && (
+              {dbStatus && currentUser?.email === 'leojoex@hotmail.com' && (
                 <button
                   type="button"
                   onClick={() => setShowDbDiagnosticsModal(true)}
@@ -1706,7 +1706,7 @@ export default function App() {
 
               {/* Controls Wrapper */}
               <div className="flex items-center gap-1.5 shrink-0">
-                {dbStatus && (
+                {dbStatus && currentUser?.email === 'leojoex@hotmail.com' && (
                   <button
                     type="button"
                     onClick={() => setShowDbDiagnosticsModal(true)}

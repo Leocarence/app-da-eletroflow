@@ -28,6 +28,12 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
   const [chartMode, setChartMode] = useState<'acumulado' | 'diario'>('acumulado');
   const [timeFrame, setTimeFrame] = useState<'diario' | 'semanal' | 'mensal'>('semanal');
   const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const [startDate, setStartDate] = useState<string>(() => {
+    const today = new Date(getBrasiliaDateStr() + 'T00:00:00');
+    today.setMonth(today.getMonth() - 3);
+    return toLocalDateStr(today);
+  });
+  const [endDate, setEndDate] = useState<string>(() => getBrasiliaDateStr());
 
   // Touch/Pinch gesture refs for mobile pinch-to-zoom
   const touchStartDistRef = useRef<number | null>(null);
@@ -68,19 +74,31 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
   // Compute aggregated data points of weekly/monthly cash flow
   const points: ChartPoint[] = React.useMemo(() => {
     const todayStr = getBrasiliaDateStr();
-    // Only use current/past transactions
-    const effectiveTransactions = transactions.filter(t => t.date <= todayStr);
+    // Only use transactions up to the custom endDate (or todayStr if blank)
+    const activeEndDate = endDate || todayStr;
+    const effectiveTransactions = transactions.filter(t => t.date <= activeEndDate);
 
     if (effectiveTransactions.length === 0) return [];
 
     // Sort transactions chronologically
     const sorted = [...effectiveTransactions].sort((a, b) => a.date.localeCompare(b.date));
 
+    // Determine the start date based on user's input (or default to 3 months ago if blank)
+    let startLimitDate = startDate || null;
+    if (!startLimitDate) {
+      const today = new Date(todayStr + 'T00:00:00');
+      today.setMonth(today.getMonth() - 3);
+      startLimitDate = toLocalDateStr(today);
+    }
+
     // Find date range
-    const minDateStr = sorted[0].date;
+    let minDateStr = sorted[0].date;
+    if (startLimitDate && startLimitDate > minDateStr) {
+      minDateStr = startLimitDate;
+    }
     
     // Choose active range limits
-    const maxDateStr = sorted[sorted.length - 1].date > todayStr ? sorted[sorted.length - 1].date : todayStr;
+    const maxDateStr = activeEndDate;
 
     if (timeFrame === 'semanal') {
       // Helper to find the Monday date (YYYY-MM-DD) for a given date string
@@ -111,21 +129,35 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
         aggWeekly[m] = { receitas: 0, despesas: 0, caucao: 0 };
       });
 
-      effectiveTransactions.forEach(t => {
-        const m = getMonday(t.date);
-        if (!aggWeekly[m]) {
-          aggWeekly[m] = { receitas: 0, despesas: 0, caucao: 0 };
-        }
-        if (t.type === 'receita') aggWeekly[m].receitas += t.value;
-        else if (t.type === 'despesa') aggWeekly[m].despesas += t.value;
-        else if (t.type === 'caucao_recebido') aggWeekly[m].caucao += t.value;
-        else if (t.type === 'caucao_devolvido') aggWeekly[m].caucao -= t.value;
-      });
-
       let runningCentral = 0;
       let runningEscrow = 0;
       let runningReceitas = 0;
       let runningDespesas = 0;
+
+      effectiveTransactions.forEach(t => {
+        const m = getMonday(t.date);
+        if (aggWeekly[m]) {
+          if (t.type === 'receita') aggWeekly[m].receitas += t.value;
+          else if (t.type === 'despesa') aggWeekly[m].despesas += t.value;
+          else if (t.type === 'caucao_recebido') aggWeekly[m].caucao += t.value;
+          else if (t.type === 'caucao_devolvido') aggWeekly[m].caucao -= t.value;
+        } else {
+          // If it's before our start date, accumulate into running initial totals
+          if (m < startMonStr) {
+            if (t.type === 'receita') {
+              runningReceitas += t.value;
+              runningCentral += t.value;
+            } else if (t.type === 'despesa') {
+              runningDespesas += t.value;
+              runningCentral -= t.value;
+            } else if (t.type === 'caucao_recebido') {
+              runningEscrow += t.value;
+            } else if (t.type === 'caucao_devolvido') {
+              runningEscrow -= t.value;
+            }
+          }
+        }
+      });
 
       const computedWeeks: ChartPoint[] = weekMondays.map(m => {
         const data = aggWeekly[m] || { receitas: 0, despesas: 0, caucao: 0 };
@@ -154,10 +186,6 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
         };
       });
 
-      // Show the last 16 weeks max to keep visually clear layout
-      if (computedWeeks.length > 16) {
-        return computedWeeks.slice(-16);
-      }
       return computedWeeks;
     } else if (timeFrame === 'diario') {
       // Find all days on which there were financial transactions
@@ -181,7 +209,21 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
       let runningReceitas = 0;
       let runningDespesas = 0;
 
-      const computedDaily: ChartPoint[] = activeDates.map(d => {
+      const filteredDates = startLimitDate
+        ? activeDates.filter(d => d >= startLimitDate)
+        : activeDates;
+
+      activeDates.forEach(d => {
+        if (startLimitDate && d < startLimitDate) {
+          const data = aggDaily[d];
+          runningReceitas += data.receitas;
+          runningDespesas += data.despesas;
+          runningCentral += (data.receitas - data.despesas);
+          runningEscrow += data.caucao;
+        }
+      });
+
+      const computedDaily: ChartPoint[] = filteredDates.map(d => {
         const data = aggDaily[d];
         const netCaucao = data.caucao;
         
@@ -208,10 +250,6 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
         };
       });
 
-      // Show the last 30 active days max to keep visually clear layout
-      if (computedDaily.length > 30) {
-        return computedDaily.slice(-30);
-      }
       return computedDaily;
     } else {
       // Monthly mode
@@ -242,21 +280,35 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
         aggMonthly[ym] = { receitas: 0, despesas: 0, caucao: 0 };
       });
 
-      effectiveTransactions.forEach(t => {
-        const ym = t.date.substring(0, 7);
-        if (!aggMonthly[ym]) {
-          aggMonthly[ym] = { receitas: 0, despesas: 0, caucao: 0 };
-        }
-        if (t.type === 'receita') aggMonthly[ym].receitas += t.value;
-        else if (t.type === 'despesa') aggMonthly[ym].despesas += t.value;
-        else if (t.type === 'caucao_recebido') aggMonthly[ym].caucao += t.value;
-        else if (t.type === 'caucao_devolvido') aggMonthly[ym].caucao -= t.value;
-      });
-
       let runningCentral = 0;
       let runningEscrow = 0;
       let runningReceitas = 0;
       let runningDespesas = 0;
+
+      effectiveTransactions.forEach(t => {
+        const ym = t.date.substring(0, 7);
+        if (aggMonthly[ym]) {
+          if (t.type === 'receita') aggMonthly[ym].receitas += t.value;
+          else if (t.type === 'despesa') aggMonthly[ym].despesas += t.value;
+          else if (t.type === 'caucao_recebido') aggMonthly[ym].caucao += t.value;
+          else if (t.type === 'caucao_devolvido') aggMonthly[ym].caucao -= t.value;
+        } else {
+          // If before start month
+          if (ym < startYM) {
+            if (t.type === 'receita') {
+              runningReceitas += t.value;
+              runningCentral += t.value;
+            } else if (t.type === 'despesa') {
+              runningDespesas += t.value;
+              runningCentral -= t.value;
+            } else if (t.type === 'caucao_recebido') {
+              runningEscrow += t.value;
+            } else if (t.type === 'caucao_devolvido') {
+              runningEscrow -= t.value;
+            }
+          }
+        }
+      });
 
       const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
       const computedMonths: ChartPoint[] = monthYMs.map(ym => {
@@ -287,13 +339,9 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
         };
       });
 
-      // Show the last 12 months max to keep visually clear layout
-      if (computedMonths.length > 12) {
-        return computedMonths.slice(-12);
-      }
       return computedMonths;
     }
-  }, [transactions, timeFrame, includeCaucao]);
+  }, [transactions, timeFrame, includeCaucao, startDate, endDate]);
 
   // Calculate SVG Drawing coordinates
   const paddingLeft = 65;
@@ -552,6 +600,31 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+          {/* Filtro de Período Customizado */}
+          <div className="flex flex-wrap items-center gap-2 bg-slate-50 p-1 rounded-lg border border-slate-200">
+            <span className="text-[10px] text-slate-500 font-bold px-1.5 uppercase tracking-wider">Período:</span>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-slate-400 font-medium">De</span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-brand-500 cursor-pointer shadow-xs"
+                id="chart-start-date"
+              />
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-slate-400 font-medium">Até</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-brand-500 cursor-pointer shadow-xs"
+                id="chart-end-date"
+              />
+            </div>
+          </div>
+
           {/* Zoom Controls */}
           <div className="flex items-center gap-1 bg-slate-105 p-1 rounded-lg border border-slate-200">
             <button
