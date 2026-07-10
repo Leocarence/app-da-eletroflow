@@ -1306,9 +1306,150 @@ export default function VehiclesTab({
       </div>
 
       {/* PAINEL DE METRICAS E INDICADORES DA FROTA */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* COL 1: OCUPAÇÃO DA FROTA */}
-        <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-100 p-5 shadow-premium flex flex-col justify-between">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" id="fleet-metrics-panel">
+        
+        {/* COL 1: TAXA DE DESOCUPAÇÃO DOS VEÍCULOS (NOW ON THE LEFT WITH HIGHER VISUAL EMPHASIS) */}
+        <div className="lg:col-span-7 bg-white rounded-2xl border-2 border-brand-100 p-6 shadow-premium-lg flex flex-col justify-between" id="vacancy-rate-card">
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-brand-500 text-white rounded-xl shadow-md shadow-brand-500/10">
+                <History className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-display font-extrabold text-slate-800 text-base leading-tight">
+                  Taxa de Desocupação da Frota
+                </h3>
+                <p className="text-[11px] text-slate-400 font-sans mt-0.5">
+                  Métricas em tempo real sobre ociosidade e disponibilidade
+                </p>
+              </div>
+            </div>
+            
+            <p className="text-xs text-slate-500 font-sans mb-4 leading-relaxed">
+              Métricas baseadas no ciclo de 1 ano após a entrega, desconsiderando a carência dos primeiros 15 dias.
+            </p>
+
+            {/* Consolidated Fleet Vacancy Rate Summary Box */}
+            {(() => {
+              const activeVehicles = vehicles.filter(v => !v.isDeleted);
+              let fleetTotalVacantDays = 0;
+              let fleetTotalCountableDays = 0;
+              let fleetVehiclesWithDate = 0;
+              let fleetVehiclesInGrace = 0;
+
+              activeVehicles.forEach(v => {
+                if (v.acquisitionDate) {
+                  const calc = calculateVacancyForVehicle(v, rentals);
+                  if (calc.isGracePeriod) {
+                    fleetVehiclesInGrace++;
+                  } else if (calc.totalCountableDays > 0) {
+                    fleetTotalVacantDays += calc.vacantDays;
+                    fleetTotalCountableDays += calc.totalCountableDays;
+                    fleetVehiclesWithDate++;
+                  }
+                }
+              });
+
+              const fleetVacancyPercentage = fleetTotalCountableDays > 0 
+                ? (fleetTotalVacantDays / fleetTotalCountableDays) * 100 
+                : 0;
+
+              return (
+                <div className="bg-slate-50 border-2 border-brand-100/60 rounded-xl p-4 mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1">Taxa Consolidada da Frota</span>
+                    <div className="flex items-baseline gap-2">
+                      <span className={`text-3xl sm:text-4xl font-extrabold font-display tracking-tight leading-none ${
+                        fleetVehiclesWithDate === 0 
+                          ? 'text-slate-400' 
+                          : fleetVacancyPercentage > 30 
+                            ? 'text-rose-600' 
+                            : fleetVacancyPercentage > 10 
+                              ? 'text-amber-600' 
+                              : 'text-emerald-600'
+                      }`}>
+                        {fleetVehiclesWithDate === 0 ? '—' : `${fleetVacancyPercentage.toFixed(1)}%`}
+                      </span>
+                      {fleetVehiclesWithDate > 0 && (
+                        <span className="text-xs text-slate-600 font-bold font-sans">
+                          ({fleetTotalVacantDays} de {fleetTotalCountableDays} dias desocupados)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-left sm:text-right text-[11px] text-slate-600 font-medium border-t sm:border-t-0 sm:border-l border-slate-200 pt-3 sm:pt-0 sm:pl-4 shrink-0 flex flex-row sm:flex-col gap-x-3 gap-y-1">
+                    <div>Avaliados: <strong className="text-slate-900 font-bold font-mono">{fleetVehiclesWithDate}</strong></div>
+                    {fleetVehiclesInGrace > 0 && (
+                      <div className="text-indigo-600">Carência: <strong className="font-bold font-mono">{fleetVehiclesInGrace}</strong></div>
+                    )}
+                    <div>Sem data: <strong className="text-slate-900 font-bold font-mono">{activeVehicles.length - fleetVehiclesWithDate - fleetVehiclesInGrace}</strong></div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* List of vehicles and vacancy rates */}
+            <div className="space-y-3 max-h-[260px] overflow-y-auto pr-1 scrollbar-thin">
+              {vehicles.filter(v => !v.isDeleted).length === 0 ? (
+                <p className="text-xs text-slate-400 italic text-center py-6">Nenhum veículo cadastrado para avaliar.</p>
+              ) : (
+                vehicles.filter(v => !v.isDeleted).map(v => {
+                  const calc = calculateVacancyForVehicle(v, rentals);
+                  
+                  // Formatar a data de aquisição para o padrão BR
+                  const formatDateBR = (dateStr?: string) => {
+                    if (!dateStr) return '—';
+                    const parts = dateStr.split('-');
+                    if (parts.length !== 3) return dateStr;
+                    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+                  };
+
+                  return (
+                    <div key={v.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 hover:bg-white border border-slate-100 hover:border-slate-200 hover:shadow-sm transition-all duration-200">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-display font-extrabold text-slate-900 text-sm">{v.brandModel}</span>
+                          <span className="font-mono text-xs bg-white border border-slate-200 text-slate-700 px-2 py-0.5 rounded font-bold">{v.plate}</span>
+                        </div>
+                        <div className="text-xs text-slate-500 font-sans">
+                          Entrega do veículo: <span className="font-bold text-slate-700 font-mono">{formatDateBR(v.acquisitionDate)}</span>
+                        </div>
+                      </div>
+
+                      <div className="text-left sm:text-right">
+                        {calc.percentage === null ? (
+                          <span className="text-xs font-bold text-slate-400 bg-slate-200/50 px-2.5 py-1 rounded-lg">Sem data de entrega</span>
+                        ) : calc.isGracePeriod ? (
+                          <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-lg inline-flex items-center gap-1.5 animate-pulse">
+                            <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                            Carência (mais {calc.graceDaysRemaining} dias)
+                          </span>
+                        ) : (
+                          <div className="flex flex-col sm:items-end justify-center">
+                            <div className="text-[11px] text-slate-500 font-sans font-semibold mb-0.5">
+                              Desocupação ({calc.periodLabel}):
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className={`font-mono text-sm font-extrabold ${calc.percentage > 30 ? 'text-rose-600' : calc.percentage > 10 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                                {calc.percentage.toFixed(1)}%
+                              </span>
+                              <span className="text-[11px] text-slate-600 font-sans font-semibold">
+                                ({calc.vacantDays} {calc.vacantDays === 1 ? 'dia' : 'dias'} desocupado)
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* COL 2: OCUPAÇÃO DA FROTA (NOW ON THE RIGHT SIDE) */}
+        <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-100 p-5 shadow-premium flex flex-col justify-between" id="fleet-occupancy-card">
           <div>
             <h3 className="font-display font-semibold text-slate-800 text-sm mb-1 flex items-center gap-2">
               <Car className="h-4 w-4 text-indigo-500" />
@@ -1364,132 +1505,6 @@ export default function VehiclesTab({
           </div>
         </div>
 
-        {/* COL 2: TAXA DE DESOCUPAÇÃO DOS VEÍCULOS */}
-        <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-100 p-5 shadow-premium flex flex-col justify-between">
-          <div>
-            <h3 className="font-display font-semibold text-slate-800 text-sm mb-1 flex items-center gap-2">
-              <History className="h-4 w-4 text-brand-500" />
-              Taxa de Desocupação da Frota
-            </h3>
-            <p className="text-[11px] text-slate-400 font-sans mb-3">
-              Métricas calculadas para o ciclo de 1 ano após a entrega, desconsiderando a carência dos primeiros 15 dias.
-            </p>
-
-            {/* Consolidated Fleet Vacancy Rate Summary Box */}
-            {(() => {
-              const activeVehicles = vehicles.filter(v => !v.isDeleted);
-              let fleetTotalVacantDays = 0;
-              let fleetTotalCountableDays = 0;
-              let fleetVehiclesWithDate = 0;
-              let fleetVehiclesInGrace = 0;
-
-              activeVehicles.forEach(v => {
-                if (v.acquisitionDate) {
-                  const calc = calculateVacancyForVehicle(v, rentals);
-                  if (calc.isGracePeriod) {
-                    fleetVehiclesInGrace++;
-                  } else if (calc.totalCountableDays > 0) {
-                    fleetTotalVacantDays += calc.vacantDays;
-                    fleetTotalCountableDays += calc.totalCountableDays;
-                    fleetVehiclesWithDate++;
-                  }
-                }
-              });
-
-              const fleetVacancyPercentage = fleetTotalCountableDays > 0 
-                ? (fleetTotalVacantDays / fleetTotalCountableDays) * 100 
-                : 0;
-
-              return (
-                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Taxa Consolidada da Frota</span>
-                    <div className="flex items-baseline gap-1.5">
-                      <span className={`text-xl font-bold font-display tracking-tight ${
-                        fleetVehiclesWithDate === 0 
-                          ? 'text-slate-400' 
-                          : fleetVacancyPercentage > 30 
-                            ? 'text-rose-500' 
-                            : fleetVacancyPercentage > 10 
-                              ? 'text-amber-500' 
-                              : 'text-emerald-500'
-                      }`}>
-                        {fleetVehiclesWithDate === 0 ? '—' : `${fleetVacancyPercentage.toFixed(1)}%`}
-                      </span>
-                      {fleetVehiclesWithDate > 0 && (
-                        <span className="text-[10px] text-slate-500 font-sans">
-                          ({fleetTotalVacantDays} de {fleetTotalCountableDays} dias de frota desocupados)
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-left sm:text-right text-[10px] text-slate-400 font-sans border-t sm:border-t-0 sm:border-l border-slate-200/60 pt-2 sm:pt-0 sm:pl-3 shrink-0 flex flex-row sm:flex-col gap-x-2.5 gap-y-0.5">
-                    <div>Avaliados: <strong className="text-slate-600 font-semibold">{fleetVehiclesWithDate}</strong></div>
-                    {fleetVehiclesInGrace > 0 && (
-                      <div className="text-indigo-600 font-medium">Carência: <strong className="font-semibold">{fleetVehiclesInGrace}</strong></div>
-                    )}
-                    <div>Sem data: <strong className="text-slate-600 font-semibold">{activeVehicles.length - fleetVehiclesWithDate - fleetVehiclesInGrace}</strong></div>
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* List of vehicles and vacancy rates */}
-            <div className="space-y-3.5 max-h-[175px] overflow-y-auto pr-1 scrollbar-thin">
-              {vehicles.filter(v => !v.isDeleted).length === 0 ? (
-                <p className="text-xs text-slate-400 italic text-center py-6">Nenhum veículo cadastrado para avaliar.</p>
-              ) : (
-                vehicles.filter(v => !v.isDeleted).map(v => {
-                  const calc = calculateVacancyForVehicle(v, rentals);
-                  
-                  // Formatar a data de aquisição para o padrão BR
-                  const formatDateBR = (dateStr?: string) => {
-                    if (!dateStr) return '—';
-                    const parts = dateStr.split('-');
-                    if (parts.length !== 3) return dateStr;
-                    return `${parts[2]}/${parts[1]}/${parts[0]}`;
-                  };
-
-                  return (
-                    <div key={v.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                      <div>
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="font-display font-bold text-slate-800 text-xs">{v.brandModel}</span>
-                          <span className="font-mono text-[10px] bg-white border border-slate-200 text-slate-500 px-1.5 py-0.5 rounded font-medium">{v.plate}</span>
-                        </div>
-                        <div className="text-[10px] text-slate-400 font-sans">
-                          Entrega: <span className="font-semibold font-mono">{formatDateBR(v.acquisitionDate)}</span>
-                        </div>
-                      </div>
-
-                      <div className="text-right">
-                        {calc.percentage === null ? (
-                          <span className="text-[10px] font-semibold text-slate-400 bg-slate-200/50 px-2 py-0.5 rounded-lg">Sem data de entrega</span>
-                        ) : calc.isGracePeriod ? (
-                          <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-lg animate-pulse">
-                            Carência (mais {calc.graceDaysRemaining} dias)
-                          </span>
-                        ) : (
-                          <div className="text-xs font-semibold text-slate-700">
-                            <span className="text-[10px] text-slate-400 font-sans block sm:inline mr-1">
-                              Taxa de desocupação no período {calc.periodLabel}:
-                            </span>
-                            <span className={`font-mono text-xs font-bold ${calc.percentage > 30 ? 'text-rose-500' : calc.percentage > 10 ? 'text-amber-500' : 'text-emerald-500'}`}>
-                              {calc.percentage.toFixed(1)}%
-                            </span>
-                            <span className="text-[11px] text-slate-500 font-sans font-normal ml-1">
-                              ({String(calc.vacantDays).padStart(2, '0')} {calc.vacantDays === 1 ? 'dia' : 'dias'} desocupado)
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Vehicles Inventory Section */}

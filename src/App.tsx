@@ -798,6 +798,26 @@ export default function App() {
     showNotification('Interessado removido com sucesso!', 'success');
   };
 
+  const handleToggleLeadDocApproved = (id: string) => {
+    const updated = interestedLeads.map(l => {
+      if (l.id === id) {
+        return { ...l, docApproved: !l.docApproved };
+      }
+      return l;
+    });
+    setInterestedLeads(updated);
+    localStorage.setItem('loca_interested_leads', JSON.stringify(updated));
+    persistToBackend(vehicles, rentals, transactions, futureExpenses, users, accessLogs, updated);
+    const lead = updated.find(l => l.id === id);
+    if (lead) {
+      if (lead.docApproved) {
+        showNotification(`Documentação de ${lead.name} aprovada!`, 'success');
+      } else {
+        showNotification(`Documentação de ${lead.name} desmarcada.`, 'info');
+      }
+    }
+  };
+
   const syncAndSetUsers = (updated: AppUser[]) => {
     setUsers(updated);
     localStorage.setItem('loca_users', JSON.stringify(updated));
@@ -1582,15 +1602,17 @@ export default function App() {
             <div className="flex items-center gap-1.5 xl:gap-2 shrink-0">
               
               {/* PROMINENT USER BADGE IN THE UPPER RIGHT HAND SIDE */}
-              <div className="bg-emerald-600/70 border border-emerald-400 text-white px-3 py-1 rounded-lg select-none shadow-sm flex items-center gap-2 shrink-0 max-w-[180px] xl:max-w-[260px] h-[34px]">
-                <div className="h-4.5 w-4.5 rounded bg-white text-emerald-600 flex items-center justify-center font-black text-[9px] xl:text-[10px] uppercase font-mono shadow-sm shrink-0">
+              <div className="bg-brand-950/40 border border-white text-white px-3.5 rounded-lg select-none shadow-inner flex items-center gap-2.5 shrink-0 min-w-[140px] max-w-[260px] xl:max-w-[360px] h-[34px] cursor-default">
+                <div className="h-5 w-5 rounded bg-brand-800 text-brand-200 border border-brand-700/50 flex items-center justify-center font-black text-[10px] xl:text-[11px] uppercase font-mono shrink-0">
                   {currentUser?.name ? currentUser.name.charAt(0) : 'U'}
                 </div>
-                <div className="flex flex-col text-left truncate justify-center">
-                  <span className="text-[7.5px] xl:text-[8.5px] uppercase tracking-wider text-emerald-300 font-extrabold font-mono leading-none">
-                    {currentUser?.email === 'leojoex@hotmail.com' ? 'DEV' : currentUser?.role === 'admin' ? 'ADMIN' : currentUser?.role === 'socio' ? 'SÓCIO' : 'OP'}
-                  </span>
-                  <span className="text-[10px] xl:text-[11.5px] text-white font-black tracking-wide leading-none mt-0.5 truncate" title={currentUser?.name}>
+                <div className="flex flex-col text-left truncate justify-center min-w-0 gap-0.5">
+                  <div className="flex items-center">
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[6.5px] xl:text-[7.5px] font-black uppercase tracking-wider leading-none select-none border-b-2 bg-gradient-to-b from-emerald-400 to-emerald-500 text-emerald-950 border-emerald-600 shadow-[0_1.5px_0_rgba(16,185,129,0.3)]">
+                      {currentUser?.email === 'leojoex@hotmail.com' ? 'DESENVOLVEDOR' : currentUser?.role === 'admin' ? 'ADMINISTRADOR' : currentUser?.role === 'socio' ? 'SÓCIO' : 'OPERADOR'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] xl:text-[11.5px] text-slate-100 font-bold tracking-wide leading-none truncate" title={currentUser?.name}>
                     {currentUser?.name || 'Acesso Ativo'}
                   </span>
                 </div>
@@ -1600,7 +1622,7 @@ export default function App() {
               <button
                 onClick={handleLogout}
                 title="Sair do Sistema"
-                className="px-3 py-1.5 bg-brand-600/50 hover:bg-rose-600 hover:text-white text-brand-100 rounded-lg border border-brand-700/60 transition-all hover:scale-105 active:scale-95 duration-200 flex items-center justify-center gap-1.5 shrink-0 cursor-pointer text-[10px] xl:text-[11px] font-bold font-sans"
+                className="px-3 h-[34px] bg-brand-600/50 hover:bg-rose-600 hover:text-white text-brand-100 rounded-lg border border-brand-700/60 transition-all hover:scale-105 active:scale-95 duration-200 flex items-center justify-center gap-1.5 shrink-0 cursor-pointer text-[10px] xl:text-[11px] font-bold font-sans"
               >
                 <LogOut className="h-3.5 w-3.5 shrink-0" />
                 <span>Sair</span>
@@ -1611,7 +1633,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setShowDbDiagnosticsModal(true)}
-                  className={`px-3 py-1.5 rounded-lg border font-mono text-[10px] xl:text-[11px] font-bold transition-all hover:scale-105 active:scale-95 duration-200 flex items-center gap-1.5 shrink-0 hover:brightness-110 cursor-pointer shadow-sm ${
+                  className={`px-3 h-[34px] rounded-lg border font-mono text-[10px] xl:text-[11px] font-bold transition-all hover:scale-105 active:scale-95 duration-200 flex items-center justify-center gap-1.5 shrink-0 hover:brightness-110 cursor-pointer shadow-sm ${
                     dbStatus.connected
                       ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/35'
                       : 'bg-rose-500/20 text-rose-300 border-rose-500/35 animate-pulse'
@@ -1627,71 +1649,73 @@ export default function App() {
               <button
                 onClick={handleManualSave}
                 title="Salvar alterações no LocalStorage e Backup"
-                className="px-3 py-1.5 bg-brand-600/50 hover:bg-brand-700 text-brand-100 hover:text-white rounded-lg border border-brand-700/60 transition-all hover:scale-105 active:scale-95 duration-200 cursor-pointer shrink-0 shadow-sm flex items-center gap-1.5 justify-center text-[10px] xl:text-[11px] font-bold"
+                className="px-3 h-[34px] bg-brand-600/50 hover:bg-brand-700 text-brand-100 hover:text-white rounded-lg border border-brand-700/60 transition-all hover:scale-105 active:scale-95 duration-200 cursor-pointer shrink-0 shadow-sm flex items-center gap-1.5 justify-center text-[10px] xl:text-[11px] font-bold"
               >
                 <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                 <span className="font-sans">Salvar</span>
               </button>
 
               {/* BACKUP CONTROLLER ACTION */}
-              <div className="relative shrink-0">
-                <button
-                  onClick={() => setShowBackupMenu(!showBackupMenu)}
-                  title="Exportar/Importar Banco de Dados ou Restaurar"
-                  className="px-3 py-1.5 bg-brand-600/50 hover:bg-brand-700 text-brand-100 hover:text-white rounded-lg border border-brand-700/60 transition-all hover:scale-105 active:scale-95 duration-200 text-[10px] xl:text-[11px] font-bold flex items-center gap-1.5 cursor-pointer shrink-0"
-                >
-                  <RefreshCcw className="h-3.5 w-3.5 shrink-0" />
-                  <span>Backup</span>
-                </button>
+              {currentUser?.email === 'leojoex@hotmail.com' && (
+                <div className="relative shrink-0">
+                  <button
+                    onClick={() => setShowBackupMenu(!showBackupMenu)}
+                    title="Exportar/Importar Banco de Dados ou Restaurar"
+                    className="px-3 h-[34px] bg-brand-600/50 hover:bg-brand-700 text-brand-100 hover:text-white rounded-lg border border-brand-700/60 transition-all hover:scale-105 active:scale-95 duration-200 text-[10px] xl:text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                  >
+                    <RefreshCcw className="h-3.5 w-3.5 shrink-0" />
+                    <span>Backup</span>
+                  </button>
 
-                {showBackupMenu && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl border border-slate-100 shadow-premium p-1.5 z-50 text-xs text-slate-700">
-                    <button
-                      onClick={handleExportBackup}
-                      className="w-full text-left px-3 py-2 hover:bg-slate-50 rounded-lg flex items-center gap-2 font-medium cursor-pointer"
-                    >
-                      <ArrowUpRight className="h-4 w-4 text-emerald-500" />
-                      Exportar Backup (JSON)
-                    </button>
-                    <label className="w-full text-left px-3 py-2 hover:bg-slate-50 rounded-lg flex items-center gap-2 font-medium cursor-pointer">
-                      <ArrowDownRight className="h-4 w-4 text-brand-500" />
-                      Importar Backup (JSON)
-                      <input
-                        type="file"
-                        accept=".json"
-                        onChange={handleFileUpload}
-                        className="hidden"
-                      />
-                    </label>
-                    <button
-                      onClick={handleCopyBackupText}
-                      className="w-full text-left px-3 py-2 hover:bg-slate-50 rounded-lg flex items-center gap-2 font-medium cursor-pointer"
-                    >
-                      <span>📋 Copiar p/ Área de Transf.</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowImportDialog(true);
-                        setShowBackupMenu(false);
-                      }}
-                      className="w-full text-left px-3 py-2 hover:bg-slate-50 rounded-lg flex items-center gap-2 font-medium text-brand-600 cursor-pointer"
-                    >
-                      <span>📥 Importar via Texto</span>
-                    </button>
-                    <div className="border-t border-slate-100 my-1"></div>
-                    <button
-                      onClick={() => {
-                        setShowResetConfirm(true);
-                        setShowBackupMenu(false);
-                      }}
-                      className="w-full text-left px-3 py-2 hover:bg-rose-50 text-rose-600 rounded-lg flex items-center gap-2 font-medium cursor-pointer"
-                    >
-                      <RefreshCcw className="h-3.5 w-3.5" />
-                      Resetar p/ Padrão Demo
-                    </button>
-                  </div>
-                )}
-              </div>
+                  {showBackupMenu && (
+                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl border border-slate-100 shadow-premium p-1.5 z-50 text-xs text-slate-700">
+                      <button
+                        onClick={handleExportBackup}
+                        className="w-full text-left px-3 py-2 hover:bg-slate-50 rounded-lg flex items-center gap-2 font-medium cursor-pointer"
+                      >
+                        <ArrowUpRight className="h-4 w-4 text-emerald-500" />
+                        Exportar Backup (JSON)
+                      </button>
+                      <label className="w-full text-left px-3 py-2 hover:bg-slate-50 rounded-lg flex items-center gap-2 font-medium cursor-pointer">
+                        <ArrowDownRight className="h-4 w-4 text-brand-500" />
+                        Importar Backup (JSON)
+                        <input
+                          type="file"
+                          accept=".json"
+                          onChange={handleFileUpload}
+                          className="hidden"
+                        />
+                      </label>
+                      <button
+                        onClick={handleCopyBackupText}
+                        className="w-full text-left px-3 py-2 hover:bg-slate-50 rounded-lg flex items-center gap-2 font-medium cursor-pointer"
+                      >
+                        <span>📋 Copiar p/ Área de Transf.</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowImportDialog(true);
+                          setShowBackupMenu(false);
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-slate-50 rounded-lg flex items-center gap-2 font-medium text-brand-600 cursor-pointer"
+                      >
+                        <span>📥 Importar via Texto</span>
+                      </button>
+                      <div className="border-t border-slate-100 my-1"></div>
+                      <button
+                        onClick={() => {
+                          setShowResetConfirm(true);
+                          setShowBackupMenu(false);
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-rose-50 text-rose-600 rounded-lg flex items-center gap-2 font-medium cursor-pointer"
+                      >
+                        <RefreshCcw className="h-3.5 w-3.5" />
+                        Resetar p/ Padrão Demo
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Auxiliary calendar indicator - shown only on wide xl screens to completely prevent overflow */}
               <div className="hidden xl:flex items-center gap-1.5 text-slate-400 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-100 font-mono text-xs font-medium shrink-0">
@@ -1742,62 +1766,64 @@ export default function App() {
                   <span>Salvar</span>
                 </button>
 
-                <div className="relative">
-                  <button
-                    onClick={() => setShowBackupMenu(!showBackupMenu)}
-                    className="p-1.5 bg-brand-600/50 hover:bg-brand-700 text-brand-100 hover:text-white rounded-lg border border-brand-700/60 transition-all cursor-pointer"
-                  >
-                    <RefreshCcw className={`h-3.5 w-3.5 ${showBackupMenu ? 'rotate-90' : ''} transition-transform`} />
-                  </button>
+                {currentUser?.email === 'leojoex@hotmail.com' && (
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowBackupMenu(!showBackupMenu)}
+                      className="p-1.5 bg-brand-600/50 hover:bg-brand-700 text-brand-100 hover:text-white rounded-lg border border-brand-700/60 transition-all cursor-pointer"
+                    >
+                      <RefreshCcw className={`h-3.5 w-3.5 ${showBackupMenu ? 'rotate-90' : ''} transition-transform`} />
+                    </button>
 
-                  {showBackupMenu && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl border border-slate-100 shadow-premium p-1.5 z-50 text-xs text-slate-700">
-                      <button
-                        onClick={handleExportBackup}
-                        className="w-full text-left px-2 py-1.5 hover:bg-slate-50 rounded-lg flex items-center gap-1.5 font-medium cursor-pointer"
-                      >
-                        <ArrowUpRight className="h-3.5 w-3.5 text-emerald-500" />
-                        Exportar Backup
-                      </button>
-                      <label className="w-full text-left px-2 py-1.5 hover:bg-slate-50 rounded-lg flex items-center gap-1.5 font-medium cursor-pointer">
-                        <ArrowDownRight className="h-3.5 w-3.5 text-brand-500" />
-                        Importar Backup
-                        <input
-                          type="file"
-                          accept=".json"
-                          onChange={handleFileUpload}
-                          className="hidden"
-                        />
-                      </label>
-                      <button
-                        onClick={handleCopyBackupText}
-                        className="w-full text-left px-2 py-1.5 hover:bg-slate-50 rounded-lg flex items-center gap-1.5 font-medium cursor-pointer"
-                      >
-                        <span>📋 Copiar Texto</span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowImportDialog(true);
-                          setShowBackupMenu(false);
-                        }}
-                        className="w-full text-left px-2 py-1.5 hover:bg-slate-50 rounded-lg flex items-center gap-1.5 font-medium text-brand-600 cursor-pointer"
-                      >
-                        <span>📥 Importar Texto</span>
-                      </button>
-                      <div className="border-t border-slate-100 my-1"></div>
-                      <button
-                        onClick={() => {
-                          setShowResetConfirm(true);
-                          setShowBackupMenu(false);
-                        }}
-                        className="w-full text-left px-2 py-1.5 hover:bg-rose-50 text-rose-600 rounded-lg flex items-center gap-1.5 font-medium cursor-pointer"
-                      >
-                        <RefreshCcw className="h-3 w-3" />
-                        Resetar Sistema
-                      </button>
-                    </div>
-                  )}
-                </div>
+                    {showBackupMenu && (
+                      <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl border border-slate-100 shadow-premium p-1.5 z-50 text-xs text-slate-700">
+                        <button
+                          onClick={handleExportBackup}
+                          className="w-full text-left px-2 py-1.5 hover:bg-slate-50 rounded-lg flex items-center gap-1.5 font-medium cursor-pointer"
+                        >
+                          <ArrowUpRight className="h-3.5 w-3.5 text-emerald-500" />
+                          Exportar Backup
+                        </button>
+                        <label className="w-full text-left px-2 py-1.5 hover:bg-slate-50 rounded-lg flex items-center gap-1.5 font-medium cursor-pointer">
+                          <ArrowDownRight className="h-3.5 w-3.5 text-brand-500" />
+                          Importar Backup
+                          <input
+                            type="file"
+                            accept=".json"
+                            onChange={handleFileUpload}
+                            className="hidden"
+                          />
+                        </label>
+                        <button
+                          onClick={handleCopyBackupText}
+                          className="w-full text-left px-2 py-1.5 hover:bg-slate-50 rounded-lg flex items-center gap-1.5 font-medium cursor-pointer"
+                        >
+                          <span>📋 Copiar Texto</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowImportDialog(true);
+                            setShowBackupMenu(false);
+                          }}
+                          className="w-full text-left px-2 py-1.5 hover:bg-slate-50 rounded-lg flex items-center gap-1.5 font-medium text-brand-600 cursor-pointer"
+                        >
+                          <span>📥 Importar Texto</span>
+                        </button>
+                        <div className="border-t border-slate-100 my-1"></div>
+                        <button
+                          onClick={() => {
+                            setShowResetConfirm(true);
+                            setShowBackupMenu(false);
+                          }}
+                          className="w-full text-left px-2 py-1.5 hover:bg-rose-50 text-rose-600 rounded-lg flex items-center gap-1.5 font-medium cursor-pointer"
+                        >
+                          <RefreshCcw className="h-3 w-3" />
+                          Resetar Sistema
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* MOBILE LOGOUT BUTTON */}
                 <button
@@ -2251,6 +2277,25 @@ export default function App() {
                               {formatVal(activePoint.acumulado)}
                             </span>
                           </div>
+
+                          {/* Divider */}
+                          <div className="border-t border-dotted border-slate-200 my-2"></div>
+
+                          {/* Acumulados Totais (Discreto) */}
+                          <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-400 font-sans mt-1 bg-slate-50/50 p-2 rounded-lg border border-slate-100">
+                            <div>
+                              <span className="block text-[8.5px] uppercase tracking-wider text-slate-400 font-bold">Rec. Acumuladas</span>
+                              <span className="font-mono font-bold text-emerald-600/90 text-[11px]">
+                                {formatVal(activePoint.acumuladoReceitas || 0)}
+                              </span>
+                            </div>
+                            <div className="border-l border-slate-200 pl-2">
+                              <span className="block text-[8.5px] uppercase tracking-wider text-slate-400 font-bold">Desp. Acumuladas</span>
+                              <span className="font-mono font-bold text-rose-600/90 text-[11px]">
+                                {formatVal(activePoint.acumuladoDespesas || 0)}
+                              </span>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     );
@@ -2439,6 +2484,7 @@ export default function App() {
               interestedLeads={interestedLeads}
               onAddInterestedLead={handleAddInterestedLead}
               onDeleteInterestedLead={handleDeleteInterestedLead}
+              onToggleLeadDocApproved={handleToggleLeadDocApproved}
             />
           </div>
         )}

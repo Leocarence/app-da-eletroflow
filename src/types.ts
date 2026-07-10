@@ -94,5 +94,6 @@ export interface InterestedLead {
   notes?: string;
   createdAt: string; // ISO or BRL string
   contactDate: string; // YYYY-MM-DD
+  docApproved?: boolean;
 }
 
