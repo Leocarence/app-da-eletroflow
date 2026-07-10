@@ -38,6 +38,7 @@ import {
   Flame,
   CheckCircle2,
   CalendarDays,
+  Calendar,
   Key,
   Zap,
   X,
@@ -67,6 +68,18 @@ const INITIAL_USERS: AppUser[] = [
 export default function App() {
   // Navigation
   const [activeTab, setActiveTab] = useState<'dashboard' | 'financials' | 'transactions' | 'vehicles' | 'rentals' | 'users'>('dashboard');
+
+  // Sync state for Cash Flow Chart Tooltip / Sidebox
+  const [hoveredPointData, setHoveredPointData] = useState<{
+    point: any;
+    meta: {
+      timeFrame: 'diario' | 'semanal' | 'mensal';
+      chartMode: 'acumulado' | 'diario';
+      showReceitas: boolean;
+      showDespesas: boolean;
+      latestPoint: any;
+    } | null;
+  }>({ point: null, meta: null });
 
   // Security / Authentication State
   const [users, setUsers] = useState<AppUser[]>(() => {
@@ -2109,72 +2122,140 @@ export default function App() {
             {/* ROW 2: CASH FLOW GRAPH TIMELINE */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               <div className="lg:col-span-8">
-                <CashFlowChart transactions={transactions} />
+                <CashFlowChart 
+                  transactions={transactions} 
+                  onHoverPointChange={(point, meta) => setHoveredPointData({ point, meta })}
+                />
               </div>
 
-              {/* FLEET OCCUPANCY AND STATUS INDICATOR */}
-              <div className="lg:col-span-4 bg-white rounded-2xl border border-slate-100 p-5 shadow-premium flex flex-col justify-between">
+              {/* DETALHAMENTO DE FLUXO (BOX INTEGRADA AO GRÁFICO - NUNCA SOBREPÕE O GRÁFICO) */}
+              <div className={`lg:col-span-4 bg-white rounded-2xl p-5 flex flex-col justify-between transition-all duration-300 ease-in-out border-2 ${
+                hoveredPointData.point
+                  ? 'border-brand-500 shadow-[0_10px_30px_rgba(10,28,53,0.15)] ring-4 ring-brand-500/5 translate-y-[-2px]' 
+                  : 'border-brand-500/20 shadow-premium-lg'
+              }`}>
                 <div>
-                  <h3 className="font-display font-semibold text-slate-800 text-base mb-1 flex items-center gap-2">
-                    <CarFront className="h-5 w-5 text-indigo-500" />
-                    Ocupação e Frota Ativa
-                  </h3>
-
-                  {/* Progress wheel bar indicator */}
-                  <div className="my-6">
-                    <div className="flex justify-between items-end mb-2 text-xs text-slate-500 font-semibold">
-                      <span>Relação de Alocação</span>
-                      <span>
-                        {vehicles.filter(v => v.status === 'rented' && !v.isDeleted).length} de {vehicles.filter(v => !v.isDeleted).length} carros
-                      </span>
+                  <div className="flex items-center gap-2 mb-2 pb-2.5 border-b border-slate-100">
+                    <div className="p-1.5 bg-brand-50 text-brand-600 rounded-lg">
+                      <Coins className="h-4.5 w-4.5" />
                     </div>
-
-                    <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-brand-500 rounded-full transition-all duration-500"
-                        style={{
-                          width: `${vehicles.filter(v => !v.isDeleted).length > 0 ? (vehicles.filter(v => v.status === 'rented' && !v.isDeleted).length / vehicles.filter(v => !v.isDeleted).length) * 100 : 0}%`
-                        }}
-                      />
+                    <div>
+                      <h3 className="font-display font-bold text-slate-800 text-sm leading-tight">
+                        Detalhamento do Fluxo
+                      </h3>
+                      <p className="text-[9.5px] text-slate-400 font-sans leading-none mt-0.5">
+                        Valores consolidados em tempo real
+                      </p>
                     </div>
                   </div>
+                  
+                  <p className="text-[10px] text-slate-500 font-sans leading-relaxed bg-slate-50 border border-slate-100 p-2.5 rounded-lg mt-2 mb-1">
+                    💡 Passe o mouse sobre as barras/linhas do gráfico para detalhar valores consolidados de qualquer ponto.
+                  </p>
 
-                  {/* Micro list status indicators */}
-                  <div className="space-y-3.5 mt-2">
-                    <div className="flex items-center justify-between text-xs font-semibold py-1 border-b border-dashed border-slate-100">
-                      <span className="text-slate-500 flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Disponíveis
-                      </span>
-                      <span className="text-slate-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 font-mono">
-                        {vehicles.filter(v => v.status === 'available' && !v.isDeleted).length}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs font-semibold py-1 border-b border-dashed border-slate-100">
-                      <span className="text-slate-500 flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span> Em Contratos Ativos
-                      </span>
-                      <span className="text-slate-800 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 font-mono">
-                        {vehicles.filter(v => v.status === 'rented' && !v.isDeleted).length}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs font-semibold py-1">
-                      <span className="text-slate-500 flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Na Oficina (Manutenção)
-                      </span>
-                      <span className="text-slate-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 font-mono">
-                        {vehicles.filter(v => v.status === 'maintenance' && !v.isDeleted).length}
-                      </span>
-                    </div>
-                  </div>
+                  {/* Render point info */}
+                  {(() => {
+                    const activePoint = hoveredPointData.point || (hoveredPointData.meta ? hoveredPointData.meta.latestPoint : null);
+                    if (!activePoint) {
+                      return (
+                        <div className="my-8 text-center py-6 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+                          <p className="text-xs text-slate-400 font-sans italic">Aguardando dados gráficos...</p>
+                        </div>
+                      );
+                    }
+
+                    const isHovered = !!hoveredPointData.point;
+                    const meta = hoveredPointData.meta;
+                    
+                    const formatVal = (val: number) => {
+                      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+                    };
+
+                    const formatDateLabel = (dateStr: string) => {
+                      const parts = dateStr.split('-');
+                      if (parts.length === 3) {
+                        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+                      }
+                      return dateStr;
+                    };
+
+                    const dateLabel = meta?.timeFrame === 'semanal' 
+                      ? `Semana de ${formatDateLabel(activePoint.date)}`
+                      : meta?.timeFrame === 'mensal'
+                        ? `Mês: ${activePoint.date}`
+                        : `Dia: ${formatDateLabel(activePoint.date)}`;
+
+                    return (
+                      <div className="mt-4 space-y-4">
+                        {/* Point Header Tag */}
+                        <div className="flex items-center justify-between">
+                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded font-sans ${isHovered ? 'bg-brand-50 text-brand-600' : 'bg-slate-100 text-slate-600'}`}>
+                            {isHovered ? 'Ponto Selecionado' : 'Consolidado Geral'}
+                          </span>
+                          <span className="font-mono text-[10px] text-slate-500 flex items-center gap-1 font-semibold">
+                            <Calendar className="h-3 w-3" />
+                            {dateLabel}
+                          </span>
+                        </div>
+
+                        {/* Values details */}
+                        <div className="space-y-2.5">
+                          {/* Receitas */}
+                          <div className="flex items-center justify-between p-2 rounded-xl bg-emerald-50/50 border border-emerald-100/40">
+                            <div>
+                              <span className="text-[10px] text-slate-400 font-sans block uppercase tracking-wider font-bold">Receitas</span>
+                              <span className="text-emerald-700 font-mono font-bold text-xs sm:text-sm">
+                                {formatVal(activePoint.receitas || 0)}
+                              </span>
+                            </div>
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                          </div>
+
+                          {/* Despesas */}
+                          <div className="flex items-center justify-between p-2 rounded-xl bg-rose-50/50 border border-rose-100/40">
+                            <div>
+                              <span className="text-[10px] text-slate-400 font-sans block uppercase tracking-wider font-bold">Despesas</span>
+                              <span className="text-rose-700 font-mono font-bold text-xs sm:text-sm">
+                                {formatVal(activePoint.despesas || 0)}
+                              </span>
+                            </div>
+                            <span className="h-1.5 w-1.5 rounded-full bg-rose-500"></span>
+                          </div>
+
+                          {/* Cauções Net */}
+                          <div className="flex items-center justify-between p-2 rounded-xl bg-indigo-50/50 border border-indigo-100/40">
+                            <div>
+                              <span className="text-[10px] text-slate-400 font-sans block uppercase tracking-wider font-bold">Garantia (Caução Líquido)</span>
+                              <span className="text-indigo-700 font-mono font-bold text-xs sm:text-sm">
+                                {formatVal(activePoint.caucao || 0)}
+                              </span>
+                            </div>
+                            <span className="h-1.5 w-1.5 rounded-full bg-indigo-500"></span>
+                          </div>
+
+                          {/* Divider */}
+                          <div className="border-t border-dashed border-slate-100 my-2"></div>
+
+                          {/* Saldo Líquido do Período */}
+                          <div className="flex items-center justify-between px-1 py-0.5">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-sans">Saldo do Período</span>
+                            <span className={`font-mono text-xs font-bold ${activePoint.saldoDia >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                              {activePoint.saldoDia >= 0 ? '+' : ''}{formatVal(activePoint.saldoDia)}
+                            </span>
+                          </div>
+
+                          {/* Saldo Acumulado */}
+                          <div className="flex items-center justify-between px-1 py-0.5">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-sans">Saldo Acumulado</span>
+                            <span className={`font-mono text-xs font-bold ${activePoint.acumulado >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>
+                              {formatVal(activePoint.acumulado)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
-
-                <button
-                  onClick={() => setActiveTab('vehicles')}
-                  className="w-full mt-4 py-2 bg-slate-50 hover:bg-slate-100/80 border border-slate-100 text-slate-600 font-bold text-xs rounded-lg transition-all flex items-center justify-center gap-1"
-                >
-                  Ir para Gerência de Frota
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </button>
               </div>
             </div>
 

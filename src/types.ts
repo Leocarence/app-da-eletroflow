@@ -12,6 +12,7 @@ export interface Vehicle {
   estimatedValueDate?: string;
   monthlyMileages?: { [month: string]: number };
   monthlyNotes?: { [month: string]: string };
+  acquisitionDate?: string; // YYYY-MM-DD
 }
 
 export interface Rental {

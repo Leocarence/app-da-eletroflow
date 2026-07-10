@@ -5,6 +5,16 @@ import { getBrasiliaDateStr, toLocalDateStr } from '../utils/dateUtils';
 
 interface CashFlowChartProps {
   transactions: Transaction[];
+  onHoverPointChange?: (
+    point: ChartPoint | null,
+    meta: {
+      timeFrame: 'diario' | 'semanal' | 'mensal';
+      chartMode: 'acumulado' | 'diario';
+      showReceitas: boolean;
+      showDespesas: boolean;
+      latestPoint: ChartPoint | null;
+    }
+  ) => void;
 }
 
 interface ChartPoint {
@@ -20,7 +30,7 @@ interface ChartPoint {
   acumuladoCaucao: number;
 }
 
-export default function CashFlowChart({ transactions }: CashFlowChartProps) {
+export default function CashFlowChart({ transactions, onHoverPointChange }: CashFlowChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 320, height: 240 });
   const [hoveredPoint, setHoveredPoint] = useState<ChartPoint | null>(null);
@@ -45,7 +55,6 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
   const [showSaldo, setShowSaldo] = useState(true);
   const [includeCaucao, setIncludeCaucao] = useState(true);
 
-  // Track parent div resize
   useEffect(() => {
     if (!containerRef.current) return;
     const resizeObserver = new ResizeObserver((entries) => {
@@ -343,6 +352,26 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
     }
   }, [transactions, timeFrame, includeCaucao, startDate, endDate]);
 
+  // Store onHoverPointChange in a ref to avoid infinite rendering loop when the parent callback reference changes
+  const onHoverPointChangeRef = useRef(onHoverPointChange);
+  useEffect(() => {
+    onHoverPointChangeRef.current = onHoverPointChange;
+  }, [onHoverPointChange]);
+
+  // Synchronize hovered/active point with parent dashboard component
+  useEffect(() => {
+    if (onHoverPointChangeRef.current) {
+      const latestPoint = points[points.length - 1] || null;
+      onHoverPointChangeRef.current(hoveredPoint, {
+        timeFrame,
+        chartMode,
+        showReceitas,
+        showDespesas,
+        latestPoint
+      });
+    }
+  }, [hoveredPoint, points, timeFrame, chartMode, showReceitas, showDespesas]);
+
   // Calculate SVG Drawing coordinates
   const paddingLeft = 65;
   const paddingRight = 20;
@@ -599,116 +628,129 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
           </h3>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 w-full items-stretch">
-          {/* Filtro de Período Customizado */}
-          <div className="flex flex-col gap-1.5 p-2 bg-slate-50 rounded-xl border border-slate-200 w-full justify-between">
-            <span className="text-[10px] text-slate-500 font-bold px-1 uppercase tracking-wider text-center block">Período</span>
-            <div className="grid grid-cols-2 gap-1.5 w-full">
-              <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-md px-1.5 py-1 shadow-xs w-full">
-                <span className="text-[9px] text-slate-400 font-semibold select-none">De</span>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="bg-transparent border-none text-slate-700 text-xs font-bold focus:outline-none w-full cursor-pointer p-0"
-                  id="chart-start-date"
-                />
-              </div>
-              <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-md px-1.5 py-1 shadow-xs w-full">
-                <span className="text-[9px] text-slate-400 font-semibold select-none">Até</span>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="bg-transparent border-none text-slate-700 text-xs font-bold focus:outline-none w-full cursor-pointer p-0"
-                  id="chart-end-date"
-                />
+        {/* Controles do Gráfico organizados em duas linhas elegantes */}
+        <div className="flex flex-col gap-3 w-full">
+          {/* Linha 1: Filtro de Período e Opção de Caução */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 w-full items-stretch">
+            {/* Filtro de Período Customizado */}
+            <div className="col-span-1 md:col-span-8 flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-xl border border-slate-200 justify-between h-[68px]">
+              <span className="text-[10px] text-slate-500 font-bold px-1 uppercase tracking-wider text-left block select-none">Período</span>
+              <div className="grid grid-cols-2 gap-2 w-full">
+                <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-2.5 py-1 shadow-xs w-full min-w-0 h-[34px]">
+                  <span className="text-[11px] text-slate-400 font-bold select-none shrink-0">De</span>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="bg-transparent border-none text-slate-700 text-xs font-bold focus:outline-none w-full cursor-pointer p-0 min-w-0 outline-none [color-scheme:light]"
+                    id="chart-start-date"
+                  />
+                </div>
+                <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-2.5 py-1 shadow-xs w-full min-w-0 h-[34px]">
+                  <span className="text-[11px] text-slate-400 font-bold select-none shrink-0">Até</span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="bg-transparent border-none text-slate-700 text-xs font-bold focus:outline-none w-full cursor-pointer p-0 min-w-0 outline-none [color-scheme:light]"
+                    id="chart-end-date"
+                  />
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Include Caução Toggle */}
-          <div className="flex flex-col gap-1.5 p-2 bg-slate-50 rounded-xl border border-slate-200 w-full justify-between">
-            <span className="text-[10px] text-slate-500 font-bold px-1 uppercase tracking-wider text-center block">Cauções</span>
-            <button
-              onClick={() => setIncludeCaucao(!includeCaucao)}
-              className={`flex items-center justify-center gap-1.5 p-1.5 rounded-md border transition-all cursor-pointer w-full text-xs font-bold shadow-xs h-[34px] ${
-                includeCaucao 
-                  ? 'bg-amber-50 text-amber-850 border-amber-200'
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
-              }`}
-              title="Contabilizar cauções líquidos no saldo geral"
-            >
-              {includeCaucao ? (
-                <CheckSquare className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-              ) : (
-                <Square className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-              )}
-              <span>Contabilizar</span>
-            </button>
-          </div>
-
-          {/* Diário vs Semanal vs Mensal Switcher */}
-          <div className="flex flex-col gap-1.5 p-2 bg-slate-50 rounded-xl border border-slate-200 w-full justify-between">
-            <span className="text-[10px] text-slate-500 font-bold px-1 uppercase tracking-wider text-center block">Visualização</span>
-            <div className="grid grid-cols-3 gap-1 bg-white border border-slate-200 rounded-md p-0.5 shadow-xs w-full h-[34px]">
+            {/* Include Caução Toggle */}
+            <div className="col-span-1 md:col-span-4 flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-xl border border-slate-200 justify-between h-[68px]">
+              <span className="text-[10px] text-slate-500 font-bold px-1 uppercase tracking-wider text-center block select-none">Cauções</span>
               <button
-                onClick={() => setTimeFrame('diario')}
-                className={`py-1 text-[10px] font-bold rounded transition-all cursor-pointer text-center ${
-                  timeFrame === 'diario'
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800'
+                type="button"
+                onClick={() => setIncludeCaucao(!includeCaucao)}
+                className={`flex items-center justify-center gap-2 px-3 py-1 rounded-lg border transition-all cursor-pointer w-full text-xs font-bold shadow-xs h-[34px] ${
+                  includeCaucao 
+                    ? 'bg-amber-50 text-amber-850 border-amber-200 shadow-xs'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
                 }`}
+                title="Contabilizar cauções líquidos no saldo geral"
               >
-                Diário
-              </button>
-              <button
-                onClick={() => setTimeFrame('semanal')}
-                className={`py-1 text-[10px] font-bold rounded transition-all cursor-pointer text-center ${
-                  timeFrame === 'semanal'
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                Semanal
-              </button>
-              <button
-                onClick={() => setTimeFrame('mensal')}
-                className={`py-1 text-[10px] font-bold rounded transition-all cursor-pointer text-center ${
-                  timeFrame === 'mensal'
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                Mensal
+                {includeCaucao ? (
+                  <CheckSquare className="h-4 w-4 text-amber-500 shrink-0" />
+                ) : (
+                  <Square className="h-4 w-4 text-slate-400 shrink-0" />
+                )}
+                <span>Contabilizar Cauções</span>
               </button>
             </div>
           </div>
 
-          {/* Acumulado vs Periodo Switcher */}
-          <div className="flex flex-col gap-1.5 p-2 bg-slate-50 rounded-xl border border-slate-200 w-full justify-between">
-            <span className="text-[10px] text-slate-500 font-bold px-1 uppercase tracking-wider text-center block">Tipo de Gráfico</span>
-            <div className="grid grid-cols-2 gap-1 bg-white border border-slate-200 rounded-md p-0.5 shadow-xs w-full h-[34px]">
-              <button
-                onClick={() => setChartMode('acumulado')}
-                className={`py-1 text-[10px] font-bold rounded transition-all cursor-pointer text-center ${
-                  chartMode === 'acumulado'
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                Acumulado
-              </button>
-              <button
-                onClick={() => setChartMode('diario')}
-                className={`py-1 text-[10px] font-bold rounded transition-all cursor-pointer text-center ${
-                  chartMode === 'diario'
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                {timeFrame === 'diario' ? 'Lançamentos' : timeFrame === 'semanal' ? 'Lançamentos' : 'Mensais'}
-              </button>
+          {/* Linha 2: Filtros de Visualização e Tipo de Gráfico */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full items-stretch">
+            {/* Diário vs Semanal vs Mensal Switcher */}
+            <div className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-xl border border-slate-200 w-full justify-between h-[68px]">
+              <span className="text-[10px] text-slate-500 font-bold px-1 uppercase tracking-wider text-center block select-none">Visualização</span>
+              <div className="grid grid-cols-3 gap-1 bg-white border border-slate-200 rounded-lg p-0.5 shadow-xs w-full h-[34px]">
+                <button
+                  type="button"
+                  onClick={() => setTimeFrame('diario')}
+                  className={`py-1 text-xs font-bold rounded-md transition-all cursor-pointer text-center ${
+                    timeFrame === 'diario'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Diário
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTimeFrame('semanal')}
+                  className={`py-1 text-xs font-bold rounded-md transition-all cursor-pointer text-center ${
+                    timeFrame === 'semanal'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Semanal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTimeFrame('mensal')}
+                  className={`py-1 text-xs font-bold rounded-md transition-all cursor-pointer text-center ${
+                    timeFrame === 'mensal'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Mensal
+                </button>
+              </div>
+            </div>
+
+            {/* Acumulado vs Periodo Switcher */}
+            <div className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-xl border border-slate-200 w-full justify-between h-[68px]">
+              <span className="text-[10px] text-slate-500 font-bold px-1 uppercase tracking-wider text-center block select-none">Tipo de Gráfico</span>
+              <div className="grid grid-cols-2 gap-1 bg-white border border-slate-200 rounded-lg p-0.5 shadow-xs w-full h-[34px]">
+                <button
+                  type="button"
+                  onClick={() => setChartMode('acumulado')}
+                  className={`py-1 text-xs font-bold rounded-md transition-all cursor-pointer text-center ${
+                    chartMode === 'acumulado'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Acumulado
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setChartMode('diario')}
+                  className={`py-1 text-xs font-bold rounded-md transition-all cursor-pointer text-center ${
+                    chartMode === 'diario'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  {timeFrame === 'diario' ? 'Lançamentos' : timeFrame === 'semanal' ? 'Lançamentos' : 'Mensais'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -728,8 +770,8 @@ export default function CashFlowChart({ transactions }: CashFlowChartProps) {
           ))}
         </div>
 
-        {/* Dynamic HTML Tooltip - Fixed at Top-Right of the chart area */}
-        {hoveredPoint && (
+        {/* Dynamic HTML Tooltip - Fixed at Top-Right of the chart area (disabled if parent handles it statically) */}
+        {hoveredPoint && !onHoverPointChange && (
           <div
             className="absolute z-20 top-2 right-2 sm:right-4 bg-slate-900/95 backdrop-blur-md text-white rounded-xl p-2.5 shadow-xl border border-slate-800 text-[11px] text-left pointer-events-none min-w-[210px] animate-fade-in select-none"
           >

@@ -7,7 +7,8 @@ export const INITIAL_VEHICLES: Vehicle[] = [
     plate: 'TYU-0E16',
     weeklyRate: 1300,
     depositValue: 2600,
-    status: 'rented'
+    status: 'rented',
+    acquisitionDate: '2026-03-23'
   },
   {
     id: 'v_corolla',
@@ -15,7 +16,8 @@ export const INITIAL_VEHICLES: Vehicle[] = [
     plate: 'ABC-1234',
     weeklyRate: 1500,
     depositValue: 3000,
-    status: 'rented'
+    status: 'rented',
+    acquisitionDate: '2026-02-15'
   },
   {
     id: 'v_onix',
@@ -23,7 +25,8 @@ export const INITIAL_VEHICLES: Vehicle[] = [
     plate: 'XYZ-9876',
     weeklyRate: 950,
     depositValue: 1900,
-    status: 'rented'
+    status: 'rented',
+    acquisitionDate: '2026-03-01'
   },
   {
     id: 'v_mobi',
@@ -31,7 +34,8 @@ export const INITIAL_VEHICLES: Vehicle[] = [
     plate: 'QWE-4567',
     weeklyRate: 750,
     depositValue: 1500,
-    status: 'available'
+    status: 'available',
+    acquisitionDate: '2026-05-20'
   }
 ];
 

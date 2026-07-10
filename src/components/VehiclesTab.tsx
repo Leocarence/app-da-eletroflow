@@ -23,6 +23,118 @@ interface VehiclesTabProps {
   onDeleteTransaction?: (id: string) => void;
 }
 
+/**
+ * Calculates the vacancy (desocupação) rate for a vehicle.
+ * Start counting from acquisitionDate + 15 days.
+ * Grace period is 15 days.
+ * Considers 1 year from the acquisition date.
+ */
+function calculateVacancyForVehicle(vehicle: Vehicle, rentalsList: Rental[]) {
+  const acqDateStr = vehicle.acquisitionDate;
+  if (!acqDateStr) {
+    return {
+      percentage: null,
+      vacantDays: 0,
+      totalCountableDays: 0,
+      periodLabel: '—',
+      isGracePeriod: false,
+      graceDaysRemaining: 0
+    };
+  }
+
+  // Parse acquisition date (YYYY-MM-DD)
+  const [ay, am, ad] = acqDateStr.split('-').map(Number);
+  const acqDate = new Date(ay, am - 1, ad);
+
+  // Today's date
+  const todayStr = getBrasiliaDateStr();
+  const [ty, tm, td] = todayStr.split('-').map(Number);
+  const todayDate = new Date(ty, tm - 1, td);
+
+  // 1 year after acquisition
+  const oneYearEndDate = new Date(acqDate.getTime() + 365 * 24 * 60 * 60 * 1000);
+
+  const startYear = acqDate.getFullYear();
+  const endYear = startYear + 1;
+  const periodLabel = `${startYear}/${endYear}`;
+
+  // Evaluate range: from acquisitionDate to min(todayDate, oneYearEndDate)
+  const evalEndDate = todayDate < oneYearEndDate ? todayDate : oneYearEndDate;
+
+  // Active or completed rentals of this vehicle
+  const vRentals = rentalsList.filter(r => r.vehicleId === vehicle.id && !r.isDeleted);
+
+  // Determine if there are active or past rentals starting on or before today
+  const hasRentals = vRentals.some(r => r.startDate <= todayStr);
+
+  // Determine if we are currently within the grace period (less than 15 days from acquisition)
+  // and have no rentals active yet.
+  const daysSinceAcq = Math.floor((todayDate.getTime() - acqDate.getTime()) / (24 * 60 * 60 * 1000));
+  const isGracePeriod = daysSinceAcq < 15 && !hasRentals;
+  const graceDaysRemaining = Math.max(0, 15 - daysSinceAcq);
+
+  if (isGracePeriod) {
+    return {
+      percentage: 0,
+      vacantDays: 0,
+      totalCountableDays: 0,
+      periodLabel,
+      isGracePeriod: true,
+      graceDaysRemaining
+    };
+  }
+
+  let vacantDays = 0;
+  let totalCountableDays = 0;
+
+  // Step day by day from acqDate
+  let current = new Date(acqDate.getTime());
+  while (current <= evalEndDate) {
+    // YYYY-MM-DD
+    const cy = current.getFullYear();
+    const cm = String(current.getMonth() + 1).padStart(2, '0');
+    const cd = String(current.getDate()).padStart(2, '0');
+    const currentStr = `${cy}-${cm}-${cd}`;
+
+    const diffDays = Math.floor((current.getTime() - acqDate.getTime()) / (24 * 60 * 60 * 1000));
+    const isWithinFirst15Days = diffDays < 15;
+
+    // Check if rented on this day
+    const isRented = vRentals.some(r => {
+      const isAfterStart = r.startDate <= currentStr;
+      // If the rental is active, it is considered rented up to today (even if planned endDate has passed)
+      const effectiveEndDate = r.status === 'active'
+        ? (r.endDate && r.endDate > todayStr ? r.endDate : todayStr)
+        : r.endDate;
+      const isBeforeEnd = effectiveEndDate ? currentStr <= effectiveEndDate : true;
+      return isAfterStart && isBeforeEnd;
+    });
+
+    if (isRented) {
+      totalCountableDays++;
+    } else {
+      // If NOT rented, it only counts as vacant if it is OUTSIDE the first 15 days grace period
+      if (!isWithinFirst15Days) {
+        vacantDays++;
+        totalCountableDays++;
+      }
+    }
+
+    current.setDate(current.getDate() + 1);
+  }
+
+  const percentage = totalCountableDays > 0 ? (vacantDays / totalCountableDays) * 100 : 0;
+
+  return {
+    percentage,
+    vacantDays,
+    totalCountableDays,
+    periodLabel,
+    isGracePeriod: false,
+    graceDaysRemaining: 0
+  };
+}
+
 export default function VehiclesTab({
   vehicles,
   rentals,
@@ -64,6 +176,7 @@ export default function VehiclesTab({
   const [editVehDepositValue, setEditVehDepositValue] = useState(2600);
   const [editVehMileage, setEditVehMileage] = useState<number | ''>('');
   const [editVehMileageDate, setEditVehMileageDate] = useState('');
+  const [editVehAcquisitionDate, setEditVehAcquisitionDate] = useState('');
 
   const openEditVehicleModal = (v: Vehicle) => {
     setEditVehId(v.id);
@@ -73,6 +186,7 @@ export default function VehiclesTab({
     setEditVehDepositValue(v.depositValue || 0);
     setEditVehMileage(v.mileage || '');
     setEditVehMileageDate(v.mileageDate || getBrasiliaDateStr());
+    setEditVehAcquisitionDate(v.acquisitionDate || getBrasiliaDateStr());
     setShowEditVehicle(true);
   };
 
@@ -85,7 +199,8 @@ export default function VehiclesTab({
       weeklyRate: Number(editVehWeeklyRate),
       depositValue: Number(editVehDepositValue),
       mileage: editVehMileage === '' ? undefined : Number(editVehMileage),
-      mileageDate: editVehMileageDate || undefined
+      mileageDate: editVehMileageDate || undefined,
+      acquisitionDate: editVehAcquisitionDate || undefined
     });
     setShowEditVehicle(false);
   };
@@ -96,6 +211,7 @@ export default function VehiclesTab({
   const [weeklyRate, setWeeklyRate] = useState(1300);
   const [depositValue, setDepositValue] = useState(2600);
   const [status, setStatus] = useState<Vehicle['status']>('available');
+  const [acquisitionDate, setAcquisitionDate] = useState(getBrasiliaDateStr());
 
   const submitAddVehicle = (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,7 +221,8 @@ export default function VehiclesTab({
       plate: plate.toUpperCase(),
       weeklyRate: Number(weeklyRate),
       depositValue: Number(depositValue),
-      status
+      status,
+      acquisitionDate
     });
     // Reset
     setBrandModel('');
@@ -113,6 +230,7 @@ export default function VehiclesTab({
     setWeeklyRate(1300);
     setDepositValue(2600);
     setStatus('available');
+    setAcquisitionDate(getBrasiliaDateStr());
     setShowAddVehicle(false);
   };
 
@@ -1104,6 +1222,17 @@ export default function VehiclesTab({
                     />
                   </div>
 
+                  <div className="col-span-2">
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 font-sans">Data de Entrega do Veículo (Aquisição)</label>
+                    <input
+                      type="date"
+                      required
+                      value={editVehAcquisitionDate}
+                      onChange={(e) => setEditVehAcquisitionDate(e.target.value)}
+                      className="w-full font-sans text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all text-slate-755"
+                    />
+                  </div>
+
                   <div className="col-span-2 border-t border-dashed border-slate-100 pt-3">
                     <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded font-bold uppercase tracking-wider">Aferição de Quilometragem</span>
                   </div>
@@ -1173,6 +1302,193 @@ export default function VehiclesTab({
               Cadastrar Novo Carro
             </button>
           )}
+        </div>
+      </div>
+
+      {/* PAINEL DE METRICAS E INDICADORES DA FROTA */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* COL 1: OCUPAÇÃO DA FROTA */}
+        <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-100 p-5 shadow-premium flex flex-col justify-between">
+          <div>
+            <h3 className="font-display font-semibold text-slate-800 text-sm mb-1 flex items-center gap-2">
+              <Car className="h-4 w-4 text-indigo-500" />
+              Ocupação e Frota Ativa
+            </h3>
+
+            {/* Progress wheel bar indicator */}
+            <div className="my-5">
+              <div className="flex justify-between items-end mb-2 text-xs text-slate-500 font-semibold">
+                <span>Relação de Alocação</span>
+                <span>
+                  {vehicles.filter(v => v.status === 'rented' && !v.isDeleted).length} de {vehicles.filter(v => !v.isDeleted).length} carros
+                </span>
+              </div>
+
+              <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-brand-500 rounded-full transition-all duration-500"
+                  style={{
+                    width: `${vehicles.filter(v => !v.isDeleted).length > 0 ? (vehicles.filter(v => v.status === 'rented' && !v.isDeleted).length / vehicles.filter(v => !v.isDeleted).length) * 100 : 0}%`
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Micro list status indicators */}
+            <div className="space-y-3 mt-2">
+              <div className="flex items-center justify-between text-xs font-semibold py-1.5 border-b border-dashed border-slate-100">
+                <span className="text-slate-500 flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Disponíveis
+                </span>
+                <span className="text-slate-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 font-mono">
+                  {vehicles.filter(v => v.status === 'available' && !v.isDeleted).length}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs font-semibold py-1.5 border-b border-dashed border-slate-100">
+                <span className="text-slate-500 flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span> Em Contratos Ativos
+                </span>
+                <span className="text-slate-800 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 font-mono">
+                  {vehicles.filter(v => v.status === 'rented' && !v.isDeleted).length}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs font-semibold py-1.5">
+                <span className="text-slate-500 flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Na Oficina (Manutenção)
+                </span>
+                <span className="text-slate-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 font-mono">
+                  {vehicles.filter(v => v.status === 'maintenance' && !v.isDeleted).length}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* COL 2: TAXA DE DESOCUPAÇÃO DOS VEÍCULOS */}
+        <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-100 p-5 shadow-premium flex flex-col justify-between">
+          <div>
+            <h3 className="font-display font-semibold text-slate-800 text-sm mb-1 flex items-center gap-2">
+              <History className="h-4 w-4 text-brand-500" />
+              Taxa de Desocupação da Frota
+            </h3>
+            <p className="text-[11px] text-slate-400 font-sans mb-3">
+              Métricas calculadas para o ciclo de 1 ano após a entrega, desconsiderando a carência dos primeiros 15 dias.
+            </p>
+
+            {/* Consolidated Fleet Vacancy Rate Summary Box */}
+            {(() => {
+              const activeVehicles = vehicles.filter(v => !v.isDeleted);
+              let fleetTotalVacantDays = 0;
+              let fleetTotalCountableDays = 0;
+              let fleetVehiclesWithDate = 0;
+              let fleetVehiclesInGrace = 0;
+
+              activeVehicles.forEach(v => {
+                if (v.acquisitionDate) {
+                  const calc = calculateVacancyForVehicle(v, rentals);
+                  if (calc.isGracePeriod) {
+                    fleetVehiclesInGrace++;
+                  } else if (calc.totalCountableDays > 0) {
+                    fleetTotalVacantDays += calc.vacantDays;
+                    fleetTotalCountableDays += calc.totalCountableDays;
+                    fleetVehiclesWithDate++;
+                  }
+                }
+              });
+
+              const fleetVacancyPercentage = fleetTotalCountableDays > 0 
+                ? (fleetTotalVacantDays / fleetTotalCountableDays) * 100 
+                : 0;
+
+              return (
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Taxa Consolidada da Frota</span>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className={`text-xl font-bold font-display tracking-tight ${
+                        fleetVehiclesWithDate === 0 
+                          ? 'text-slate-400' 
+                          : fleetVacancyPercentage > 30 
+                            ? 'text-rose-500' 
+                            : fleetVacancyPercentage > 10 
+                              ? 'text-amber-500' 
+                              : 'text-emerald-500'
+                      }`}>
+                        {fleetVehiclesWithDate === 0 ? '—' : `${fleetVacancyPercentage.toFixed(1)}%`}
+                      </span>
+                      {fleetVehiclesWithDate > 0 && (
+                        <span className="text-[10px] text-slate-500 font-sans">
+                          ({fleetTotalVacantDays} de {fleetTotalCountableDays} dias de frota desocupados)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-left sm:text-right text-[10px] text-slate-400 font-sans border-t sm:border-t-0 sm:border-l border-slate-200/60 pt-2 sm:pt-0 sm:pl-3 shrink-0 flex flex-row sm:flex-col gap-x-2.5 gap-y-0.5">
+                    <div>Avaliados: <strong className="text-slate-600 font-semibold">{fleetVehiclesWithDate}</strong></div>
+                    {fleetVehiclesInGrace > 0 && (
+                      <div className="text-indigo-600 font-medium">Carência: <strong className="font-semibold">{fleetVehiclesInGrace}</strong></div>
+                    )}
+                    <div>Sem data: <strong className="text-slate-600 font-semibold">{activeVehicles.length - fleetVehiclesWithDate - fleetVehiclesInGrace}</strong></div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* List of vehicles and vacancy rates */}
+            <div className="space-y-3.5 max-h-[175px] overflow-y-auto pr-1 scrollbar-thin">
+              {vehicles.filter(v => !v.isDeleted).length === 0 ? (
+                <p className="text-xs text-slate-400 italic text-center py-6">Nenhum veículo cadastrado para avaliar.</p>
+              ) : (
+                vehicles.filter(v => !v.isDeleted).map(v => {
+                  const calc = calculateVacancyForVehicle(v, rentals);
+                  
+                  // Formatar a data de aquisição para o padrão BR
+                  const formatDateBR = (dateStr?: string) => {
+                    if (!dateStr) return '—';
+                    const parts = dateStr.split('-');
+                    if (parts.length !== 3) return dateStr;
+                    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+                  };
+
+                  return (
+                    <div key={v.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                      <div>
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="font-display font-bold text-slate-800 text-xs">{v.brandModel}</span>
+                          <span className="font-mono text-[10px] bg-white border border-slate-200 text-slate-500 px-1.5 py-0.5 rounded font-medium">{v.plate}</span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-sans">
+                          Entrega: <span className="font-semibold font-mono">{formatDateBR(v.acquisitionDate)}</span>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        {calc.percentage === null ? (
+                          <span className="text-[10px] font-semibold text-slate-400 bg-slate-200/50 px-2 py-0.5 rounded-lg">Sem data de entrega</span>
+                        ) : calc.isGracePeriod ? (
+                          <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-lg animate-pulse">
+                            Carência (mais {calc.graceDaysRemaining} dias)
+                          </span>
+                        ) : (
+                          <div className="text-xs font-semibold text-slate-700">
+                            <span className="text-[10px] text-slate-400 font-sans block sm:inline mr-1">
+                              Taxa de desocupação no período {calc.periodLabel}:
+                            </span>
+                            <span className={`font-mono text-xs font-bold ${calc.percentage > 30 ? 'text-rose-500' : calc.percentage > 10 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                              {calc.percentage.toFixed(1)}%
+                            </span>
+                            <span className="text-[11px] text-slate-500 font-sans font-normal ml-1">
+                              ({String(calc.vacantDays).padStart(2, '0')} {calc.vacantDays === 1 ? 'dia' : 'dias'} desocupado)
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1359,6 +1675,17 @@ export default function VehiclesTab({
                     <option value="maintenance">Oficina / Manut.</option>
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Data de Entrega do Veículo (Aquisição)</label>
+                <input
+                  type="date"
+                  required
+                  value={acquisitionDate}
+                  onChange={(e) => setAcquisitionDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500 font-sans"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -1573,6 +1900,17 @@ export default function VehiclesTab({
                     onChange={(e) => setEditVehDepositValue(Number(e.target.value))}
                     className="w-full font-mono text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all text-slate-755"
                     placeholder="R$ 2600"
+                  />
+                </div>
+
+                <div className="col-span-2">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 font-sans">Data de Entrega do Veículo (Aquisição)</label>
+                  <input
+                    type="date"
+                    required
+                    value={editVehAcquisitionDate}
+                    onChange={(e) => setEditVehAcquisitionDate(e.target.value)}
+                    className="w-full font-sans text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all text-slate-755"
                   />
                 </div>
 
