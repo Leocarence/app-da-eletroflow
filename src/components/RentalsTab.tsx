@@ -1201,6 +1201,7 @@ export default function RentalsTab({
                           <th scope="col" className="px-5 py-3 font-semibold">Nome do Contato</th>
                           <th scope="col" className="px-5 py-3 font-semibold">Data de Contato</th>
                           <th scope="col" className="px-5 py-3 font-semibold">WhatsApp / Telefone</th>
+                          <th scope="col" className="px-5 py-3 font-semibold text-center">Quantidade de contatos feitos</th>
                           {!isSocio && <th scope="col" className="px-5 py-3 font-semibold text-right">Ações</th>}
                         </tr>
                       </thead>
@@ -1246,12 +1247,12 @@ export default function RentalsTab({
                                       <PhoneCall className="h-3.5 w-3.5 text-emerald-500" />
                                       {formatPhoneNumber(lead.phone)}
                                     </a>
-                                    {lead.contactCount && lead.contactCount > 0 ? (
-                                      <span className="bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm" title={`${lead.contactCount} contato(s) realizado(s)`}>
-                                        +{lead.contactCount}
-                                      </span>
-                                    ) : null}
                                   </div>
+                                </td>
+                                <td className="px-5 py-3.5 text-center whitespace-nowrap">
+                                  <span className="bg-amber-500 text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-xs inline-block min-w-[28px] text-center" title={`${lead.contactCount || 0} contato(s) realizado(s)`}>
+                                    {lead.contactCount || 0}
+                                  </span>
                                 </td>
                                 {!isSocio && (
                                   <td className="px-5 py-3.5 text-right whitespace-nowrap">
@@ -1370,6 +1371,7 @@ export default function RentalsTab({
                           <th scope="col" className="px-5 py-3 font-semibold">Nome do Contato</th>
                           <th scope="col" className="px-5 py-3 font-semibold">Data de Contato</th>
                           <th scope="col" className="px-5 py-3 font-semibold">WhatsApp / Telefone</th>
+                          <th scope="col" className="px-5 py-3 font-semibold text-center">Quantidade de contatos feitos</th>
                           {!isSocio && <th scope="col" className="px-5 py-3 font-semibold text-right">Ações</th>}
                         </tr>
                       </thead>
@@ -1412,12 +1414,12 @@ export default function RentalsTab({
                                       <PhoneCall className="h-3.5 w-3.5 text-emerald-500" />
                                       {formatPhoneNumber(lead.phone)}
                                     </a>
-                                    {lead.contactCount && lead.contactCount > 0 ? (
-                                      <span className="bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm" title={`${lead.contactCount} contato(s) realizado(s)`}>
-                                        +{lead.contactCount}
-                                      </span>
-                                    ) : null}
                                   </div>
+                                </td>
+                                <td className="px-5 py-3.5 text-center whitespace-nowrap">
+                                  <span className="bg-amber-500 text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-xs inline-block min-w-[28px] text-center" title={`${lead.contactCount || 0} contato(s) realizado(s)`}>
+                                    {lead.contactCount || 0}
+                                  </span>
                                 </td>
                                 {!isSocio && (
                                   <td className="px-5 py-3.5 text-right whitespace-nowrap">
