@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Vehicle, Rental, Transaction, InterestedLead } from '../types';
 import { getBrasiliaDateStr, toLocalDateStr } from '../utils/dateUtils';
+import { formatPhoneNumber } from '../utils/phoneUtils';
 import { 
   Plus, Car, User, Key, CheckCircle, AlertTriangle, Calendar, 
   DollarSign, X, ShieldCheck, Heart, UserCheck, CalendarDays, 
@@ -203,15 +204,6 @@ export default function RentalsTab({
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
 
-  const formatPhoneNumber = (value: string) => {
-    const digits = value.replace(/\D/g, '').slice(0, 11);
-    if (digits.length === 0) return '';
-    if (digits.length <= 2) return `(${digits}`;
-    if (digits.length <= 6) return `(${digits.slice(0, 2)})${digits.slice(2)}`;
-    if (digits.length <= 10) return `(${digits.slice(0, 2)})${digits.slice(2, 6)}-${digits.slice(6)}`;
-    return `(${digits.slice(0, 2)})${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
-  };
-
   // Find selected rental
   const selectedRental = rentals.find(r => r.id === selectedRentalId);
 
@@ -392,7 +384,7 @@ export default function RentalsTab({
                     <span className="text-slate-400 block text-[9px] uppercase font-bold font-sans">Contato WhatsApp</span>
                     <span className="font-mono text-slate-800 flex items-center gap-1 font-semibold">
                       <PhoneCall className="h-3 w-3 inline text-emerald-500" />
-                      {selectedRental.phone}
+                      {formatPhoneNumber(selectedRental.phone)}
                     </span>
                   </div>
                 )}
@@ -784,7 +776,7 @@ export default function RentalsTab({
                     <input
                       type="text"
                       value={editRentPhone}
-                      onChange={(e) => setEditRentPhone(e.target.value)}
+                      onChange={(e) => setEditRentPhone(formatPhoneNumber(e.target.value))}
                       className="w-full font-mono text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all text-slate-755"
                       placeholder="Ex: (11) 99999-9999"
                     />
@@ -983,7 +975,7 @@ export default function RentalsTab({
                     <div className="flex justify-between items-start mb-2 mt-4.1">
                       <div>
                         <h4 className="font-display font-bold text-slate-800 group-hover:text-brand-700 text-sm">{r.tenantName}</h4>
-                        {r.phone && <p className="text-[10px] text-slate-400 font-mono mt-0.5">{r.phone}</p>}
+                        {r.phone && <p className="text-[10px] text-slate-400 font-mono mt-0.5">{formatPhoneNumber(r.phone)}</p>}
                       </div>
                       <div>
                         {daysLeft > 0 ? (
@@ -1074,7 +1066,7 @@ export default function RentalsTab({
                     <div className="flex justify-between items-start mb-2 mt-4">
                       <div>
                         <h4 className="font-display font-bold text-slate-800 group-hover:text-brand-700 text-sm">{r.tenantName}</h4>
-                        {r.phone && <p className="text-[10px] text-slate-400 font-mono mt-0.5">{r.phone}</p>}
+                        {r.phone && <p className="text-[10px] text-slate-400 font-mono mt-0.5">{formatPhoneNumber(r.phone)}</p>}
                       </div>
                       <span className="text-[9px] bg-slate-100 text-slate-600 font-bold px-2 py-0.5 rounded border border-slate-200 uppercase">
                         Encerrado
@@ -1252,7 +1244,7 @@ export default function RentalsTab({
                                       style={{ minHeight: '28px' }}
                                     >
                                       <PhoneCall className="h-3.5 w-3.5 text-emerald-500" />
-                                      {lead.phone}
+                                      {formatPhoneNumber(lead.phone)}
                                     </a>
                                     {lead.contactCount && lead.contactCount > 0 ? (
                                       <span className="bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm" title={`${lead.contactCount} contato(s) realizado(s)`}>
@@ -1418,7 +1410,7 @@ export default function RentalsTab({
                                       style={{ minHeight: '28px' }}
                                     >
                                       <PhoneCall className="h-3.5 w-3.5 text-emerald-500" />
-                                      {lead.phone}
+                                      {formatPhoneNumber(lead.phone)}
                                     </a>
                                     {lead.contactCount && lead.contactCount > 0 ? (
                                       <span className="bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm" title={`${lead.contactCount} contato(s) realizado(s)`}>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Vehicle, Rental, Transaction } from '../types';
 import { getBrasiliaDateStr } from '../utils/dateUtils';
+import { formatPhoneNumber } from '../utils/phoneUtils';
 import { 
   Plus, Car, User, Key, CheckCircle, AlertTriangle, Play, Calendar, 
   DollarSign, X, Check, Trash2, Milestone, ArrowLeft, TrendingUp, 
@@ -559,7 +560,7 @@ export default function VehiclesTab({
                     {activeRent.phone && (
                       <div>
                         <span className="text-[10px] text-slate-450 font-semibold block">TELEFONE DE CONTATO</span>
-                        <span className="text-xs font-semibold font-mono text-slate-700">{activeRent.phone}</span>
+                        <span className="text-xs font-semibold font-mono text-slate-700">{formatPhoneNumber(activeRent.phone)}</span>
                       </div>
                     )}
                   </div>
