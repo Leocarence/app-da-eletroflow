@@ -1176,7 +1176,9 @@ export default function App() {
     );
     syncAndSetVehicles(updatedVehicles);
 
-    // Handle refund transaction if toggled
+    // Handle refund and retention transactions
+    const newTransactions = [...transactions];
+
     if (refundDeposit && refundValue > 0) {
       const refundTrans: Transaction = {
         id: 't_refund_' + Math.random().toString(36).substr(2, 9),
@@ -1187,7 +1189,27 @@ export default function App() {
         category: 'Devolução de Garantia',
         description: `Devolução / Restituição parcial ou total do caução de ${targetRental.tenantName}`
       };
-      syncAndSetTransactions([...transactions, refundTrans]);
+      newTransactions.push(refundTrans);
+    }
+
+    // Handle retained deposit value entering as credit
+    const actualRefundValue = refundDeposit ? refundValue : 0;
+    const retainedValue = targetRental.depositValue - actualRefundValue;
+    if (retainedValue > 0) {
+      const retainedTrans: Transaction = {
+        id: 't_retained_' + Math.random().toString(36).substr(2, 9),
+        date: getBrasiliaDateStr(),
+        type: 'receita',
+        value: retainedValue,
+        vehicleId: targetRental.vehicleId,
+        category: 'Retenção de Caução',
+        description: `Retenção de valor do caução (multa/avarias) no encerramento de contrato de ${targetRental.tenantName}`
+      };
+      newTransactions.push(retainedTrans);
+    }
+
+    if (newTransactions.length !== transactions.length) {
+      syncAndSetTransactions(newTransactions);
     }
 
     showNotification(`Locação de ${targetRental.tenantName} finalizada com sucesso!`, 'success');

@@ -1165,6 +1165,17 @@ export default function RentalsTab({
             )}
           </div>
 
+          {/* Explanatory Info Card on sorting */}
+          <div className="bg-slate-50 border border-slate-150 rounded-xl p-3.5 text-xs text-slate-600 flex items-start gap-2.5 shadow-xs">
+            <Info className="h-4 w-4 text-brand-500 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <span className="font-bold text-slate-800">💡 Como funciona a prioridade da fila?</span>
+              <p className="leading-relaxed">
+                Motoristas com <strong>menos oportunidades recebidas</strong> têm prioridade e ficam no topo da fila. Quando você registra uma nova oportunidade (<span className="text-amber-600 font-bold">+1</span>) para um motorista e ele não fecha o contrato, ele desce na fila, dando vez para os outros que ainda não receberam contatos.
+              </p>
+            </div>
+          </div>
+
           {/* LISTA 1: Motoristas com documentação já aprovada (QUALIFICADA) */}
           <div className="space-y-3">
             <div className="flex items-center justify-between bg-slate-50/70 p-3 rounded-xl border border-slate-100">
@@ -1201,7 +1212,7 @@ export default function RentalsTab({
                           <th scope="col" className="px-5 py-3 font-semibold">Nome do Contato</th>
                           <th scope="col" className="px-5 py-3 font-semibold">Data de Contato</th>
                           <th scope="col" className="px-5 py-3 font-semibold">WhatsApp / Telefone</th>
-                          <th scope="col" className="px-5 py-3 font-semibold text-center">Quantidade de contatos feitos</th>
+                          <th scope="col" className="px-5 py-3 font-semibold text-center">Quantidade de oportunidades</th>
                           {!isSocio && <th scope="col" className="px-5 py-3 font-semibold text-right">Ações</th>}
                         </tr>
                       </thead>
@@ -1249,10 +1260,21 @@ export default function RentalsTab({
                                     </a>
                                   </div>
                                 </td>
-                                <td className="px-5 py-3.5 text-center whitespace-nowrap">
-                                  <span className="bg-amber-500 text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-xs inline-block min-w-[28px] text-center" title={`${lead.contactCount || 0} contato(s) realizado(s)`}>
-                                    {lead.contactCount || 0}
-                                  </span>
+                                <td className="px-5 py-3.5 text-center whitespace-nowrap font-mono text-xs font-bold">
+                                  {lead.contactCount && lead.contactCount > 0 ? (
+                                    <span 
+                                      className={
+                                        lead.contactCount <= 1 
+                                          ? 'text-slate-900' 
+                                          : lead.contactCount <= 3 
+                                            ? 'text-orange-500 font-extrabold' 
+                                            : 'text-rose-600 font-extrabold'
+                                      } 
+                                      title={`${lead.contactCount} contato(s) realizado(s)`}
+                                    >
+                                      {lead.contactCount}
+                                    </span>
+                                  ) : null}
                                 </td>
                                 {!isSocio && (
                                   <td className="px-5 py-3.5 text-right whitespace-nowrap">
@@ -1283,7 +1305,7 @@ export default function RentalsTab({
                                             title="Registrar novo contato realizado com o interessado"
                                           >
                                             <PhoneCall className="h-3.5 w-3.5 text-amber-500" />
-                                            +1 Contato
+                                            +1
                                           </button>
                                           {lead.contactCount && lead.contactCount > 0 && onDecrementLeadContactCount && (
                                             <button
@@ -1371,7 +1393,7 @@ export default function RentalsTab({
                           <th scope="col" className="px-5 py-3 font-semibold">Nome do Contato</th>
                           <th scope="col" className="px-5 py-3 font-semibold">Data de Contato</th>
                           <th scope="col" className="px-5 py-3 font-semibold">WhatsApp / Telefone</th>
-                          <th scope="col" className="px-5 py-3 font-semibold text-center">Quantidade de contatos feitos</th>
+                          <th scope="col" className="px-5 py-3 font-semibold text-center">Quantidade de oportunidades</th>
                           {!isSocio && <th scope="col" className="px-5 py-3 font-semibold text-right">Ações</th>}
                         </tr>
                       </thead>
@@ -1416,10 +1438,21 @@ export default function RentalsTab({
                                     </a>
                                   </div>
                                 </td>
-                                <td className="px-5 py-3.5 text-center whitespace-nowrap">
-                                  <span className="bg-amber-500 text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-xs inline-block min-w-[28px] text-center" title={`${lead.contactCount || 0} contato(s) realizado(s)`}>
-                                    {lead.contactCount || 0}
-                                  </span>
+                                <td className="px-5 py-3.5 text-center whitespace-nowrap font-mono text-xs font-bold">
+                                  {lead.contactCount && lead.contactCount > 0 ? (
+                                    <span 
+                                      className={
+                                        lead.contactCount <= 1 
+                                          ? 'text-slate-900' 
+                                          : lead.contactCount <= 3 
+                                            ? 'text-orange-500 font-extrabold' 
+                                            : 'text-rose-600 font-extrabold'
+                                      } 
+                                      title={`${lead.contactCount} contato(s) realizado(s)`}
+                                    >
+                                      {lead.contactCount}
+                                    </span>
+                                  ) : null}
                                 </td>
                                 {!isSocio && (
                                   <td className="px-5 py-3.5 text-right whitespace-nowrap">
@@ -1433,7 +1466,7 @@ export default function RentalsTab({
                                             title="Registrar novo contato realizado com o interessado"
                                           >
                                             <PhoneCall className="h-3.5 w-3.5 text-amber-500" />
-                                            +1 Contato
+                                            +1
                                           </button>
                                           {lead.contactCount && lead.contactCount > 0 && onDecrementLeadContactCount && (
                                             <button
