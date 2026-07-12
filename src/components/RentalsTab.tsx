@@ -22,6 +22,8 @@ interface RentalsTabProps {
   onAddInterestedLead?: (lead: Omit<InterestedLead, 'id' | 'createdAt'>) => void;
   onDeleteInterestedLead?: (id: string) => void;
   onToggleLeadDocApproved?: (id: string) => void;
+  onIncrementLeadContactCount?: (id: string) => void;
+  onDecrementLeadContactCount?: (id: string) => void;
 }
 
 export default function RentalsTab({
@@ -36,7 +38,9 @@ export default function RentalsTab({
   interestedLeads = [],
   onAddInterestedLead,
   onDeleteInterestedLead,
-  onToggleLeadDocApproved
+  onToggleLeadDocApproved,
+  onIncrementLeadContactCount,
+  onDecrementLeadContactCount
 }: RentalsTabProps) {
   const isSocio = currentUser?.role === 'socio';
   const approvedLeads = interestedLeads.filter(l => l.docApproved === true);
@@ -1212,6 +1216,11 @@ export default function RentalsTab({
                         {approvedLeads
                           .slice()
                           .sort((a, b) => {
+                            const countA = a.contactCount || 0;
+                            const countB = b.contactCount || 0;
+                            if (countA !== countB) {
+                              return countA - countB;
+                            }
                             const dateA = a.contactDate || '';
                             const dateB = b.contactDate || '';
                             if (dateA !== dateB) {
@@ -1234,16 +1243,23 @@ export default function RentalsTab({
                                   {lead.contactDate ? new Date(lead.contactDate + 'T00:00:00').toLocaleDateString('pt-BR') : 'N/A'}
                                 </td>
                                 <td className="px-5 py-3.5 whitespace-nowrap">
-                                  <a
-                                    href={waLink}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="font-mono font-bold text-emerald-600 hover:underline inline-flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100/60 px-2.5 py-1.5 rounded-lg text-[11px]"
-                                    style={{ minHeight: '28px' }}
-                                  >
-                                    <PhoneCall className="h-3.5 w-3.5 text-emerald-500" />
-                                    {lead.phone}
-                                  </a>
+                                  <div className="flex items-center gap-2">
+                                    <a
+                                      href={waLink}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="font-mono font-bold text-emerald-600 hover:underline inline-flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100/60 px-2.5 py-1.5 rounded-lg text-[11px]"
+                                      style={{ minHeight: '28px' }}
+                                    >
+                                      <PhoneCall className="h-3.5 w-3.5 text-emerald-500" />
+                                      {lead.phone}
+                                    </a>
+                                    {lead.contactCount && lead.contactCount > 0 ? (
+                                      <span className="bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm" title={`${lead.contactCount} contato(s) realizado(s)`}>
+                                        +{lead.contactCount}
+                                      </span>
+                                    ) : null}
+                                  </div>
                                 </td>
                                 {!isSocio && (
                                   <td className="px-5 py-3.5 text-right whitespace-nowrap">
@@ -1265,6 +1281,29 @@ export default function RentalsTab({
                                         <Key className="h-3.5 w-3.5" />
                                         Alugar
                                       </button>
+                                      {onIncrementLeadContactCount && (
+                                        <div className="flex items-center gap-1">
+                                          <button
+                                            onClick={() => onIncrementLeadContactCount(lead.id)}
+                                            className="text-[11px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer"
+                                            style={{ minHeight: '28px' }}
+                                            title="Registrar novo contato realizado com o interessado"
+                                          >
+                                            <PhoneCall className="h-3.5 w-3.5 text-amber-500" />
+                                            +1 Contato
+                                          </button>
+                                          {lead.contactCount && lead.contactCount > 0 && onDecrementLeadContactCount && (
+                                            <button
+                                              onClick={() => onDecrementLeadContactCount(lead.id)}
+                                              className="text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-1.5 rounded-lg transition-all flex items-center justify-center cursor-pointer"
+                                              style={{ minHeight: '28px', minWidth: '28px' }}
+                                              title="Desfazer/remover último contato realizado"
+                                            >
+                                              -1
+                                            </button>
+                                          )}
+                                        </div>
+                                      )}
                                       {onToggleLeadDocApproved && (
                                         <button
                                           onClick={() => onToggleLeadDocApproved(lead.id)}
@@ -1346,6 +1385,11 @@ export default function RentalsTab({
                         {unapprovedLeads
                           .slice()
                           .sort((a, b) => {
+                            const countA = a.contactCount || 0;
+                            const countB = b.contactCount || 0;
+                            if (countA !== countB) {
+                              return countA - countB;
+                            }
                             const dateA = a.contactDate || '';
                             const dateB = b.contactDate || '';
                             if (dateA !== dateB) {
@@ -1365,20 +1409,50 @@ export default function RentalsTab({
                                   {lead.contactDate ? new Date(lead.contactDate + 'T00:00:00').toLocaleDateString('pt-BR') : 'N/A'}
                                 </td>
                                 <td className="px-5 py-3.5 whitespace-nowrap">
-                                  <a
-                                    href={waLink}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="font-mono font-bold text-emerald-600 hover:underline inline-flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100/60 px-2.5 py-1.5 rounded-lg text-[11px]"
-                                    style={{ minHeight: '28px' }}
-                                  >
-                                    <PhoneCall className="h-3.5 w-3.5 text-emerald-500" />
-                                    {lead.phone}
-                                  </a>
+                                  <div className="flex items-center gap-2">
+                                    <a
+                                      href={waLink}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="font-mono font-bold text-emerald-600 hover:underline inline-flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100/60 px-2.5 py-1.5 rounded-lg text-[11px]"
+                                      style={{ minHeight: '28px' }}
+                                    >
+                                      <PhoneCall className="h-3.5 w-3.5 text-emerald-500" />
+                                      {lead.phone}
+                                    </a>
+                                    {lead.contactCount && lead.contactCount > 0 ? (
+                                      <span className="bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm" title={`${lead.contactCount} contato(s) realizado(s)`}>
+                                        +{lead.contactCount}
+                                      </span>
+                                    ) : null}
+                                  </div>
                                 </td>
                                 {!isSocio && (
                                   <td className="px-5 py-3.5 text-right whitespace-nowrap">
                                     <div className="inline-flex items-center justify-end gap-2">
+                                      {onIncrementLeadContactCount && (
+                                        <div className="flex items-center gap-1">
+                                          <button
+                                            onClick={() => onIncrementLeadContactCount(lead.id)}
+                                            className="text-[11px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer"
+                                            style={{ minHeight: '28px' }}
+                                            title="Registrar novo contato realizado com o interessado"
+                                          >
+                                            <PhoneCall className="h-3.5 w-3.5 text-amber-500" />
+                                            +1 Contato
+                                          </button>
+                                          {lead.contactCount && lead.contactCount > 0 && onDecrementLeadContactCount && (
+                                            <button
+                                              onClick={() => onDecrementLeadContactCount(lead.id)}
+                                              className="text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-1.5 rounded-lg transition-all flex items-center justify-center cursor-pointer"
+                                              style={{ minHeight: '28px', minWidth: '28px' }}
+                                              title="Desfazer/remover último contato realizado"
+                                            >
+                                              -1
+                                            </button>
+                                          )}
+                                        </div>
+                                      )}
                                       {onToggleLeadDocApproved && (
                                         <button
                                           onClick={() => onToggleLeadDocApproved(lead.id)}

@@ -818,6 +818,39 @@ export default function App() {
     }
   };
 
+  const handleIncrementLeadContactCount = (id: string) => {
+    const updated = interestedLeads.map(l => {
+      if (l.id === id) {
+        return { ...l, contactCount: (l.contactCount || 0) + 1 };
+      }
+      return l;
+    });
+    setInterestedLeads(updated);
+    localStorage.setItem('loca_interested_leads', JSON.stringify(updated));
+    persistToBackend(vehicles, rentals, transactions, futureExpenses, users, accessLogs, updated);
+    const lead = updated.find(l => l.id === id);
+    if (lead) {
+      showNotification(`Contato com ${lead.name} registrado! (Total: ${lead.contactCount || 0})`, 'success');
+    }
+  };
+
+  const handleDecrementLeadContactCount = (id: string) => {
+    const updated = interestedLeads.map(l => {
+      if (l.id === id) {
+        const currentCount = l.contactCount || 0;
+        return { ...l, contactCount: currentCount > 0 ? currentCount - 1 : 0 };
+      }
+      return l;
+    });
+    setInterestedLeads(updated);
+    localStorage.setItem('loca_interested_leads', JSON.stringify(updated));
+    persistToBackend(vehicles, rentals, transactions, futureExpenses, users, accessLogs, updated);
+    const lead = updated.find(l => l.id === id);
+    if (lead) {
+      showNotification(`Contato com ${lead.name} desfeito! (Total: ${lead.contactCount || 0})`, 'info');
+    }
+  };
+
   const syncAndSetUsers = (updated: AppUser[]) => {
     setUsers(updated);
     localStorage.setItem('loca_users', JSON.stringify(updated));
@@ -2485,6 +2518,8 @@ export default function App() {
               onAddInterestedLead={handleAddInterestedLead}
               onDeleteInterestedLead={handleDeleteInterestedLead}
               onToggleLeadDocApproved={handleToggleLeadDocApproved}
+              onIncrementLeadContactCount={handleIncrementLeadContactCount}
+              onDecrementLeadContactCount={handleDecrementLeadContactCount}
             />
           </div>
         )}

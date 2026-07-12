@@ -95,5 +95,6 @@ export interface InterestedLead {
   createdAt: string; // ISO or BRL string
   contactDate: string; // YYYY-MM-DD
   docApproved?: boolean;
+  contactCount?: number;
 }
 
