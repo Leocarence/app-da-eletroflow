@@ -145,8 +145,14 @@ export default function CashFlowChart({ transactions, onHoverPointChange }: Cash
 
       effectiveTransactions.forEach(t => {
         const m = getMonday(t.date);
+        const isRetained = t.type === 'receita' && (t.category === 'Retenção de Caução' || t.category.includes('Retenção'));
         if (aggWeekly[m]) {
-          if (t.type === 'receita') aggWeekly[m].receitas += t.value;
+          if (t.type === 'receita') {
+            aggWeekly[m].receitas += t.value;
+            if (isRetained) {
+              aggWeekly[m].caucao -= t.value;
+            }
+          }
           else if (t.type === 'despesa') aggWeekly[m].despesas += t.value;
           else if (t.type === 'caucao_recebido') aggWeekly[m].caucao += t.value;
           else if (t.type === 'caucao_devolvido') aggWeekly[m].caucao -= t.value;
@@ -156,6 +162,9 @@ export default function CashFlowChart({ transactions, onHoverPointChange }: Cash
             if (t.type === 'receita') {
               runningReceitas += t.value;
               runningCentral += t.value;
+              if (isRetained) {
+                runningEscrow -= t.value;
+              }
             } else if (t.type === 'despesa') {
               runningDespesas += t.value;
               runningCentral -= t.value;
@@ -205,7 +214,13 @@ export default function CashFlowChart({ transactions, onHoverPointChange }: Cash
         if (!aggDaily[d]) {
           aggDaily[d] = { receitas: 0, despesas: 0, caucao: 0 };
         }
-        if (t.type === 'receita') aggDaily[d].receitas += t.value;
+        const isRetained = t.type === 'receita' && (t.category === 'Retenção de Caução' || t.category.includes('Retenção'));
+        if (t.type === 'receita') {
+          aggDaily[d].receitas += t.value;
+          if (isRetained) {
+            aggDaily[d].caucao -= t.value;
+          }
+        }
         else if (t.type === 'despesa') aggDaily[d].despesas += t.value;
         else if (t.type === 'caucao_recebido') aggDaily[d].caucao += t.value;
         else if (t.type === 'caucao_devolvido') aggDaily[d].caucao -= t.value;
@@ -296,8 +311,14 @@ export default function CashFlowChart({ transactions, onHoverPointChange }: Cash
 
       effectiveTransactions.forEach(t => {
         const ym = t.date.substring(0, 7);
+        const isRetained = t.type === 'receita' && (t.category === 'Retenção de Caução' || t.category.includes('Retenção'));
         if (aggMonthly[ym]) {
-          if (t.type === 'receita') aggMonthly[ym].receitas += t.value;
+          if (t.type === 'receita') {
+            aggMonthly[ym].receitas += t.value;
+            if (isRetained) {
+              aggMonthly[ym].caucao -= t.value;
+            }
+          }
           else if (t.type === 'despesa') aggMonthly[ym].despesas += t.value;
           else if (t.type === 'caucao_recebido') aggMonthly[ym].caucao += t.value;
           else if (t.type === 'caucao_devolvido') aggMonthly[ym].caucao -= t.value;
@@ -307,6 +328,9 @@ export default function CashFlowChart({ transactions, onHoverPointChange }: Cash
             if (t.type === 'receita') {
               runningReceitas += t.value;
               runningCentral += t.value;
+              if (isRetained) {
+                runningEscrow -= t.value;
+              }
             } else if (t.type === 'despesa') {
               runningDespesas += t.value;
               runningCentral -= t.value;

@@ -703,6 +703,54 @@ export default function App() {
         }, 1500);
       }
 
+      // Proactive migration of legacy transaction records to avoid double counting and visual distortion:
+      let migratedTransactions = [...parsedTransactions];
+      
+      // 1. Remove any legacy t_refund_ret_discharge_ transactions (Baixa de Custódia)
+      migratedTransactions = migratedTransactions.filter(t => !t.id.startsWith('t_refund_ret_discharge_'));
+      
+      // 2. Pair up and correct any legacy caucao_devolvido (e.g., 2600.00) and receita (Retenção de Caução, e.g., 2400.00)
+      for (let i = 0; i < migratedTransactions.length; i++) {
+        const t1 = migratedTransactions[i];
+        if (
+          t1.type === 'receita' && 
+          (t1.category === 'Retenção de Caução' || t1.category.includes('Retenção'))
+        ) {
+          // Find matching caucao_devolvido on the same date and same vehicle
+          const t2Index = migratedTransactions.findIndex(t => 
+            t.type === 'caucao_devolvido' && 
+            t.date === t1.date && 
+            t.vehicleId === t1.vehicleId && 
+            t.value >= t1.value &&
+            t.value > 100 // only match non-trivial amounts
+          );
+
+          if (t2Index !== -1) {
+            const t2 = migratedTransactions[t2Index];
+            const originalVal = t2.value;
+            const newVal = originalVal - t1.value; // e.g., 2600 - 2400 = 200
+
+            if (newVal <= 0) {
+              // If newVal is 0 or less, we delete it entirely (there was no actual refund)
+              migratedTransactions.splice(t2Index, 1);
+              // Decrement index if we spliced something before the current element
+              if (t2Index < i) {
+                i--;
+              }
+            } else {
+              // Otherwise, update the value to the real refund value (e.g. 200)
+              migratedTransactions[t2Index] = {
+                ...t2,
+                value: newVal,
+                description: `Devolução de Caução (Restituição ao Motorista) - Restituído: ${newVal}, Retido: ${t1.value}`
+              };
+            }
+          }
+        }
+      }
+
+      parsedTransactions = migratedTransactions;
+
       // Sync local state
       setVehicles(parsedVehicles);
       setRentals(parsedRentals);
@@ -1061,7 +1109,7 @@ export default function App() {
       .filter((t) => t.type === 'despesa')
       .reduce((sum, t) => sum + t.value, 0);
 
-    // Caução Retido Activo = Received - Returned
+    // Caução Retido Activo = Received - Returned - Retained
     const caucoesReceived = effectiveTransactions
       .filter((t) => t.type === 'caucao_recebido')
       .reduce((sum, t) => sum + t.value, 0);
@@ -1070,7 +1118,11 @@ export default function App() {
       .filter((t) => t.type === 'caucao_devolvido')
       .reduce((sum, t) => sum + t.value, 0);
 
-    const netCaucaoInCustody = caucoesReceived - caucoesReturned;
+    const caucoesRetained = effectiveTransactions
+      .filter((t) => t.type === 'receita' && (t.category === 'Retenção de Caução' || t.category.includes('Retenção')))
+      .reduce((sum, t) => sum + t.value, 0);
+
+    const netCaucaoInCustody = Math.max(0, caucoesReceived - caucoesReturned - caucoesRetained);
 
     // Grand total: Dinheiro em Caixa = Somatório Receitas + Cauções em custódia - Despesas
     const currentCash = totalRevenues + netCaucaoInCustody - totalExpenses;
@@ -1255,20 +1307,8 @@ export default function App() {
       });
     }
 
-    // 2. If there is a retained portion, log it as both a Baixa de Custódia and standard credit/receita
+    // 2. If there is a retained portion, log it ONLY as standard credit/receita (no duplicate discharge transaction)
     if (retainedValue > 0) {
-      // Baixa de Custódia (discharge from custody pool)
-      newTransactions.push({
-        id: 't_refund_ret_discharge_' + Math.random().toString(36).substr(2, 9),
-        date: getBrasiliaDateStr(),
-        type: 'caucao_devolvido',
-        value: retainedValue,
-        vehicleId: targetRental.vehicleId,
-        category: 'Devolução de Garantia',
-        description: `Baixa de Custódia (Conversão de Caução Retido) - Locatário: ${targetRental.tenantName}`
-      });
-
-      // Standard credit/receita
       newTransactions.push({
         id: 't_refund_ret_credit_' + Math.random().toString(36).substr(2, 9),
         date: getBrasiliaDateStr(),

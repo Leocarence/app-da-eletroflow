@@ -63,7 +63,11 @@ export function FinancialsTab({
       .filter((t) => t.type === 'caucao_devolvido')
       .reduce((sum, t) => sum + t.value, 0);
 
-    const netCaucao = caucoesReceived - caucoesReturned;
+    const caucoesRetained = effectiveTransactions
+      .filter((t) => t.type === 'receita' && (t.category === 'Retenção de Caução' || t.category.includes('Retenção')))
+      .reduce((sum, t) => sum + t.value, 0);
+
+    const netCaucao = Math.max(0, caucoesReceived - caucoesReturned - caucoesRetained);
     return totalRevenues + netCaucao - totalExpenses;
   }, [transactions]);
 
@@ -160,6 +164,7 @@ export function FinancialsTab({
       revenuesSum: number;
       caucaoReceivedSum: number;
       caucaoDevolvidoSum: number;
+      caucaoRetainedSum: number;
       expensesSum: number;
       installmentRentalCount: number;
       installmentRentalSum: number;
@@ -184,6 +189,7 @@ export function FinancialsTab({
           revenuesSum: 0,
           caucaoReceivedSum: 0,
           caucaoDevolvidoSum: 0,
+          caucaoRetainedSum: 0,
           expensesSum: 0,
           installmentRentalCount: 0,
           installmentRentalSum: 0,
@@ -195,6 +201,9 @@ export function FinancialsTab({
 
       if (t.type === 'receita') {
         mData.revenuesSum += t.value;
+        if (t.category === 'Retenção de Caução' || t.category.includes('Retenção')) {
+          mData.caucaoRetainedSum += t.value;
+        }
         if (t.category.toLowerCase().includes('aluguel') || t.category.toLowerCase().includes('locação')) {
           mData.installmentRentalCount += 1;
           mData.installmentRentalSum += t.value;
@@ -573,7 +582,7 @@ export function FinancialsTab({
                   const weeksCount = countMondaysInMonth(result.year, result.monthIndex);
                   
                   // Net caucao liquid effect
-                  const netCaucaoMonthly = result.caucaoReceivedSum - result.caucaoDevolvidoSum;
+                  const netCaucaoMonthly = result.caucaoReceivedSum - result.caucaoDevolvidoSum - (result.caucaoRetainedSum || 0);
                   
                   // Monthly Result formula: revenues (alugueis + other receitas) + net caucao - expenses
                   const monthResultValue = result.revenuesSum + netCaucaoMonthly - result.expensesSum;
