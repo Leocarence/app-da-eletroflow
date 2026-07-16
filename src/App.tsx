@@ -1239,32 +1239,45 @@ export default function App() {
     // Handle refund and retention transactions
     const newTransactions = [...transactions];
 
-    // Always discharge the entire original deposit value from active cauções
-    const dischargeTrans: Transaction = {
-      id: 't_refund_all_' + Math.random().toString(36).substr(2, 9),
-      date: getBrasiliaDateStr(),
-      type: 'caucao_devolvido',
-      value: targetRental.depositValue,
-      vehicleId: targetRental.vehicleId,
-      category: 'Devolução de Garantia',
-      description: `Devolução / Restituição do caução de ${targetRental.tenantName} no encerramento do contrato`
-    };
-    newTransactions.push(dischargeTrans);
-
-    // Handle retained deposit value entering as credit (receita)
     const actualRefundValue = refundDeposit ? refundValue : 0;
     const retainedValue = Math.max(0, targetRental.depositValue - actualRefundValue);
+
+    // 1. If there is an actual refund, log it as caucao_devolvido with actual refund value
+    if (actualRefundValue > 0) {
+      newTransactions.push({
+        id: 't_refund_act_' + Math.random().toString(36).substr(2, 9),
+        date: getBrasiliaDateStr(),
+        type: 'caucao_devolvido',
+        value: actualRefundValue,
+        vehicleId: targetRental.vehicleId,
+        category: 'Devolução de Garantia',
+        description: `Devolução de Caução (Restituição ao Motorista) - Locatário: ${targetRental.tenantName}`
+      });
+    }
+
+    // 2. If there is a retained portion, log it as both a Baixa de Custódia and standard credit/receita
     if (retainedValue > 0) {
-      const retainedTrans: Transaction = {
-        id: 't_retained_' + Math.random().toString(36).substr(2, 9),
+      // Baixa de Custódia (discharge from custody pool)
+      newTransactions.push({
+        id: 't_refund_ret_discharge_' + Math.random().toString(36).substr(2, 9),
+        date: getBrasiliaDateStr(),
+        type: 'caucao_devolvido',
+        value: retainedValue,
+        vehicleId: targetRental.vehicleId,
+        category: 'Devolução de Garantia',
+        description: `Baixa de Custódia (Conversão de Caução Retido) - Locatário: ${targetRental.tenantName}`
+      });
+
+      // Standard credit/receita
+      newTransactions.push({
+        id: 't_refund_ret_credit_' + Math.random().toString(36).substr(2, 9),
         date: getBrasiliaDateStr(),
         type: 'receita',
         value: retainedValue,
         vehicleId: targetRental.vehicleId,
         category: 'Retenção de Caução',
-        description: `Retenção de valor do caução (multa/avarias) no encerramento de contrato de ${targetRental.tenantName}`
-      };
-      newTransactions.push(retainedTrans);
+        description: `Retenção de Caução (Crédito de Receita) - Locatário: ${targetRental.tenantName}`
+      });
     }
 
     syncAndSetAll(updatedVehicles, updatedRentals, newTransactions);
