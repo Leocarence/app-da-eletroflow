@@ -753,6 +753,45 @@ export default function App() {
     persistToBackend(vList, rList, tList, fList, activeUsers);
   };
 
+  const syncAndSetAll = (
+    updatedVehicles?: Vehicle[],
+    updatedRentals?: Rental[],
+    updatedTransactions?: Transaction[],
+    updatedFutureExpenses?: FutureExpense[]
+  ) => {
+    const nextVehicles = updatedVehicles !== undefined ? updatedVehicles : vehicles;
+    const nextRentals = updatedRentals !== undefined ? updatedRentals : rentals;
+    const nextTransactions = updatedTransactions !== undefined ? updatedTransactions : transactions;
+    const nextFutureExpenses = updatedFutureExpenses !== undefined ? updatedFutureExpenses : futureExpenses;
+
+    if (updatedVehicles !== undefined) {
+      setVehicles(nextVehicles);
+      localStorage.setItem('loca_vehicles', JSON.stringify(nextVehicles));
+    }
+    if (updatedRentals !== undefined) {
+      setRentals(nextRentals);
+      localStorage.setItem('loca_rentals', JSON.stringify(nextRentals));
+    }
+    if (updatedTransactions !== undefined) {
+      setTransactions(nextTransactions);
+      localStorage.setItem('loca_transactions', JSON.stringify(nextTransactions));
+    }
+    if (updatedFutureExpenses !== undefined) {
+      setFutureExpenses(nextFutureExpenses);
+      localStorage.setItem('loca_future_expenses', JSON.stringify(nextFutureExpenses));
+    }
+
+    const backupObj = { 
+      vehicles: nextVehicles, 
+      rentals: nextRentals, 
+      transactions: nextTransactions, 
+      futureExpenses: nextFutureExpenses, 
+      users 
+    };
+    localStorage.setItem('loca_db_safety_backup', JSON.stringify(backupObj));
+    persistToBackend(nextVehicles, nextRentals, nextTransactions, nextFutureExpenses, users);
+  };
+
   const syncAndSetVehicles = (updated: Vehicle[]) => {
     setVehicles(updated);
     localStorage.setItem('loca_vehicles', JSON.stringify(updated));
@@ -1073,9 +1112,7 @@ export default function App() {
       const updatedRentals = rentals.filter(r => r.vehicleId !== id);
       const updatedTransactions = transactions.filter(t => t.vehicleId !== id);
       
-      syncAndSetVehicles(updatedVehicles);
-      syncAndSetRentals(updatedRentals);
-      syncAndSetTransactions(updatedTransactions);
+      syncAndSetAll(updatedVehicles, updatedRentals, updatedTransactions);
       
       showNotification('Veículo e todo o seu histórico financeiro foram excluídos permanentemente!', 'success');
     } else {
@@ -1087,8 +1124,7 @@ export default function App() {
       // Also release vehicle state to available if the status was active (just in case they need safety)
       const finalizedVehicles = updatedVehicles.map(v => v.id === id ? { ...v, status: 'available' as const } : v);
       
-      syncAndSetVehicles(finalizedVehicles);
-      syncAndSetRentals(updatedRentals);
+      syncAndSetAll(finalizedVehicles, updatedRentals);
       
       showNotification('Veículo excluído. Registros financeiros preservados com sucesso!', 'success');
     }
@@ -1117,9 +1153,7 @@ export default function App() {
         (v.id === targetRental.vehicleId) ? { ...v, status: 'available' as const } : v
       );
 
-      syncAndSetRentals(updatedRentals);
-      syncAndSetTransactions(updatedTransactions);
-      syncAndSetVehicles(updatedVehicles);
+      syncAndSetAll(updatedVehicles, updatedRentals, updatedTransactions);
 
       showNotification('Contrato e todo o seu histórico financeiro foram excluídos permanentemente!', 'success');
     } else {
@@ -1131,8 +1165,7 @@ export default function App() {
         (v.id === targetRental.vehicleId) ? { ...v, status: 'available' as const } : v
       );
 
-      syncAndSetRentals(updatedRentals);
-      syncAndSetVehicles(updatedVehicles);
+      syncAndSetAll(updatedVehicles, updatedRentals);
 
       showNotification('Contrato excluído. Registros financeiros preservados com sucesso!', 'success');
     }
@@ -1150,13 +1183,42 @@ export default function App() {
     };
 
     const updatedRentals = [...rentals, created];
-    syncAndSetRentals(updatedRentals);
 
     // Automatically set the vehicle status to RENTED
     const updatedVehicles = vehicles.map(v =>
       v.id === newRental.vehicleId ? { ...v, status: 'rented' as const } : v
     );
-    syncAndSetVehicles(updatedVehicles);
+
+    // Auto-generate starting transactions for better user experience
+    const newTransactions = [...transactions];
+    
+    // 1. If deposit value is supplied, log it as caucao_recebido
+    if (newRental.depositValue > 0) {
+      newTransactions.push({
+        id: 't_start_deposit_' + Math.random().toString(36).substr(2, 9),
+        date: newRental.startDate,
+        type: 'caucao_recebido',
+        value: newRental.depositValue,
+        vehicleId: newRental.vehicleId,
+        category: 'Depósito de Garantia',
+        description: `Depósito de garantia (Caução) - Locatário: ${newRental.tenantName}`
+      });
+    }
+
+    // 2. If pay first week now is checked, log it as revenue (Aluguel Semanal)
+    if (newRental.semanaAdiantada) {
+      newTransactions.push({
+        id: 't_start_rent_' + Math.random().toString(36).substr(2, 9),
+        date: newRental.startDate,
+        type: 'receita',
+        value: newRental.weeklyRate,
+        vehicleId: newRental.vehicleId,
+        category: 'Aluguel Semanal',
+        description: `Aluguel Semanal (Semana Adiantada) - Locatário: ${newRental.tenantName}`
+      });
+    }
+
+    syncAndSetAll(updatedVehicles, updatedRentals, newTransactions);
 
     showNotification(`Contrato iniciado com sucesso para ${created.tenantName}!`, 'success');
   };
@@ -1168,33 +1230,30 @@ export default function App() {
 
     // Set rental to completed
     const updatedRentals = rentals.map(r => r.id === rentalId ? { ...r, status: 'completed' as const } : r);
-    syncAndSetRentals(updatedRentals);
 
     // Set corresponding vehicle back to AVAILABLE
     const updatedVehicles = vehicles.map(v =>
       v.id === targetRental.vehicleId ? { ...v, status: 'available' as const } : v
     );
-    syncAndSetVehicles(updatedVehicles);
 
     // Handle refund and retention transactions
     const newTransactions = [...transactions];
 
-    if (refundDeposit && refundValue > 0) {
-      const refundTrans: Transaction = {
-        id: 't_refund_' + Math.random().toString(36).substr(2, 9),
-        date: getBrasiliaDateStr(),
-        type: 'caucao_devolvido',
-        value: refundValue,
-        vehicleId: targetRental.vehicleId,
-        category: 'Devolução de Garantia',
-        description: `Devolução / Restituição parcial ou total do caução de ${targetRental.tenantName}`
-      };
-      newTransactions.push(refundTrans);
-    }
+    // Always discharge the entire original deposit value from active cauções
+    const dischargeTrans: Transaction = {
+      id: 't_refund_all_' + Math.random().toString(36).substr(2, 9),
+      date: getBrasiliaDateStr(),
+      type: 'caucao_devolvido',
+      value: targetRental.depositValue,
+      vehicleId: targetRental.vehicleId,
+      category: 'Devolução de Garantia',
+      description: `Devolução / Restituição do caução de ${targetRental.tenantName} no encerramento do contrato`
+    };
+    newTransactions.push(dischargeTrans);
 
-    // Handle retained deposit value entering as credit
+    // Handle retained deposit value entering as credit (receita)
     const actualRefundValue = refundDeposit ? refundValue : 0;
-    const retainedValue = targetRental.depositValue - actualRefundValue;
+    const retainedValue = Math.max(0, targetRental.depositValue - actualRefundValue);
     if (retainedValue > 0) {
       const retainedTrans: Transaction = {
         id: 't_retained_' + Math.random().toString(36).substr(2, 9),
@@ -1208,9 +1267,7 @@ export default function App() {
       newTransactions.push(retainedTrans);
     }
 
-    if (newTransactions.length !== transactions.length) {
-      syncAndSetTransactions(newTransactions);
-    }
+    syncAndSetAll(updatedVehicles, updatedRentals, newTransactions);
 
     showNotification(`Locação de ${targetRental.tenantName} finalizada com sucesso!`, 'success');
   };
@@ -1331,8 +1388,7 @@ export default function App() {
       fe.id === expenseId ? { ...fe, installments: updatedInstallments } : fe
     );
 
-    syncAndSetFutureExpenses(updatedExpenses);
-    syncAndSetTransactions([...transactions, newTrans]);
+    syncAndSetAll(undefined, undefined, [...transactions, newTrans], updatedExpenses);
     showNotification(`Parcela ${inst.installmentNumber}/${expense.installmentsCount} de despesa efetivada para o balanço.`, 'success');
   };
 
@@ -1397,15 +1453,17 @@ export default function App() {
       description: `${quickMaintenanceDesc} (Placa: ${vehicle.plate})`
     };
 
-    syncAndSetTransactions([...transactions, newMaintenance]);
+    const nextTransactions = [...transactions, newMaintenance];
+    let nextVehicles: Vehicle[] | undefined = undefined;
 
     // Optionally set status to maintenance if it was available
     if (vehicle.status === 'available') {
-      const updatedVehicles = vehicles.map(v =>
+      nextVehicles = vehicles.map(v =>
         v.id === quickMaintenanceVehicleId ? { ...v, status: 'maintenance' as const } : v
       );
-      syncAndSetVehicles(updatedVehicles);
     }
+
+    syncAndSetAll(nextVehicles, undefined, nextTransactions);
 
     setQuickMaintenanceVehicleId('');
     setQuickMaintenanceCost('');
