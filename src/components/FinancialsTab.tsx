@@ -13,7 +13,8 @@ import {
   ChevronDown, 
   ChevronUp,
   FileText,
-  Clock
+  Clock,
+  ShieldCheck
 } from 'lucide-react';
 import { Vehicle, FutureExpense, Transaction } from '../types';
 import { getBrasiliaDateStr } from '../utils/dateUtils';
@@ -252,9 +253,24 @@ export function FinancialsTab({
       .filter(t => t.type === 'despesa')
       .reduce((sum, t) => sum + t.value, 0);
 
+    const caucoesReceived = effectiveTransactions
+      .filter((t) => t.type === 'caucao_recebido')
+      .reduce((sum, t) => sum + t.value, 0);
+
+    const caucoesReturned = effectiveTransactions
+      .filter((t) => t.type === 'caucao_devolvido')
+      .reduce((sum, t) => sum + t.value, 0);
+
+    const caucoesRetained = effectiveTransactions
+      .filter((t) => t.type === 'receita' && (t.category === 'Retenção de Caução' || t.category.includes('Retenção')))
+      .reduce((sum, t) => sum + t.value, 0);
+
+    const netCaucao = Math.max(0, caucoesReceived - caucoesReturned - caucoesRetained);
+
     return {
       revenueSum,
-      expenseSum
+      expenseSum,
+      netCaucao
     };
   }, [transactions]);
 
@@ -285,11 +301,11 @@ export function FinancialsTab({
           </p>
         </div>
 
-        {/* BOTTOM METRICS TRIO IN CORRECT SEQUENCE: REVENUE -> EXPENSES -> RESULT */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* BOTTOM METRICS IN CORRECT SEQUENCE: REVENUE -> EXPENSES -> CAUÇÃO -> RESULT */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           
           {/* GENERAL BILLING CARD */}
-          <div id="financial-billing-card" className="bg-gradient-to-br from-emerald-50 to-emerald-100/40 rounded-2xl p-5 border border-emerald-250 border-emerald-200/80 shadow-premium flex flex-col justify-between group">
+          <div id="financial-billing-card" className="bg-gradient-to-br from-emerald-50 to-emerald-100/40 rounded-2xl p-5 border border-emerald-200/80 shadow-premium flex flex-col justify-between group">
             <div>
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-700 font-extrabold font-black">
@@ -309,7 +325,7 @@ export function FinancialsTab({
           </div>
 
           {/* GENERAL EXPENSES CARD */}
-          <div id="financial-expenses-card" className="bg-gradient-to-br from-rose-50 to-rose-100/40 rounded-2xl p-5 border border-rose-250 border-rose-200/80 shadow-premium flex flex-col justify-between group">
+          <div id="financial-expenses-card" className="bg-gradient-to-br from-rose-50 to-rose-100/40 rounded-2xl p-5 border border-rose-200/80 shadow-premium flex flex-col justify-between group">
             <div>
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[10px] font-mono uppercase tracking-widest text-rose-700 font-extrabold font-black">
@@ -325,6 +341,26 @@ export function FinancialsTab({
             </div>
             <p className="text-[10px] text-rose-700/80 mt-3 leading-relaxed font-semibold">
               Total de gastos operacionais, IPVAs, seguros e financiamentos já liquidados.
+            </p>
+          </div>
+
+          {/* TOTAL CAUÇÃO IN CUSTODY CARD */}
+          <div id="financial-caucao-card" className="bg-gradient-to-br from-blue-50 to-blue-100/40 rounded-2xl p-5 border border-blue-200/80 shadow-premium flex flex-col justify-between group">
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-blue-700 font-extrabold font-black">
+                  Depósitos de Caução Retidos
+                </span>
+                <span className="p-2 bg-blue-100 text-blue-600 rounded-xl">
+                  <ShieldCheck className="h-4.5 w-4.5" />
+                </span>
+              </div>
+              <div className="font-mono text-2xl xl:text-3xl font-black text-blue-600">
+                {formatBRL(generalTotals.netCaucao)}
+              </div>
+            </div>
+            <p className="text-[10px] text-blue-700/80 mt-3 leading-relaxed font-semibold">
+              Total em garantia custodiada ativa (exclui devoluções e conversões retidas).
             </p>
           </div>
 

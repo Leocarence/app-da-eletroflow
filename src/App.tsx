@@ -779,9 +779,6 @@ export default function App() {
         interestedLeads: parsedLeads
       };
       localStorage.setItem('loca_db_safety_backup', JSON.stringify(backupObj));
-
-      // Trigger server save to ensure files stay in perfect unison
-      persistToBackend(parsedVehicles, parsedRentals, parsedTransactions, parsedFuture, parsedUsers, parsedAccessLogs, parsedLeads);
     };
 
     loadData();
@@ -989,6 +986,8 @@ export default function App() {
     persistToBackend(vehicles, rentals, transactions, futureExpenses, users, accessLogs, interestedLeads, true);
   };
 
+
+
   // Export JSON physical backup file
   const handleExportBackup = () => {
     const backupObj = { vehicles, rentals, transactions, futureExpenses };
@@ -1142,7 +1141,16 @@ export default function App() {
   const handleAddVehicle = (newVeh: Omit<Vehicle, 'id'>) => {
     const created: Vehicle = {
       ...newVeh,
-      id: 'v_' + Math.random().toString(36).substr(2, 9)
+      id: 'v_' + Math.random().toString(36).substr(2, 9),
+      mileageHistory: newVeh.mileage !== undefined && newVeh.mileage !== null ? [
+        {
+          id: 'ml_' + Math.random().toString(36).substr(2, 9),
+          mileage: Number(newVeh.mileage),
+          date: newVeh.mileageDate || getBrasiliaDateStr(),
+          source: 'Cadastro Inicial',
+          notes: 'Quilometragem informada no cadastro inicial do veículo.'
+        }
+      ] : []
     };
     const updated = [...vehicles, created];
     syncAndSetVehicles(updated);
@@ -1345,7 +1353,63 @@ export default function App() {
 
   // 6c. Update vehicle information
   const handleUpdateVehicle = (id: string, updatedFields: Partial<Vehicle>) => {
-    const updated = vehicles.map(v => v.id === id ? { ...v, ...updatedFields } : v);
+    const updated = vehicles.map(v => {
+      if (v.id === id) {
+        let history = v.mileageHistory ? [...v.mileageHistory] : [];
+        const todayStr = getBrasiliaDateStr();
+
+        // Check if there was an initial mileage that we need to populate retroactively
+        if (history.length === 0 && v.mileage !== undefined && v.mileage !== null) {
+          history.push({
+            id: 'ml_init_' + Math.random().toString(36).substr(2, 9),
+            mileage: Number(v.mileage),
+            date: v.mileageDate || todayStr,
+            source: 'Registro Retroativo',
+            notes: 'Quilometragem inicial registrada.'
+          });
+        }
+
+        // 1. Manual/Modal mileage update
+        if (updatedFields.mileage !== undefined && updatedFields.mileage !== null && updatedFields.mileage !== v.mileage) {
+          history.push({
+            id: 'ml_' + Math.random().toString(36).substr(2, 9),
+            mileage: Number(updatedFields.mileage),
+            date: updatedFields.mileageDate || todayStr,
+            source: 'Ajuste de Quilometragem',
+            notes: 'Atualização/Aferição realizada no painel do veículo.'
+          });
+        }
+
+        // 2. Monthly mileage updates
+        if (updatedFields.monthlyMileages) {
+          const oldMonthly = v.monthlyMileages || {};
+          const newMonthly = updatedFields.monthlyMileages;
+          Object.keys(newMonthly).forEach(month => {
+            const newVal = newMonthly[month];
+            const oldVal = oldMonthly[month];
+            if (newVal !== undefined && newVal !== oldVal) {
+              history.push({
+                id: 'ml_m_' + Math.random().toString(36).substr(2, 9),
+                mileage: Number(newVal),
+                date: `${month}-01`, // Use 1st day of the updated month
+                source: `Fechamento ${month}`,
+                notes: `Aferição mensal fechamento do mês de ${month}.`
+              });
+            }
+          });
+        }
+
+        // Sort history by date descending
+        history.sort((a, b) => b.date.localeCompare(a.date));
+
+        return {
+          ...v,
+          ...updatedFields,
+          mileageHistory: history
+        };
+      }
+      return v;
+    });
     syncAndSetVehicles(updated);
     showNotification('Veículo atualizado com sucesso!', 'success');
   };
@@ -1811,15 +1875,19 @@ export default function App() {
                 </button>
               )}
 
+
+
               {/* SAVING IN OUTSTANDING HIGHLIGHT */}
-              <button
-                onClick={handleManualSave}
-                title="Salvar alterações no LocalStorage e Backup"
-                className="px-3 h-[34px] bg-brand-600/50 hover:bg-brand-700 text-brand-100 hover:text-white rounded-lg border border-brand-700/60 transition-all hover:scale-105 active:scale-95 duration-200 cursor-pointer shrink-0 shadow-sm flex items-center gap-1.5 justify-center text-[10px] xl:text-[11px] font-bold"
-              >
-                <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                <span className="font-sans">Salvar</span>
-              </button>
+              {currentUser?.email === 'leojoex@hotmail.com' && (
+                <button
+                  onClick={handleManualSave}
+                  title="Salvar alterações no LocalStorage e Backup"
+                  className="px-3 h-[34px] bg-brand-600/50 hover:bg-brand-700 text-brand-100 hover:text-white rounded-lg border border-brand-700/60 transition-all hover:scale-105 active:scale-95 duration-200 cursor-pointer shrink-0 shadow-sm flex items-center gap-1.5 justify-center text-[10px] xl:text-[11px] font-bold"
+                >
+                  <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                  <span className="font-sans">Salvar</span>
+                </button>
+              )}
 
               {/* BACKUP CONTROLLER ACTION */}
               {currentUser?.email === 'leojoex@hotmail.com' && (
@@ -1924,13 +1992,17 @@ export default function App() {
                   </button>
                 )}
 
-                <button
-                  onClick={handleManualSave}
-                  className="px-2.5 py-1.5 bg-sky-500 hover:bg-sky-400 text-[10px] font-bold text-white rounded-lg flex items-center gap-1 transition-all active:scale-95"
-                >
-                  <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse shrink-0" />
-                  <span>Salvar</span>
-                </button>
+
+
+                {currentUser?.email === 'leojoex@hotmail.com' && (
+                  <button
+                    onClick={handleManualSave}
+                    className="px-2.5 py-1.5 bg-sky-500 hover:bg-sky-400 text-[10px] font-bold text-white rounded-lg flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse shrink-0" />
+                    <span>Salvar</span>
+                  </button>
+                )}
 
                 {currentUser?.email === 'leojoex@hotmail.com' && (
                   <div className="relative">

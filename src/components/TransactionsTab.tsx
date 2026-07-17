@@ -283,10 +283,14 @@ export default function TransactionsTab({
     let despesas = 0;
     let caucoesRecebidos = 0;
     let caucoesDevolvidos = 0;
+    let retainedSum = 0;
 
     filteredTransactions.forEach(t => {
       if (t.type === 'receita') {
         receitas += t.value;
+        if (t.category === 'Retenção de Caução' || t.category.includes('Retenção')) {
+          retainedSum += t.value;
+        }
       } else if (t.type === 'despesa') {
         despesas += t.value;
       } else if (t.type === 'caucao_recebido') {
@@ -295,6 +299,9 @@ export default function TransactionsTab({
         caucoesDevolvidos += t.value;
       }
     });
+
+    // Reduce the active security deposit received in the filtered view by the amount that was converted/retained
+    caucoesRecebidos = Math.max(0, caucoesRecebidos - retainedSum);
 
     const entradas = receitas + caucoesRecebidos;
     const saidas = despesas + caucoesDevolvidos;

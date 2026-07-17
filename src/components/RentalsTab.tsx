@@ -7,8 +7,9 @@ import {
   DollarSign, X, ShieldCheck, Heart, UserCheck, CalendarDays, 
   Trash2, ArrowLeft, History, TrendingUp, HelpCircle, PhoneCall,
   Edit3, Users, Info, Table, ChevronDown, ChevronUp, FileCheck,
-  Eye, EyeOff
+  Eye, EyeOff, Download, Milestone
 } from 'lucide-react';
+import { exportContractCSV } from '../utils/exportUtils';
 
 interface RentalsTabProps {
   vehicles: Vehicle[];
@@ -328,40 +329,50 @@ export default function RentalsTab({
             </div>
           </div>
           
-          {!isSocio ? (
-            <div className="flex items-center gap-2">
-              {selectedRental.status === 'active' && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => exportContractCSV(selectedRental, vehicle, relativeTransactions, { rentReceived, depositReceived, vehicleExpenses })}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-lg text-xs font-semibold font-sans transition-all flex items-center gap-1.5 shadow-premium"
+              title="Exportar Extrato de Contrato"
+            >
+              <Download className="h-4 w-4" />
+              <span>Exportar Extrato</span>
+            </button>
+            {!isSocio ? (
+              <div className="flex items-center gap-2">
+                {selectedRental.status === 'active' && (
+                  <button
+                    onClick={() => openEndRental(selectedRental)}
+                    className="flex items-center gap-2 bg-brand-50 hover:bg-brand-100 text-brand-500 px-4 py-2 rounded-lg text-xs font-semibold font-sans transition-all border border-brand-100"
+                  >
+                    <CheckCircle className="h-4 w-4 text-brand-500" />
+                    Finalizar Contrato & Ajustar Caução
+                  </button>
+                )}
                 <button
-                  onClick={() => openEndRental(selectedRental)}
-                  className="flex items-center gap-2 bg-brand-50 hover:bg-brand-100 text-brand-500 px-4 py-2 rounded-lg text-xs font-semibold font-sans transition-all border border-brand-100"
+                  onClick={() => openEditRentalModal(selectedRental)}
+                  className="flex items-center gap-2 border border-slate-200 hover:bg-slate-50 text-slate-650 px-4 py-2 rounded-lg text-xs font-semibold font-sans transition-all"
+                  title="Editar Contrato"
                 >
-                  <CheckCircle className="h-4 w-4 text-brand-500" />
-                  Finalizar Contrato & Ajustar Caução
+                  <Edit3 className="h-4 w-4 text-slate-550" />
+                  <span>Editar Contrato</span>
                 </button>
-              )}
-              <button
-                onClick={() => openEditRentalModal(selectedRental)}
-                className="flex items-center gap-2 border border-slate-200 hover:bg-slate-50 text-slate-650 px-4 py-2 rounded-lg text-xs font-semibold font-sans transition-all"
-                title="Editar Contrato"
-              >
-                <Edit3 className="h-4 w-4 text-slate-550" />
-                <span>Editar Contrato</span>
-              </button>
-              <button
-                onClick={() => {
-                  setDeletePurgeChoice('preserve');
-                  setShowDeleteModal(true);
-                }}
-                className="flex items-center gap-2 border border-rose-200 hover:bg-rose-50 text-rose-500 px-4 py-2 rounded-lg text-xs font-semibold font-sans transition-all"
-                title="Excluir Contrato"
-              >
-                <Trash2 className="h-4 w-4" />
-                <span>Excluir Contrato</span>
-              </button>
-            </div>
-          ) : (
-            <span className="text-xs text-slate-400 italic font-medium">Visualização (Alterações bloqueadas para sócio)</span>
-          )}
+                <button
+                  onClick={() => {
+                    setDeletePurgeChoice('preserve');
+                    setShowDeleteModal(true);
+                  }}
+                  className="flex items-center gap-2 border border-rose-200 hover:bg-rose-50 text-rose-500 px-4 py-2 rounded-lg text-xs font-semibold font-sans transition-all"
+                  title="Excluir Contrato"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span>Excluir Contrato</span>
+                </button>
+              </div>
+            ) : (
+              <span className="text-xs text-slate-400 italic font-medium">Visualização (Alterações bloqueadas para sócio)</span>
+            )}
+          </div>
         </div>
 
         {/* DETAILS CARDS GRID */}
@@ -484,6 +495,56 @@ export default function RentalsTab({
                   Veículo correspondente não foi localizado!
                 </div>
               )}
+            </div>
+
+            {/* HISTÓRICO DE QUILOMETRAGEM DO VEÍCULO */}
+            <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-premium space-y-4">
+              <h3 className="font-display font-semibold text-slate-800 text-base flex items-center gap-2 pb-1 border-b border-slate-50">
+                <Milestone className="h-4.5 w-4.5 text-indigo-500" />
+                Quilometragem no Período
+              </h3>
+              
+              <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
+                {vehicle && vehicle.mileageHistory && vehicle.mileageHistory.filter(entry => {
+                  if (selectedRental.status === 'completed') {
+                    return entry.date >= selectedRental.startDate && entry.date <= selectedRental.endDate;
+                  }
+                  return entry.date >= selectedRental.startDate;
+                }).length > 0 ? (
+                  vehicle.mileageHistory
+                    .filter(entry => {
+                      if (selectedRental.status === 'completed') {
+                        return entry.date >= selectedRental.startDate && entry.date <= selectedRental.endDate;
+                      }
+                      return entry.date >= selectedRental.startDate;
+                    })
+                    .map((entry) => (
+                      <div key={entry.id} className="flex justify-between items-center p-3 rounded-xl bg-slate-50 border border-slate-100/30 text-xs">
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-slate-800 font-mono text-xs">{entry.mileage.toLocaleString('pt-BR')} KM</span>
+                            <span className="text-[8px] px-1.5 py-0.2 rounded font-bold bg-indigo-55 bg-indigo-50 text-indigo-600 uppercase tracking-wider">
+                              {entry.source || 'Ajuste Manual'}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-slate-450 block">{entry.notes || 'Alteração registrada'}</span>
+                        </div>
+                        <span className="font-mono text-[9px] text-slate-500 font-semibold bg-slate-100 px-2 py-0.5 rounded flex-shrink-0">
+                          {new Date(entry.date + 'T00:00:00').toLocaleDateString('pt-BR')}
+                        </span>
+                      </div>
+                    ))
+                ) : (
+                  <div className="py-6 text-center text-slate-400 text-xs italic">
+                    Nenhuma alteração de quilometragem registrada para o período deste contrato.
+                    {vehicle && vehicle.mileage !== undefined && vehicle.mileage !== null && (
+                      <p className="text-[10px] text-slate-500 mt-1 not-italic">
+                        KM atual do veículo: <strong className="font-mono text-indigo-600">{vehicle.mileage.toLocaleString('pt-BR')} KM</strong>.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

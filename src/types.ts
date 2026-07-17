@@ -1,3 +1,11 @@
+export interface MileageHistoryEntry {
+  id: string;
+  mileage: number;
+  date: string; // YYYY-MM-DD
+  source?: string; // 'manual_update', 'contract_start', 'monthly_close', etc.
+  notes?: string;
+}
+
 export interface Vehicle {
   id: string;
   brandModel: string;
@@ -13,6 +21,7 @@ export interface Vehicle {
   monthlyMileages?: { [month: string]: number };
   monthlyNotes?: { [month: string]: string };
   acquisitionDate?: string; // YYYY-MM-DD
+  mileageHistory?: MileageHistoryEntry[];
 }
 
 export interface Rental {

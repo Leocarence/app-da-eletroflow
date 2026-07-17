@@ -6,8 +6,9 @@ import {
   Plus, Car, User, Key, CheckCircle, AlertTriangle, Play, Calendar, 
   DollarSign, X, Check, Trash2, Milestone, ArrowLeft, TrendingUp, 
   Wrench, ShieldCheck, History, NotebookTabs, ArrowUpRight, ArrowDownRight,
-  Edit3
+  Edit3, Download
 } from 'lucide-react';
+import { exportVehicleCSV } from '../utils/exportUtils';
 
 interface VehiclesTabProps {
   vehicles: Vehicle[];
@@ -401,49 +402,59 @@ export default function VehiclesTab({
               <p className="text-xs text-slate-400 mt-0.5">Visualizando individualização completa das informações do veículo.</p>
             </div>
           </div>
-          {!isSocio ? (
-            <div className="flex items-center gap-2">
-              {selectedVehicle.status !== 'maintenance' && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => exportVehicleCSV(selectedVehicle, rentals, transactions, { totalRevenues, totalExpenses, netProfit, netDepositInHand })}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-lg transition-all text-xs font-semibold flex items-center gap-1.5 shadow-premium"
+              title="Exportar Extrato Completo"
+            >
+              <Download className="h-4 w-4" />
+              <span>Exportar Extrato</span>
+            </button>
+            {!isSocio ? (
+              <div className="flex items-center gap-2">
+                {selectedVehicle.status !== 'maintenance' && (
+                  <button
+                    onClick={() => onUpdateVehicleStatus(selectedVehicle.id, 'maintenance')}
+                    className="flex items-center gap-2 bg-amber-50 hover:bg-amber-100 text-amber-750 px-3 py-1.5 rounded-lg text-xs font-semibold font-sans transition-all border border-amber-250/30"
+                  >
+                    <Wrench className="h-4 w-4 text-amber-500" />
+                    Oficina / Manutenção
+                  </button>
+                )}
+                {selectedVehicle.status === 'maintenance' && (
+                  <button
+                    onClick={() => onUpdateVehicleStatus(selectedVehicle.id, 'available')}
+                    className="flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-750 px-3 py-1.5 rounded-lg text-xs font-semibold font-sans transition-all border border-emerald-200/30"
+                  >
+                    <CheckCircle className="h-4 w-4 text-emerald-500" />
+                    Liberar Carro
+                  </button>
+                )}
                 <button
-                  onClick={() => onUpdateVehicleStatus(selectedVehicle.id, 'maintenance')}
-                  className="flex items-center gap-2 bg-amber-50 hover:bg-amber-100 text-amber-750 px-3 py-1.5 rounded-lg text-xs font-semibold font-sans transition-all border border-amber-250/30"
+                  onClick={() => openEditVehicleModal(selectedVehicle)}
+                  className="p-1 px-3 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-650 rounded-lg transition-all text-xs font-semibold flex items-center gap-1.5"
+                  title="Editar Veículo"
                 >
-                  <Wrench className="h-4 w-4 text-amber-500" />
-                  Oficina / Manutenção
+                  <Edit3 className="h-4 w-4 text-slate-550" />
+                  <span>Editar Veículo</span>
                 </button>
-              )}
-              {selectedVehicle.status === 'maintenance' && (
                 <button
-                  onClick={() => onUpdateVehicleStatus(selectedVehicle.id, 'available')}
-                  className="flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-750 px-3 py-1.5 rounded-lg text-xs font-semibold font-sans transition-all border border-emerald-200/30"
+                  onClick={() => {
+                    setDeletePurgeChoice('preserve');
+                    setShowDeleteModal(true);
+                  }}
+                  className="p-1 px-3 py-1.5 border border-rose-200 hover:bg-rose-50 text-rose-500 rounded-lg transition-all text-xs font-semibold flex items-center gap-1.5"
+                  title="Excluir Veículo"
                 >
-                  <CheckCircle className="h-4 w-4 text-emerald-500" />
-                  Liberar Carro
+                  <Trash2 className="h-4 w-4" />
+                  <span>Excluir Veículo</span>
                 </button>
-              )}
-              <button
-                onClick={() => openEditVehicleModal(selectedVehicle)}
-                className="p-1 px-3 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-650 rounded-lg transition-all text-xs font-semibold flex items-center gap-1.5"
-                title="Editar Veículo"
-              >
-                <Edit3 className="h-4 w-4 text-slate-550" />
-                <span>Editar Veículo</span>
-              </button>
-              <button
-                onClick={() => {
-                  setDeletePurgeChoice('preserve');
-                  setShowDeleteModal(true);
-                }}
-                className="p-1 px-3 py-1.5 border border-rose-200 hover:bg-rose-50 text-rose-500 rounded-lg transition-all text-xs font-semibold flex items-center gap-1.5"
-                title="Excluir Veículo"
-              >
-                <Trash2 className="h-4 w-4" />
-                <span>Excluir Veículo</span>
-              </button>
-            </div>
-          ) : (
-            <span className="text-xs text-slate-400 italic">Visualização (Alterações bloqueadas para sócio)</span>
-          )}
+              </div>
+            ) : (
+              <span className="text-xs text-slate-400 italic">Visualização (Alterações bloqueadas para sócio)</span>
+            )}
+          </div>
         </div>
 
         {/* STATS OVERVIEW CARDS */}
@@ -692,6 +703,44 @@ export default function VehiclesTab({
                     </strong>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* HISTÓRICO DE QUILOMETRAGEM */}
+            <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-premium space-y-4">
+              <h3 className="font-display font-semibold text-slate-800 text-base flex items-center gap-2 pb-1 border-b border-slate-50">
+                <Milestone className="h-4.5 w-4.5 text-indigo-500" />
+                Histórico de Quilometragem
+              </h3>
+              
+              <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                {selectedVehicle.mileageHistory && selectedVehicle.mileageHistory.length > 0 ? (
+                  selectedVehicle.mileageHistory.map((entry) => (
+                    <div key={entry.id} className="flex justify-between items-center p-3 rounded-xl bg-slate-50 border border-slate-100/30 text-xs">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-slate-800 font-mono text-xs">{entry.mileage.toLocaleString('pt-BR')} KM</span>
+                          <span className="text-[8px] px-1.5 py-0.2 rounded font-bold bg-indigo-55 bg-indigo-50 text-indigo-600 uppercase tracking-wider">
+                            {entry.source || 'Ajuste Manual'}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-slate-450 block">{entry.notes || 'Alteração registrada'}</span>
+                      </div>
+                      <span className="font-mono text-[9px] text-slate-500 font-semibold bg-slate-100 px-2 py-0.5 rounded flex-shrink-0">
+                        {new Date(entry.date + 'T00:00:00').toLocaleDateString('pt-BR')}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-8 text-center text-slate-400 text-xs italic">
+                    Nenhum histórico de alteração de quilometragem registrado ainda.
+                    {selectedVehicle.mileage !== undefined && selectedVehicle.mileage !== null && (
+                      <p className="text-[10px] text-slate-500 mt-1 not-italic">
+                        KM atual no cadastro: <strong className="font-mono text-indigo-600">{selectedVehicle.mileage.toLocaleString('pt-BR')} KM</strong> em {selectedVehicle.mileageDate ? new Date(selectedVehicle.mileageDate + 'T00:00:00').toLocaleDateString('pt-BR') : 'data de cadastro'}.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
