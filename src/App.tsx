@@ -185,16 +185,24 @@ export default function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshSuccess, setRefreshSuccess] = useState(false);
   const pullStartYRef = useRef<number | null>(null);
+  const isSavingRef = useRef(false);
+  const lastMutationTimeRef = useRef<number>(0);
 
   // Automatic background synchronization
   useEffect(() => {
     let intervalId: any;
 
     const performPoll = async () => {
+      if (isSavingRef.current) return;
+      const pollStartTime = Date.now();
       try {
         const response = await fetch('/api/load-data');
         if (response.ok) {
           const serverBackup = await response.json();
+          if (pollStartTime < lastMutationTimeRef.current || isSavingRef.current) {
+            console.log("[Background Poll] Stale or concurrent poll request ignored to prevent state regression.");
+            return;
+          }
           if (serverBackup && serverBackup.vehicles && serverBackup.vehicles.length > 0) {
             const sVehicles = serverBackup.vehicles;
             const sRentals = serverBackup.rentals || [];
@@ -454,6 +462,8 @@ export default function App() {
     leadsList?: InterestedLead[],
     isManualClick = false
   ) => {
+    isSavingRef.current = true;
+    lastMutationTimeRef.current = Date.now();
     try {
       const activeUsers = uList || users;
       const activeLogs = aLogs || accessLogs;
@@ -484,6 +494,8 @@ export default function App() {
     } catch (e) {
       console.warn('Backend save failed, relying on localStorage:', e);
       checkDbStatus();
+    } finally {
+      isSavingRef.current = false;
     }
   };
 
@@ -499,257 +511,270 @@ export default function App() {
       let parsedUsers: AppUser[] = [];
       let parsedAccessLogs: AccessLog[] = [];
       let parsedLeads: InterestedLead[] = [];
+      let hasChanges = false;
 
-      // Load session
-      const storedSession = localStorage.getItem('loca_current_user');
-      if (storedSession) {
-        try {
-          setCurrentUser(JSON.parse(storedSession));
-        } catch (e) {}
-      }
-
-      // 1. Try server filesystem backup first - 100% immune to browser context clears
       try {
-        const response = await fetch('/api/load-data');
-        if (response.ok) {
-          const serverBackup = await response.json();
-          if (serverBackup && serverBackup.vehicles && serverBackup.vehicles.length > 0) {
-            parsedVehicles = serverBackup.vehicles;
-            parsedRentals = serverBackup.rentals || [];
-            parsedTransactions = serverBackup.transactions || [];
-            parsedFuture = serverBackup.futureExpenses || [];
-            parsedUsers = serverBackup.users || [];
-            parsedAccessLogs = serverBackup.accessLogs || [];
-            parsedLeads = serverBackup.interestedLeads || [];
-            console.log("Hydrated successfully from server persistent disk backup!");
-          }
-        }
-      } catch (e) {
-        console.warn("Server backup load failed or unavailable:", e);
-      }
-
-      // 2. Fall back to standard local storage if server disk is empty
-      if (parsedVehicles.length === 0) {
-        const storedVehicles = localStorage.getItem('loca_vehicles');
-        const storedRentals = localStorage.getItem('loca_rentals');
-        const storedTransactions = localStorage.getItem('loca_transactions');
-        const storedFuture = localStorage.getItem('loca_future_expenses');
-        const storedUsers = localStorage.getItem('loca_users');
-        const storedLogs = localStorage.getItem('loca_access_logs');
-        const storedLeads = localStorage.getItem('loca_interested_leads');
-        const safetyBackup = localStorage.getItem('loca_db_safety_backup');
-
-        if (storedLeads) {
+        // Load session
+        const storedSession = localStorage.getItem('loca_current_user');
+        if (storedSession) {
           try {
-            parsedLeads = JSON.parse(storedLeads);
-          } catch (e) {
-            parsedLeads = [];
-          }
-        }
-
-        if (storedFuture) {
-          try {
-            parsedFuture = JSON.parse(storedFuture);
-          } catch (e) {
-            parsedFuture = [];
-          }
-        }
-
-        if (storedUsers) {
-          try {
-            parsedUsers = JSON.parse(storedUsers);
-          } catch (e) {
-            parsedUsers = [];
-          }
-        }
-
-        if (storedLogs) {
-          try {
-            parsedAccessLogs = JSON.parse(storedLogs);
-          } catch (e) {
-            parsedAccessLogs = [];
-          }
-        }
-
-        if (storedVehicles && storedRentals && storedTransactions) {
-          try {
-            parsedVehicles = JSON.parse(storedVehicles);
-            parsedRentals = JSON.parse(storedRentals);
-            parsedTransactions = JSON.parse(storedTransactions);
+            setCurrentUser(JSON.parse(storedSession));
           } catch (e) {}
         }
 
-        // Safety backup check
-        if ((parsedVehicles.length === 0 || parsedRentals.length === 0 || parsedTransactions.length === 0) && safetyBackup) {
+        // 1. Try server filesystem backup first - 100% immune to browser context clears
+        try {
+          const response = await fetch('/api/load-data');
+          if (response.ok) {
+            const serverBackup = await response.json();
+            if (serverBackup && serverBackup.vehicles && serverBackup.vehicles.length > 0) {
+              parsedVehicles = serverBackup.vehicles || [];
+              parsedRentals = serverBackup.rentals || [];
+              parsedTransactions = serverBackup.transactions || [];
+              parsedFuture = serverBackup.futureExpenses || [];
+              parsedUsers = serverBackup.users || [];
+              parsedAccessLogs = serverBackup.accessLogs || [];
+              parsedLeads = serverBackup.interestedLeads || [];
+              console.log("Hydrated successfully from server persistent disk backup!");
+            }
+          }
+        } catch (e) {
+          console.warn("Server backup load failed or unavailable:", e);
+        }
+
+        // 2. Fall back to standard local storage if server disk is empty
+        if (parsedVehicles.length === 0) {
+          const storedVehicles = localStorage.getItem('loca_vehicles');
+          const storedRentals = localStorage.getItem('loca_rentals');
+          const storedTransactions = localStorage.getItem('loca_transactions');
+          const storedFuture = localStorage.getItem('loca_future_expenses');
+          const storedUsers = localStorage.getItem('loca_users');
+          const storedLogs = localStorage.getItem('loca_access_logs');
+          const storedLeads = localStorage.getItem('loca_interested_leads');
+          const safetyBackup = localStorage.getItem('loca_db_safety_backup');
+
+          if (storedLeads) {
+            try {
+              parsedLeads = JSON.parse(storedLeads) || [];
+            } catch (e) {
+              parsedLeads = [];
+            }
+          }
+
+          if (storedFuture) {
+            try {
+              parsedFuture = JSON.parse(storedFuture) || [];
+            } catch (e) {
+              parsedFuture = [];
+            }
+          }
+
+          if (storedUsers) {
+            try {
+              parsedUsers = JSON.parse(storedUsers) || [];
+            } catch (e) {
+              parsedUsers = [];
+            }
+          }
+
+          if (storedLogs) {
+            try {
+              parsedAccessLogs = JSON.parse(storedLogs) || [];
+            } catch (e) {
+              parsedAccessLogs = [];
+            }
+          }
+
+          if (storedVehicles && storedRentals && storedTransactions) {
+            try {
+              parsedVehicles = JSON.parse(storedVehicles) || [];
+              parsedRentals = JSON.parse(storedRentals) || [];
+              parsedTransactions = JSON.parse(storedTransactions) || [];
+            } catch (e) {}
+          }
+
+          // Safety backup check
+          if ((parsedVehicles.length === 0 || parsedRentals.length === 0 || parsedTransactions.length === 0) && safetyBackup) {
+            try {
+              const parsedBackup = JSON.parse(safetyBackup);
+              if (parsedBackup && parsedBackup.vehicles?.length > 0 && parsedBackup.rentals?.length > 0) {
+                parsedVehicles = parsedBackup.vehicles || [];
+                parsedRentals = parsedBackup.rentals || [];
+                parsedTransactions = parsedBackup.transactions || [];
+                parsedFuture = parsedBackup.futureExpenses || [];
+                parsedUsers = parsedBackup.users || [];
+                parsedAccessLogs = parsedBackup.accessLogs || [];
+                parsedLeads = parsedBackup.interestedLeads || [];
+              }
+            } catch (e) {}
+          }
+        }
+
+        // Always check for leads fallback if still empty
+        if (parsedLeads.length === 0) {
+          const storedLeads = localStorage.getItem('loca_interested_leads');
+          if (storedLeads) {
+            try {
+              parsedLeads = JSON.parse(storedLeads) || [];
+            } catch (e) {}
+          }
+        }
+
+        // 3. Fall back to original INITIAL seeds if absolutely empty everywhere
+        if (parsedVehicles.length === 0) {
+          parsedVehicles = INITIAL_VEHICLES;
+          parsedRentals = INITIAL_RENTALS;
+          parsedTransactions = INITIAL_TRANSACTIONS;
+          parsedFuture = [];
+          showNotification('Aplicativo inicializado com os demonstrativos de fábrica!', 'info');
+        }
+
+        // Ensure we have users
+        if (parsedUsers.length === 0) {
+          parsedUsers = INITIAL_USERS;
+        }
+
+        // Record access log if session already active on browser load
+        if (storedSession) {
           try {
-            const parsedBackup = JSON.parse(safetyBackup);
-            if (parsedBackup.vehicles?.length > 0 && parsedBackup.rentals?.length > 0) {
-              parsedVehicles = parsedBackup.vehicles;
-              parsedRentals = parsedBackup.rentals;
-              parsedTransactions = parsedBackup.transactions || [];
-              parsedFuture = parsedBackup.futureExpenses || [];
-              parsedUsers = parsedBackup.users || [];
-              parsedAccessLogs = parsedBackup.accessLogs || [];
-              parsedLeads = parsedBackup.interestedLeads || [];
+            const userObj = JSON.parse(storedSession) as AppUser;
+            if (userObj && userObj.email) {
+              const now = new Date();
+              const formatter = new Intl.DateTimeFormat('pt-BR', {
+                dateStyle: 'short',
+                timeStyle: 'medium',
+                timeZone: 'America/Sao_Paulo'
+              });
+              const timestampStr = formatter.format(now);
+
+              const logId = 'log_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+
+              const ua = navigator.userAgent;
+              let deviceRepresentation = 'Navegador Padrão';
+              if (ua.includes('Windows')) deviceRepresentation = 'Windows OS (Computador)';
+              else if (ua.includes('Macintosh')) deviceRepresentation = 'Apple macOS (Computador)';
+              else if (ua.includes('Linux')) deviceRepresentation = 'Linux OS (Computador)';
+              else if (ua.includes('Android')) deviceRepresentation = 'Android Mobile';
+              else if (ua.includes('iPhone') || ua.includes('iPad')) deviceRepresentation = 'iOS Mobile';
+
+              const newLog: AccessLog = {
+                id: logId,
+                userName: userObj.name,
+                userEmail: userObj.email,
+                userRole: userObj.email === 'leojoex@hotmail.com' ? 'Desenvolvedor' : userObj.role === 'admin' ? 'Administrador Pleno' : userObj.role === 'socio' ? 'Sócio' : 'Operador',
+                timestamp: timestampStr,
+                deviceInfo: `${deviceRepresentation} (Sessão Ativa)`
+              };
+
+              parsedAccessLogs = [newLog, ...parsedAccessLogs];
             }
           } catch (e) {}
         }
-      }
 
-      // Always check for leads fallback if still empty
-      if (parsedLeads.length === 0) {
-        const storedLeads = localStorage.getItem('loca_interested_leads');
-        if (storedLeads) {
-          try {
-            parsedLeads = JSON.parse(storedLeads);
-          } catch (e) {}
-        }
-      }
+        // Auto-realize future installments if their due date is reached or passed
+        const todayStr = getBrasiliaDateStr();
+        const autoTransactions: Transaction[] = [];
 
-      // 3. Fall back to original INITIAL seeds if absolutely empty everywhere
-      if (parsedVehicles.length === 0) {
-        parsedVehicles = INITIAL_VEHICLES;
-        parsedRentals = INITIAL_RENTALS;
-        parsedTransactions = INITIAL_TRANSACTIONS;
-        parsedFuture = [];
-        showNotification('Aplicativo inicializado com os demonstrativos de fábrica!', 'info');
-      }
+        const processedFuture = (parsedFuture || []).map(expense => {
+          if (!expense) return expense;
+          let expenseChanged = false;
+          const installments = expense.installments || [];
+          const updatedInstallments = installments.map(inst => {
+            if (inst && inst.status === 'pending' && inst.dueDate <= todayStr) {
+              hasChanges = true;
+              expenseChanged = true;
+              
+              const transactionId = 't_auto_realized_' + Math.random().toString(36).substr(2, 9);
+              autoTransactions.push({
+                id: transactionId,
+                date: inst.dueDate,
+                type: 'despesa',
+                value: expense.value,
+                category: expense.category,
+                description: `${expense.category} - Parc. ${inst.installmentNumber}/${expense.installmentsCount} (Efetivada Automaticamente no Vencimento)`,
+                vehicleId: expense.vehicleId
+              });
 
-      // Ensure we have users
-      if (parsedUsers.length === 0) {
-        parsedUsers = INITIAL_USERS;
-      }
-
-      // Record access log if session already active on browser load
-      if (storedSession) {
-        try {
-          const userObj = JSON.parse(storedSession) as AppUser;
-          if (userObj && userObj.email) {
-            const now = new Date();
-            const formatter = new Intl.DateTimeFormat('pt-BR', {
-              dateStyle: 'short',
-              timeStyle: 'medium',
-              timeZone: 'America/Sao_Paulo'
-            });
-            const timestampStr = formatter.format(now);
-
-            const logId = 'log_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
-
-            const ua = navigator.userAgent;
-            let deviceRepresentation = 'Navegador Padrão';
-            if (ua.includes('Windows')) deviceRepresentation = 'Windows OS (Computador)';
-            else if (ua.includes('Macintosh')) deviceRepresentation = 'Apple macOS (Computador)';
-            else if (ua.includes('Linux')) deviceRepresentation = 'Linux OS (Computador)';
-            else if (ua.includes('Android')) deviceRepresentation = 'Android Mobile';
-            else if (ua.includes('iPhone') || ua.includes('iPad')) deviceRepresentation = 'iOS Mobile';
-
-            const newLog: AccessLog = {
-              id: logId,
-              userName: userObj.name,
-              userEmail: userObj.email,
-              userRole: userObj.email === 'leojoex@hotmail.com' ? 'Desenvolvedor' : userObj.role === 'admin' ? 'Administrador Pleno' : userObj.role === 'socio' ? 'Sócio' : 'Operador',
-              timestamp: timestampStr,
-              deviceInfo: `${deviceRepresentation} (Sessão Ativa)`
-            };
-
-            parsedAccessLogs = [newLog, ...parsedAccessLogs];
-          }
-        } catch (e) {}
-      }
-
-      // Auto-realize future installments if their due date is reached or passed
-      const todayStr = getBrasiliaDateStr();
-      let hasChanges = false;
-      const autoTransactions: Transaction[] = [];
-
-      const processedFuture = parsedFuture.map(expense => {
-        let expenseChanged = false;
-        const updatedInstallments = expense.installments.map(inst => {
-          if (inst.status === 'pending' && inst.dueDate <= todayStr) {
-            hasChanges = true;
-            expenseChanged = true;
-            
-            const transactionId = 't_auto_realized_' + Math.random().toString(36).substr(2, 9);
-            autoTransactions.push({
-              id: transactionId,
-              date: inst.dueDate,
-              type: 'despesa',
-              value: expense.value,
-              category: expense.category,
-              description: `${expense.category} - Parc. ${inst.installmentNumber}/${expense.installmentsCount} (Efetivada Automaticamente no Vencimento)`,
-              vehicleId: expense.vehicleId
-            });
-
-            return {
-              ...inst,
-              status: 'realized' as const,
-              realizedTransactionId: transactionId
-            };
-          }
-          return inst;
-        });
-
-        if (expenseChanged) {
-          return { ...expense, installments: updatedInstallments };
-        }
-        return expense;
-      });
-
-      if (hasChanges) {
-        parsedFuture = processedFuture;
-        parsedTransactions = [...parsedTransactions, ...autoTransactions];
-        setTimeout(() => {
-          showNotification(`Foram efetivadas automaticamente ${autoTransactions.length} parcela(s) vencida(s) no caixa principal.`, 'success');
-        }, 1500);
-      }
-
-      // Proactive migration of legacy transaction records to avoid double counting and visual distortion:
-      let migratedTransactions = [...parsedTransactions];
-      
-      // 1. Remove any legacy t_refund_ret_discharge_ transactions (Baixa de Custódia)
-      migratedTransactions = migratedTransactions.filter(t => !t.id.startsWith('t_refund_ret_discharge_'));
-      
-      // 2. Pair up and correct any legacy caucao_devolvido (e.g., 2600.00) and receita (Retenção de Caução, e.g., 2400.00)
-      for (let i = 0; i < migratedTransactions.length; i++) {
-        const t1 = migratedTransactions[i];
-        if (
-          t1.type === 'receita' && 
-          (t1.category === 'Retenção de Caução' || t1.category.includes('Retenção'))
-        ) {
-          // Find matching caucao_devolvido on the same date and same vehicle
-          const t2Index = migratedTransactions.findIndex(t => 
-            t.type === 'caucao_devolvido' && 
-            t.date === t1.date && 
-            t.vehicleId === t1.vehicleId && 
-            t.value >= t1.value &&
-            t.value > 100 // only match non-trivial amounts
-          );
-
-          if (t2Index !== -1) {
-            const t2 = migratedTransactions[t2Index];
-            const originalVal = t2.value;
-            const newVal = originalVal - t1.value; // e.g., 2600 - 2400 = 200
-
-            if (newVal <= 0) {
-              // If newVal is 0 or less, we delete it entirely (there was no actual refund)
-              migratedTransactions.splice(t2Index, 1);
-              // Decrement index if we spliced something before the current element
-              if (t2Index < i) {
-                i--;
-              }
-            } else {
-              // Otherwise, update the value to the real refund value (e.g. 200)
-              migratedTransactions[t2Index] = {
-                ...t2,
-                value: newVal,
-                description: `Devolução de Caução (Restituição ao Motorista) - Restituído: ${newVal}, Retido: ${t1.value}`
+              return {
+                ...inst,
+                status: 'realized' as const,
+                realizedTransactionId: transactionId
               };
             }
+            return inst;
+          });
+
+          if (expenseChanged) {
+            return { ...expense, installments: updatedInstallments };
+          }
+          return expense;
+        });
+
+        if (hasChanges) {
+          parsedFuture = processedFuture;
+          parsedTransactions = [...parsedTransactions, ...autoTransactions];
+          setTimeout(() => {
+            showNotification(`Foram efetivadas automaticamente ${autoTransactions.length} parcela(s) vencida(s) no caixa principal.`, 'success');
+          }, 1500);
+        }
+
+        // Proactive migration of legacy transaction records to avoid double counting and visual distortion:
+        let migratedTransactions = [...parsedTransactions];
+        
+        // 1. Remove any legacy t_refund_ret_discharge_ transactions (Baixa de Custódia)
+        migratedTransactions = migratedTransactions.filter(t => t && t.id && !t.id.startsWith('t_refund_ret_discharge_'));
+        
+        // 2. Pair up and correct any legacy caucao_devolvido (e.g., 2600.00) and receita (Retenção de Caução, e.g., 2400.00)
+        for (let i = 0; i < migratedTransactions.length; i++) {
+          const t1 = migratedTransactions[i];
+          if (
+            t1 &&
+            t1.type === 'receita' && 
+            t1.category && (t1.category === 'Retenção de Caução' || t1.category.includes('Retenção'))
+          ) {
+            // Find matching caucao_devolvido on the same date and same vehicle
+            const t2Index = migratedTransactions.findIndex(t => 
+              t &&
+              t.type === 'caucao_devolvido' && 
+              t.date === t1.date && 
+              t.vehicleId === t1.vehicleId && 
+              t.value >= t1.value &&
+              t.value > 100 // only match non-trivial amounts
+            );
+
+            if (t2Index !== -1) {
+              const t2 = migratedTransactions[t2Index];
+              const originalVal = t2.value;
+              const newVal = originalVal - t1.value; // e.g., 2600 - 2400 = 200
+
+              if (newVal <= 0) {
+                // If newVal is 0 or less, we delete it entirely (there was no actual refund)
+                migratedTransactions.splice(t2Index, 1);
+                // Decrement index if we spliced something before the current element
+                if (t2Index < i) {
+                  i--;
+                }
+              } else {
+                // Otherwise, update the value to the real refund value (e.g. 200)
+                migratedTransactions[t2Index] = {
+                  ...t2,
+                  value: newVal,
+                  description: `Devolução de Caução (Restituição ao Motorista) - Restituído: ${newVal}, Retido: ${t1.value}`
+                };
+              }
+            }
           }
         }
-      }
 
-      parsedTransactions = migratedTransactions;
+        parsedTransactions = migratedTransactions;
+
+      } catch (err) {
+        console.error("Critical error inside loadData, falling back to safe defaults:", err);
+        if (parsedVehicles.length === 0) parsedVehicles = INITIAL_VEHICLES;
+        if (parsedRentals.length === 0) parsedRentals = INITIAL_RENTALS;
+        if (parsedTransactions.length === 0) parsedTransactions = INITIAL_TRANSACTIONS;
+        if (parsedUsers.length === 0) parsedUsers = INITIAL_USERS;
+      }
 
       // Sync local state
       setVehicles(parsedVehicles);
@@ -779,6 +804,12 @@ export default function App() {
         interestedLeads: parsedLeads
       };
       localStorage.setItem('loca_db_safety_backup', JSON.stringify(backupObj));
+
+      // Save changes to backend if auto-realized installments took place
+      if (hasChanges) {
+        console.log("[Database] Automatically realized installments on load. Saving to server database to avoid desync...");
+        persistToBackend(parsedVehicles, parsedRentals, parsedTransactions, parsedFuture, parsedUsers, parsedAccessLogs, parsedLeads);
+      }
     };
 
     loadData();
