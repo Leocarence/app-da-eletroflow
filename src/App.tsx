@@ -187,17 +187,31 @@ export default function App() {
   const pullStartYRef = useRef<number | null>(null);
   const isSavingRef = useRef(false);
   const lastMutationTimeRef = useRef<number>(0);
+  const lastEtagRef = useRef<string | null>(null);
 
   // Automatic background synchronization
   useEffect(() => {
     let intervalId: any;
 
     const performPoll = async () => {
-      if (isSavingRef.current) return;
+      if (isSavingRef.current || document.visibilityState !== 'visible') return;
       const pollStartTime = Date.now();
       try {
-        const response = await fetch('/api/load-data');
+        const response = await fetch('/api/load-data', {
+          headers: lastEtagRef.current ? { 'If-None-Match': lastEtagRef.current } : {}
+        });
+
+        // 304 Not Modified -> server data has not changed since last check
+        if (response.status === 304) {
+          return;
+        }
+
         if (response.ok) {
+          const newEtag = response.headers.get('ETag');
+          if (newEtag) {
+            lastEtagRef.current = newEtag;
+          }
+
           const serverBackup = await response.json();
           if (pollStartTime < lastMutationTimeRef.current || isSavingRef.current) {
             console.log("[Background Poll] Stale or concurrent poll request ignored to prevent state regression.");
@@ -289,13 +303,25 @@ export default function App() {
 
     // Delay start of polling slightly so initial hydration finishes first
     const delayTimeout = setTimeout(() => {
-      // Poll every 5 seconds
-      intervalId = setInterval(performPoll, 5000);
+      // Poll every 30 seconds when active/visible
+      intervalId = setInterval(performPoll, 30000);
     }, 3000);
+
+    // Sync immediately when tab becomes active again
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        performPoll();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleVisibilityChange);
 
     return () => {
       clearTimeout(delayTimeout);
       if (intervalId) clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleVisibilityChange);
     };
   }, []);
 
@@ -486,8 +512,19 @@ export default function App() {
           interestedLeads: activeLeads
         })
       });
-      if (response.ok && isManualClick) {
-        showNotification('✓ Todos os dados foram salvos com sucesso no disco rígido do servidor!', 'success');
+      if (response.ok) {
+        const newEtag = response.headers.get('ETag');
+        if (newEtag) {
+          lastEtagRef.current = newEtag;
+        } else {
+          try {
+            const resJson = await response.clone().json();
+            if (resJson.etag) lastEtagRef.current = resJson.etag;
+          } catch (e) {}
+        }
+        if (isManualClick) {
+          showNotification('✓ Todos os dados foram salvos com sucesso no disco rígido do servidor!', 'success');
+        }
       }
       // Always refresh database connectivity telemetry status after writing
       checkDbStatus();
@@ -526,6 +563,10 @@ export default function App() {
         try {
           const response = await fetch('/api/load-data');
           if (response.ok) {
+            const initialEtag = response.headers.get('ETag');
+            if (initialEtag) {
+              lastEtagRef.current = initialEtag;
+            }
             const serverBackup = await response.json();
             if (serverBackup && serverBackup.vehicles && serverBackup.vehicles.length > 0) {
               parsedVehicles = serverBackup.vehicles || [];

@@ -11,6 +11,7 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
   const BACKUP_PATH = path.join(process.cwd(), "db_backup.json");
+  let dataEtag = 'v_' + Date.now();
 
   // Parse JSON bodies with limit size to avoid overflows
   app.use(express.json({ limit: "50mb" }));
@@ -33,6 +34,15 @@ async function startServer() {
   });
   app.get("/api/load-data", async (req, res) => {
     try {
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("ETag", dataEtag);
+
+      // Return 304 Not Modified if the data version hasn't changed
+      const clientEtag = req.headers["if-none-match"] || req.headers["x-data-version"];
+      if (clientEtag && clientEtag === dataEtag) {
+        return res.status(304).end();
+      }
+
       const dbConnected = await connectToDatabase();
       if (dbConnected) {
         const doc = await EletroflowModel.findOne({ key: "eletroflow_data" });
@@ -60,6 +70,9 @@ async function startServer() {
       const payload = req.body;
       let savedInMongo = false;
 
+      // Update data version/etag whenever data is persisted
+      dataEtag = 'v_' + Date.now();
+
       const dbConnected = await connectToDatabase();
       if (dbConnected) {
         await EletroflowModel.findOneAndUpdate(
@@ -74,8 +87,10 @@ async function startServer() {
       // Always write to disk as local backup file consistency/replica
       fs.writeFileSync(BACKUP_PATH, JSON.stringify(payload, null, 2), "utf-8");
 
+      res.setHeader("ETag", dataEtag);
       return res.json({ 
         status: "success", 
+        etag: dataEtag,
         savedAt: new Date().toISOString(),
         persistedTo: savedInMongo ? "MongoDB + Local Backup" : "Local Backup Only"
       });
@@ -106,8 +121,8 @@ async function startServer() {
           res.setHeader("Pragma", "no-cache");
           res.setHeader("Expires", "0");
         } else {
-          // CSS, JS and other assets are hashed by Vite, so they are safe to cache but we can ask for revalidation to be safe
-          res.setHeader("Cache-Control", "public, max-age=0, must-revalidate");
+          // CSS, JS and static assets are hashed by Vite, safe to cache long-term
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
         }
       }
     }));
