@@ -33,6 +33,39 @@ export default function TransactionsTab({
   currentUser
 }: TransactionsTabProps) {
   const isSocio = currentUser?.role === 'socio';
+
+  const findRentalForTransaction = (t: Transaction) => {
+    if (!t.vehicleId) return null;
+    
+    const tDate = t.date;
+    const descLower = (t.description || '').toLowerCase();
+
+    // Try to find by date range first, as it is most accurate
+    const matchByDate = rentals.find(r => {
+      if (r.vehicleId !== t.vehicleId) return false;
+      if (r.status === 'completed') {
+        return tDate >= r.startDate && tDate <= (r.endDate || tDate);
+      } else {
+        return tDate >= r.startDate;
+      }
+    });
+
+    if (matchByDate) return matchByDate;
+
+    // If no date match, try matching by tenant's name in transaction description
+    const matchByName = rentals.find(r => {
+      if (r.vehicleId !== t.vehicleId) return false;
+      const tenantLower = (r.tenantName || '').toLowerCase();
+      return tenantLower && descLower.includes(tenantLower);
+    });
+
+    if (matchByName) return matchByName;
+
+    // Fallback to active rental on the vehicle, or the first rental on the vehicle
+    return rentals.find(r => r.vehicleId === t.vehicleId && r.status === 'active') ||
+           rentals.find(r => r.vehicleId === t.vehicleId);
+  };
+
   // Modal toggle state
   const [showAddModal, setShowAddModal] = useState(false);
   const [isFutureExpense, setIsFutureExpense] = useState(false);
@@ -682,8 +715,7 @@ export default function TransactionsTab({
                             </span>
                           </div>
                           {(() => {
-                            const rent = rentals.find(r => r.vehicleId === t.vehicleId && r.status === 'active') ||
-                                         rentals.find(r => r.vehicleId === t.vehicleId);
+                            const rent = findRentalForTransaction(t);
                             if (rent) {
                               return (
                                 <div className={`text-[10px] font-sans border px-1.5 py-0.5 rounded inline-flex items-center gap-1 ${isFuture ? 'bg-slate-50 border-slate-200 text-slate-400' : 'bg-brand-50 border-brand-100 text-slate-755'}`}>
@@ -798,8 +830,7 @@ export default function TransactionsTab({
                       </span>
                     </div>
                     {(() => {
-                      const rent = rentals.find(r => r.vehicleId === t.vehicleId && r.status === 'active') ||
-                                   rentals.find(r => r.vehicleId === t.vehicleId);
+                      const rent = findRentalForTransaction(t);
                       if (rent) {
                         return (
                           <span className="text-[10px] text-slate-500 font-medium truncate">

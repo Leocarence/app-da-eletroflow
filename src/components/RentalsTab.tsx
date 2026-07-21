@@ -77,6 +77,7 @@ export default function RentalsTab({
   const [editRentWeeklyRate, setEditRentWeeklyRate] = useState(1300);
   const [editRentDepositValue, setEditRentDepositValue] = useState(2600);
   const [editRentStatus, setEditRentStatus] = useState<'active' | 'completed'>('active');
+  const [editRentMinimumTermDays, setEditRentMinimumTermDays] = useState<number>(90);
 
   const openEditRentalModal = (r: Rental) => {
     setEditRentId(r.id);
@@ -87,7 +88,47 @@ export default function RentalsTab({
     setEditRentWeeklyRate(r.weeklyRate || 0);
     setEditRentDepositValue(r.depositValue || 0);
     setEditRentStatus(r.status || 'active');
+
+    if (r.startDate && r.endDate) {
+      const sDate = new Date(r.startDate + 'T00:00:00');
+      const eDate = new Date(r.endDate + 'T00:00:00');
+      const diff = Math.round((eDate.getTime() - sDate.getTime()) / (1000 * 3600 * 24));
+      setEditRentMinimumTermDays(diff > 0 ? diff : 90);
+    } else {
+      setEditRentMinimumTermDays(90);
+    }
+
     setShowEditRental(true);
+  };
+
+  const handleEditStartDateChange = (val: string) => {
+    setEditRentStartDate(val);
+    if (val && editRentMinimumTermDays) {
+      const sDate = new Date(val + 'T00:00:00');
+      sDate.setDate(sDate.getDate() + editRentMinimumTermDays);
+      setEditRentEndDate(toLocalDateStr(sDate));
+    }
+  };
+
+  const handleEditMinimumTermChange = (days: number) => {
+    setEditRentMinimumTermDays(days);
+    if (editRentStartDate && days) {
+      const sDate = new Date(editRentStartDate + 'T00:00:00');
+      sDate.setDate(sDate.getDate() + days);
+      setEditRentEndDate(toLocalDateStr(sDate));
+    }
+  };
+
+  const handleEditEndDateChange = (val: string) => {
+    setEditRentEndDate(val);
+    if (editRentStartDate && val) {
+      const sDate = new Date(editRentStartDate + 'T00:00:00');
+      const eDate = new Date(val + 'T00:00:00');
+      const diff = Math.round((eDate.getTime() - sDate.getTime()) / (1000 * 3600 * 24));
+      if (diff > 0) {
+        setEditRentMinimumTermDays(diff);
+      }
+    }
   };
 
   const submitEditRental = (e: React.FormEvent) => {
@@ -115,6 +156,7 @@ export default function RentalsTab({
   const [rentDepositValue, setRentDepositValue] = useState(2600);
   const [rentPayDepositNow, setRentPayDepositNow] = useState(true);
   const [rentPayFirstWeekNow, setRentPayFirstWeekNow] = useState(true);
+  const [rentMinimumTermDays, setRentMinimumTermDays] = useState<number>(90);
 
   // Form states - End Rental
   const [refundDeposit, setRefundDeposit] = useState(true);
@@ -135,9 +177,9 @@ export default function RentalsTab({
     e.preventDefault();
     if (!rentVehicleId || !tenantName) return;
 
-    // Calculate end date based on strict initial 90-day duration
+    // Calculate end date based on custom duration
     const sDate = new Date(rentalStartDate + 'T00:00:00');
-    sDate.setDate(sDate.getDate() + 90);
+    sDate.setDate(sDate.getDate() + rentMinimumTermDays);
     const endDateStr = toLocalDateStr(sDate);
 
     onStartRental({
@@ -157,6 +199,7 @@ export default function RentalsTab({
     setTenantPhone('');
     setRentalStartDate(getBrasiliaDateStr());
     setRentalWeeks(4);
+    setRentMinimumTermDays(90);
     setShowStartRental(false);
   };
 
@@ -212,6 +255,7 @@ export default function RentalsTab({
   const getRentalData = (r: Rental) => {
     const vehicle = vehicles.find(v => v.id === r.vehicleId);
     const isTerminated = r.status === 'completed';
+    const todayStr = getBrasiliaDateStr();
     
     // Find transactions tagged with this vehicle, but specifically during or related to this rental's tenant
     const relativeTransactions = transactions
@@ -219,51 +263,77 @@ export default function RentalsTab({
         // Must match vehicle
         if (t.vehicleId !== r.vehicleId) return false;
 
-        // If terminated, we specifically fetch all transactions dated between r.startDate and r.endDate
-        if (isTerminated) {
-          const tDate = t.date;
-          const start = r.startDate;
-          const end = r.endDate || getBrasiliaDateStr();
-          return tDate >= start && tDate <= end;
-        }
-        
+        const tDate = t.date;
+        const start = r.startDate;
+        const end = r.endDate || todayStr;
+
         const descLower = (t.description || '').toLowerCase();
         const catLower = (t.category || '').toLowerCase();
         const tenantLower = (r.tenantName || '').toLowerCase();
-        
-        // 1. Direct name match in description (or partial)
-        if (tenantLower && (descLower.includes(tenantLower) || tenantLower.includes(descLower))) {
+        const nameMatches = tenantLower && (descLower.includes(tenantLower) || tenantLower.includes(descLower));
+
+        // 1. If completed/terminated: transactions must strictly fall between startDate and endDate
+        if (isTerminated) {
+          return tDate >= start && tDate <= end;
+        }
+
+        // 2. If active:
+        // - It must happen on or after the startDate of the contract
+        if (tDate >= start) {
+          // Verify that it relates to this contract/tenant
+          // To be safe, if name matches: definitely yes
+          if (nameMatches) return true;
+
+          // Is it a security deposit?
+          const isDeposit = 
+            t.type === 'caucao_recebido' || 
+            t.type === 'caucao_devolvido' ||
+            catLower.includes('caução') ||
+            catLower.includes('caucao') ||
+            catLower.includes('depósito') ||
+            catLower.includes('deposito') ||
+            catLower.includes('garantia') ||
+            descLower.includes('caução') ||
+            descLower.includes('caucao') ||
+            descLower.includes('depósito') ||
+            descLower.includes('deposito') ||
+            descLower.includes('garantia');
+            
+          if (isDeposit) return true;
+
+          // Is it rent payment?
+          const isRent = 
+            catLower.includes('aluguel') ||
+            catLower.includes('aluguéis') ||
+            catLower.includes('alugueis') ||
+            catLower.includes('locação') ||
+            catLower.includes('locacao') ||
+            catLower.includes('semana');
+            
+          if (t.type === 'receita' && isRent) {
+            return true;
+          }
+
+          // Is it a vehicle expense (despesa) recorded during this contract?
+          if (t.type === 'despesa') {
+            return true;
+          }
+
+          // If there is no specific match, since it's dated >= start and this contract is active on this vehicle,
+          // include it if it's not matched by other tenants' active/completed contracts.
           return true;
         }
-        
-        // 2. Is this any kind of security deposit (caução / garantia) for this vehicle?
-        const isDeposit = 
-          t.type === 'caucao_recebido' || 
-          t.type === 'caucao_devolvido' ||
-          catLower.includes('caução') ||
-          catLower.includes('caucao') ||
-          catLower.includes('depósito') ||
-          catLower.includes('deposito') ||
-          catLower.includes('garantia') ||
-          descLower.includes('caução') ||
-          descLower.includes('caucao') ||
-          descLower.includes('depósito') ||
-          descLower.includes('deposito') ||
-          descLower.includes('garantia');
-          
-        if (isDeposit) return true;
-        
-        // 3. Is this a rental-payment transaction?
-        const isRent = 
-          catLower.includes('aluguel') ||
-          catLower.includes('aluguéis') ||
-          catLower.includes('alugueis') ||
-          catLower.includes('locação') ||
-          catLower.includes('locacao') ||
-          catLower.includes('semana');
-          
-        if (t.type === 'receita' && isRent) {
-          return true;
+
+        // 3. Early payments (e.g. security deposit or advance rent paid up to 7 days before start date)
+        // only if they explicitly match this tenant's name
+        if (tDate < start && nameMatches) {
+          const tDateObj = new Date(tDate + 'T00:00:00');
+          const startObj = new Date(start + 'T00:00:00');
+          const diffTime = startObj.getTime() - tDateObj.getTime();
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          if (diffDays <= 7) {
+            return true;
+          }
         }
         
         return false;
@@ -300,6 +370,9 @@ export default function RentalsTab({
     const endDateObj = new Date(selectedRental.endDate + 'T00:00:00');
     const msDiff = endDateObj.getTime() - today.getTime();
     const daysLeft = Math.ceil(msDiff / (1000 * 3600 * 24));
+
+    const startObj = new Date(selectedRental.startDate + 'T00:00:00');
+    const initialTermDays = Math.round((endDateObj.getTime() - startObj.getTime()) / (1000 * 3600 * 24));
 
     return (
       <div className="space-y-6 animate-fade-in">
@@ -424,7 +497,7 @@ export default function RentalsTab({
                           Vigente ({daysLeft} dias restantes do prazo inicial)
                         </div>
                         <p className="text-[10px] text-slate-400 leading-normal font-sans">
-                          Este é o primeiro contrato de 90 dias estimados. Sendo prorrogado automaticamente por prazo indeterminado caso não seja encerrado.
+                          Este é o primeiro contrato de {initialTermDays} dias estimados. Sendo prorrogado automaticamente por prazo indeterminado caso não seja encerrado.
                         </p>
                       </div>
                     ) : (
@@ -434,7 +507,7 @@ export default function RentalsTab({
                           Prorrogado / Prazo Indeterminado
                         </div>
                         <p className="text-[10px] text-brand-500/70 leading-normal font-sans font-medium">
-                          O prazo inicial de 90 dias foi concluído. O contrato foi prorrogado automaticamente para prazo indeterminado.
+                          O prazo inicial de {initialTermDays} dias foi concluído. O contrato foi prorrogado automaticamente para prazo indeterminado.
                         </p>
                       </div>
                     )
@@ -849,7 +922,7 @@ export default function RentalsTab({
                       type="date"
                       required
                       value={editRentStartDate}
-                      onChange={(e) => setEditRentStartDate(e.target.value)}
+                      onChange={(e) => handleEditStartDateChange(e.target.value)}
                       className="w-full font-sans text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all text-indigo-950"
                     />
                   </div>
@@ -860,9 +933,25 @@ export default function RentalsTab({
                       type="date"
                       required
                       value={editRentEndDate}
-                      onChange={(e) => setEditRentEndDate(e.target.value)}
+                      onChange={(e) => handleEditEndDateChange(e.target.value)}
                       className="w-full font-sans text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all text-indigo-950"
                     />
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 font-sans">Prazo de Vigência (Dias)</label>
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      value={editRentMinimumTermDays}
+                      onChange={(e) => handleEditMinimumTermChange(Math.max(1, Number(e.target.value)))}
+                      className="w-full font-mono text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all text-slate-755 font-bold bg-slate-50 focus:bg-white"
+                      placeholder="90"
+                    />
+                    <span className="text-[9px] text-slate-400 mt-1 block leading-tight font-sans">
+                      Renovação automática após {editRentMinimumTermDays} dias
+                    </span>
                   </div>
 
                   <div>
@@ -1023,6 +1112,9 @@ export default function RentalsTab({
               const msDiff = endDateObj.getTime() - today.getTime();
               const daysLeft = Math.ceil(msDiff / (1000 * 3600 * 24));
 
+              const startObj = new Date(r.startDate + 'T00:00:00');
+              const initialTermDays = Math.round((endDateObj.getTime() - startObj.getTime()) / (1000 * 3600 * 24));
+
               return (
                 <div
                   key={r.id}
@@ -1040,7 +1132,7 @@ export default function RentalsTab({
                       </div>
                       <div>
                         {daysLeft > 0 ? (
-                          <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded" title="Restantes para os 90 dias estimados">
+                          <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded" title={`Restantes para os ${initialTermDays} dias estimados`}>
                             {daysLeft}d restantes (Est.)
                           </span>
                         ) : (
@@ -1671,16 +1763,18 @@ export default function RentalsTab({
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 mb-1">Prazo de Vigência</label>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Prazo de Vigência (Dias)</label>
                   <input
-                    type="text"
-                    disabled
-                    value="90 Dias Iniciais"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-100 text-slate-650 font-bold focus:outline-none"
-                    title="Vigência inicial obrigatória de 90 dias com renovação automática indeterminada"
+                    type="number"
+                    required
+                    min={1}
+                    value={rentMinimumTermDays}
+                    onChange={(e) => setRentMinimumTermDays(Math.max(1, Number(e.target.value)))}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500 font-mono font-bold text-slate-755"
+                    title="Defina o prazo de vigência inicial em dias (padrão: 90 dias)"
                   />
                   <span className="text-[9px] text-slate-400 mt-0.5 block leading-tight font-sans">
-                    Renovação automática após 90 dias
+                    Renovação automática após {rentMinimumTermDays} dias
                   </span>
                 </div>
 
@@ -1910,7 +2004,7 @@ export default function RentalsTab({
                     type="date"
                     required
                     value={editRentStartDate}
-                    onChange={(e) => setEditRentStartDate(e.target.value)}
+                    onChange={(e) => handleEditStartDateChange(e.target.value)}
                     className="w-full font-sans text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all text-indigo-950"
                   />
                 </div>
@@ -1921,9 +2015,25 @@ export default function RentalsTab({
                     type="date"
                     required
                     value={editRentEndDate}
-                    onChange={(e) => setEditRentEndDate(e.target.value)}
+                    onChange={(e) => handleEditEndDateChange(e.target.value)}
                     className="w-full font-sans text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all text-indigo-950"
                   />
+                </div>
+
+                <div className="col-span-2">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 font-sans">Prazo de Vigência (Dias)</label>
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    value={editRentMinimumTermDays}
+                    onChange={(e) => handleEditMinimumTermChange(Math.max(1, Number(e.target.value)))}
+                    className="w-full font-mono text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all text-slate-755 font-bold bg-slate-50 focus:bg-white"
+                    placeholder="90"
+                  />
+                  <span className="text-[9px] text-slate-400 mt-1 block leading-tight font-sans">
+                    Renovação automática após {editRentMinimumTermDays} dias
+                  </span>
                 </div>
 
                 <div>
