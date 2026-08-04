@@ -17,7 +17,7 @@ interface RentalsTabProps {
   transactions: Transaction[];
   onStartRental: (rental: Omit<Rental, 'id' | 'status'>) => void;
   onUpdateRental: (id: string, updatedFields: Partial<Rental>) => void;
-  onTerminateRental: (id: string, returnDeposit: boolean, refundValue: number) => void;
+  onTerminateRental: (id: string, returnDeposit: boolean, refundValue: number, terminationDate?: string) => void;
   onDeleteRental: (id: string, purgeHistory: boolean) => void;
   currentUser?: any;
   interestedLeads?: InterestedLead[];
@@ -161,6 +161,7 @@ export default function RentalsTab({
   // Form states - End Rental
   const [refundDeposit, setRefundDeposit] = useState(true);
   const [refundAmount, setRefundAmount] = useState(2600);
+  const [terminationDate, setTerminationDate] = useState(getBrasiliaDateStr());
 
   // Auto-populate defaults when a vehicle is selected in new rental
   const handleRentVehicleChange = (vId: string) => {
@@ -207,6 +208,7 @@ export default function RentalsTab({
     setShowEndRentalModal(r);
     setRefundDeposit(true);
     setRefundAmount(r.depositValue);
+    setTerminationDate(getBrasiliaDateStr());
   };
 
   const submitEndRental = () => {
@@ -214,7 +216,8 @@ export default function RentalsTab({
     onTerminateRental(
       showEndRentalModal.id,
       refundDeposit,
-      refundDeposit ? Number(refundAmount) : 0
+      refundDeposit ? Number(refundAmount) : 0,
+      terminationDate || getBrasiliaDateStr()
     );
     setShowEndRentalModal(null);
     // If we end the rental that is currently being viewed, return back
@@ -719,6 +722,23 @@ export default function RentalsTab({
                 <p className="text-xs text-slate-500">
                   Você está prestes a encerrar o contrato sob responsabilidade do motorista <strong className="text-slate-700">{showEndRentalModal?.tenantName}</strong>. O veículo correspondente voltará ao status de <span className="font-semibold text-emerald-600">Disponível</span>.
                 </p>
+
+                {/* Termination Date Selector */}
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2">
+                  <label className="block text-[11px] font-bold text-slate-700 font-sans">
+                    Data do Encerramento do Contrato
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={terminationDate}
+                    onChange={(e) => setTerminationDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-1 focus:ring-brand-500 font-sans shadow-xs"
+                  />
+                  <span className="text-[10px] text-slate-500 block leading-tight">
+                    Informe o dia exato em que a locação foi encerrada. A vacância (desocupação) do veículo passará a ser contabilizada a partir do dia seguinte a essa data.
+                  </span>
+                </div>
 
                 {/* Deposit refund option */}
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">

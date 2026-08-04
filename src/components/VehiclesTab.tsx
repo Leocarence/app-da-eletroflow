@@ -31,7 +31,34 @@ interface VehiclesTabProps {
  * Evaluates all days from acquisitionDate up to today.
  */
 function calculateVacancyForVehicle(vehicle: Vehicle, rentalsList: Rental[]) {
-  const acqDateStr = vehicle.acquisitionDate;
+  // 1. Filtrar apenas aluguéis válidos.
+  // Removemos 'cancelled' / 'cancelado' ou deletados para evitar ocupação fantasma.
+  const vRentals = rentalsList.filter(r => 
+    r.vehicleId === vehicle.id && 
+    !r.isDeleted && 
+    r.status !== 'cancelled' &&
+    (r.status as string) !== 'cancelado'
+  );
+
+  // 2. Encontrar a data do primeiro aluguel (earliestRentalStart)
+  let earliestRentalStart: string | null = null;
+  vRentals.forEach(r => {
+    if (r.startDate) {
+      if (!earliestRentalStart || r.startDate < earliestRentalStart) {
+        earliestRentalStart = r.startDate;
+      }
+    }
+  });
+
+  // 3. Definir a data de início da contagem (acquisitionDate ou fallback)
+  let acqDateStr = vehicle.acquisitionDate;
+  if (!acqDateStr) {
+    acqDateStr = earliestRentalStart || '';
+  } else if (earliestRentalStart && earliestRentalStart < acqDateStr) {
+    acqDateStr = earliestRentalStart;
+  }
+
+  // Se não há data alguma, zera os retornos
   if (!acqDateStr) {
     return {
       percentage: null,
@@ -43,16 +70,17 @@ function calculateVacancyForVehicle(vehicle: Vehicle, rentalsList: Rental[]) {
     };
   }
 
-  // Parse acquisition date (YYYY-MM-DD)
-  const [ay, am, ad] = acqDateStr.split('-').map(Number);
-  const acqDate = new Date(ay, am - 1, ad);
+  // Helper para converter string YYYY-MM-DD com segurança para UTC (meia-noite)
+  const parseDateToUTC = (dateStr: string) => {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return Date.UTC(y, m - 1, d);
+  };
 
-  // Today's date in Brasilia timezone
+  const acqUtc = parseDateToUTC(acqDateStr);
   const todayStr = getBrasiliaDateStr();
-  const [ty, tm, td] = todayStr.split('-').map(Number);
-  const todayDate = new Date(ty, tm - 1, td);
+  const todayUtc = parseDateToUTC(todayStr);
 
-  if (acqDate > todayDate) {
+  if (acqUtc > todayUtc) {
     return {
       percentage: null,
       vacantDays: 0,
@@ -63,94 +91,76 @@ function calculateVacancyForVehicle(vehicle: Vehicle, rentalsList: Rental[]) {
     };
   }
 
-  const startYear = acqDate.getFullYear();
-  const currentYear = todayDate.getFullYear();
-  const periodLabel = startYear === currentYear ? `${startYear}` : `${startYear}/${currentYear}`;
+  const [ay] = acqDateStr.split('-');
+  const [ty] = todayStr.split('-');
+  const periodLabel = ay === ty ? `${ay}` : `${ay}/${ty}`;
 
-  // Evaluate range: from acquisitionDate up to todayDate
-  const evalEndDate = todayDate;
+  const MS_PER_DAY = 24 * 60 * 60 * 1000;
+  const daysSinceAcq = Math.floor((todayUtc - acqUtc) / MS_PER_DAY);
 
-  // Active or completed non-deleted rentals for this vehicle
-  const vRentals = rentalsList.filter(r => r.vehicleId === vehicle.id && !r.isDeleted);
-
-  // Days since acquisition up to today
-  const daysSinceAcq = Math.floor((todayDate.getTime() - acqDate.getTime()) / (24 * 60 * 60 * 1000));
-
-  // Check if we have any rentals starting on or before today
-  const hasRentalsOnOrBeforeToday = vRentals.some(r => r.startDate <= todayStr);
-
-  // Determine if we are currently within the grace period (less than 15 days from acquisition and no rentals yet)
+  // Flag para a UI saber se hoje o carro está no período de carência inicial
+  const hasRentalsOnOrBeforeToday = vRentals.some(r => r.startDate && r.startDate <= todayStr);
   const isGracePeriod = daysSinceAcq < 15 && !hasRentalsOnOrBeforeToday;
-  const graceDaysRemaining = Math.max(0, 15 - daysSinceAcq);
-
-  if (isGracePeriod) {
-    return {
-      percentage: 0,
-      vacantDays: 0,
-      totalCountableDays: 0,
-      periodLabel,
-      isGracePeriod: true,
-      graceDaysRemaining
-    };
-  }
 
   let vacantDays = 0;
   let totalCountableDays = 0;
 
-  // Step day by day from acqDate up to today
-  let current = new Date(acqDate.getTime());
-  while (current <= evalEndDate) {
-    const cy = current.getFullYear();
-    const cm = String(current.getMonth() + 1).padStart(2, '0');
-    const cd = String(current.getDate()).padStart(2, '0');
+  // 4. Loop varrendo dia a dia
+  let currUtc = acqUtc;
+  while (currUtc <= todayUtc) {
+    const d = new Date(currUtc);
+    const cy = d.getUTCFullYear();
+    const cm = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const cd = String(d.getUTCDate()).padStart(2, '0');
     const currentStr = `${cy}-${cm}-${cd}`;
 
-    const diffDays = Math.floor((current.getTime() - acqDate.getTime()) / (24 * 60 * 60 * 1000));
-    const isWithinFirst15Days = diffDays < 15;
+    const diffDays = Math.round((currUtc - acqUtc) / MS_PER_DAY);
 
-    // Check if rented on this day by any valid contract
+    // Regra da carência de 15 dias ANTES do primeiro aluguel
+    const isInitialGraceDay = diffDays < 15 && (!earliestRentalStart || currentStr < earliestRentalStart);
+
+    if (isInitialGraceDay) {
+      currUtc += MS_PER_DAY;
+      continue;
+    }
+
+    // Regra de ocupação
     const isRented = vRentals.some(r => {
-      if (r.startDate > currentStr) return false;
+      if (!r.startDate || r.startDate > currentStr) return false;
 
-      if (r.status === 'completed') {
-        // Completed contract: covers up to r.endDate if provided, otherwise r.startDate
-        const end = r.endDate || r.startDate;
-        return currentStr <= end;
+      const isEnded = r.status === 'completed' || r.status === 'terminated' || r.status === 'closed' || (r.status as string) === 'encerrado';
+
+      let effectiveEnd: string;
+      if (isEnded) {
+        effectiveEnd = r.endDate || r.startDate;
       } else {
-        // Active contract:
-        // If an explicit endDate is set and has passed (e.g. term ended on 2026-06-30),
-        // the contract period only covered up to r.endDate.
-        if (r.endDate) {
-          return currentStr <= r.endDate;
-        } else {
-          // Open-ended active contract: covers up to today
-          return currentStr <= todayStr;
-        }
+        // Active rental: if endDate exists, it covered up to endDate.
+        // If no endDate exists, it covers continuously up to todayStr.
+        effectiveEnd = r.endDate || todayStr;
       }
+
+      return currentStr <= effectiveEnd;
     });
 
     if (isRented) {
       totalCountableDays++;
     } else {
-      // If NOT rented, only count as vacant if outside the initial 15-day grace period
-      if (!isWithinFirst15Days) {
-        vacantDays++;
-        totalCountableDays++;
-      }
+      vacantDays++;
+      totalCountableDays++;
     }
 
-    current.setDate(current.getDate() + 1);
+    currUtc += MS_PER_DAY;
   }
 
   const percentage = totalCountableDays > 0 ? (vacantDays / totalCountableDays) * 100 : 0;
 
   return {
-    percentage,
+    percentage: percentage === 0 ? 0 : Number(percentage.toFixed(2)),
     vacantDays,
     totalCountableDays,
     periodLabel,
-    isGracePeriod: false,
-    graceDaysRemaining: 0
+    isGracePeriod,
+    graceDaysRemaining: Math.max(0, 15 - daysSinceAcq)
   };
 }
 
@@ -1405,15 +1415,13 @@ export default function VehiclesTab({
               let fleetVehiclesInGrace = 0;
 
               activeVehicles.forEach(v => {
-                if (v.acquisitionDate) {
-                  const calc = calculateVacancyForVehicle(v, rentals);
-                  if (calc.isGracePeriod) {
-                    fleetVehiclesInGrace++;
-                  } else if (calc.totalCountableDays > 0) {
-                    fleetTotalVacantDays += calc.vacantDays;
-                    fleetTotalCountableDays += calc.totalCountableDays;
-                    fleetVehiclesWithDate++;
-                  }
+                const calc = calculateVacancyForVehicle(v, rentals);
+                if (calc.isGracePeriod) {
+                  fleetVehiclesInGrace++;
+                } else if (calc.totalCountableDays > 0) {
+                  fleetTotalVacantDays += calc.vacantDays;
+                  fleetTotalCountableDays += calc.totalCountableDays;
+                  fleetVehiclesWithDate++;
                 }
               });
 

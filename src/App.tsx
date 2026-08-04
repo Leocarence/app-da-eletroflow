@@ -1356,12 +1356,14 @@ export default function App() {
   };
 
   // 5. Terminate / Finish Rental Contract
-  const handleTerminateRental = (rentalId: string, refundDeposit: boolean, refundValue: number) => {
+  const handleTerminateRental = (rentalId: string, refundDeposit: boolean, refundValue: number, terminationDate?: string) => {
     const targetRental = rentals.find(r => r.id === rentalId);
     if (!targetRental) return;
 
-    // Set rental to completed
-    const updatedRentals = rentals.map(r => r.id === rentalId ? { ...r, status: 'completed' as const } : r);
+    const termDate = terminationDate || getBrasiliaDateStr();
+
+    // Set rental to completed and set endDate to termDate (exact end date selected by user)
+    const updatedRentals = rentals.map(r => r.id === rentalId ? { ...r, status: 'completed' as const, endDate: termDate } : r);
 
     // Set corresponding vehicle back to AVAILABLE
     const updatedVehicles = vehicles.map(v =>
@@ -1378,7 +1380,7 @@ export default function App() {
     if (actualRefundValue > 0) {
       newTransactions.push({
         id: 't_refund_act_' + Math.random().toString(36).substr(2, 9),
-        date: getBrasiliaDateStr(),
+        date: termDate,
         type: 'caucao_devolvido',
         value: actualRefundValue,
         vehicleId: targetRental.vehicleId,
@@ -1387,11 +1389,11 @@ export default function App() {
       });
     }
 
-    // 2. If there is a retained portion, log it ONLY as standard credit/receita (no duplicate discharge transaction)
+    // 2. If there is a retained portion, log it ONLY as standard credit/receita
     if (retainedValue > 0) {
       newTransactions.push({
         id: 't_refund_ret_credit_' + Math.random().toString(36).substr(2, 9),
-        date: getBrasiliaDateStr(),
+        date: termDate,
         type: 'receita',
         value: retainedValue,
         vehicleId: targetRental.vehicleId,
@@ -1488,8 +1490,17 @@ export default function App() {
 
   // 6d. Update rental contract
   const handleUpdateRental = (id: string, updatedFields: Partial<Rental>) => {
-    const updated = rentals.map(r => r.id === id ? { ...r, ...updatedFields } : r);
-    syncAndSetRentals(updated);
+    const target = rentals.find(r => r.id === id);
+    let updatedVehicles = vehicles;
+    if (target && updatedFields.status) {
+      if (updatedFields.status === 'completed' as any || updatedFields.status === 'terminated' as any) {
+        updatedVehicles = vehicles.map(v => v.id === target.vehicleId ? { ...v, status: 'available' as const } : v);
+      } else if (updatedFields.status === 'active') {
+        updatedVehicles = vehicles.map(v => v.id === target.vehicleId ? { ...v, status: 'rented' as const } : v);
+      }
+    }
+    const updatedRentals = rentals.map(r => r.id === id ? { ...r, ...updatedFields } : r);
+    syncAndSetAll(updatedVehicles, updatedRentals, transactions);
     showNotification('Contrato de locação atualizado com sucesso!', 'success');
   };
 
