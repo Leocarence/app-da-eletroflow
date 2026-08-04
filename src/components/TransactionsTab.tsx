@@ -664,17 +664,17 @@ export default function TransactionsTab({
       {/* Ledger Table */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-premium overflow-hidden">
         {/* VIEW: Desktop Table (hidden on mobile, visible on medium screens and up) */}
-        <div className="hidden md:block overflow-auto max-h-[825px] relative scrollbar-thin">
-          <table className="w-full text-inner border-collapse min-w-[700px]">
-            <thead className="sticky top-0 z-20 shadow-sm bg-slate-50">
-              <tr className="bg-slate-50 border-b border-slate-100 text-[11px] font-bold text-slate-400 text-left uppercase tracking-wider select-none">
-                <th className="px-6 py-3.5 mr-1 font-sans bg-slate-50">Data de Efetivação</th>
-                <th className="px-6 py-3.5 font-sans bg-slate-50">Tipo</th>
-                <th className="px-6 py-3.5 font-sans bg-slate-50">Categoria</th>
-                <th className="px-6 py-3.5 font-sans bg-slate-50">Veículo Relacionado</th>
-                <th className="px-6 py-3.5 font-sans bg-slate-50">Descrição do Lançamento</th>
-                <th className="px-6 py-3.5 text-right font-sans bg-slate-50">Entrada/Saídas</th>
-                <th className="px-6 py-3.5 text-center font-sans bg-slate-50">Ações</th>
+        <div className="hidden md:block max-h-[825px] overflow-y-auto relative scrollbar-thin">
+          <table className="w-full border-collapse">
+            <thead className="sticky top-0 z-20 shadow-xs bg-slate-50">
+              <tr className="bg-slate-50 border-b border-slate-100 text-[10px] sm:text-[11px] font-bold text-slate-400 text-left uppercase tracking-wider select-none">
+                <th className="px-3 py-3 font-sans bg-slate-50">Data</th>
+                <th className="px-3 py-3 font-sans bg-slate-50">Tipo</th>
+                <th className="px-3 py-3 font-sans bg-slate-50">Categoria</th>
+                <th className="px-3 py-3 font-sans bg-slate-50">Veículo / Locatário</th>
+                <th className="px-3 py-3 font-sans bg-slate-50">Descrição</th>
+                <th className="px-3 py-3 text-right font-sans bg-slate-50">Valor</th>
+                <th className="px-2 py-3 text-center font-sans bg-slate-50 w-16">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs text-slate-600">
@@ -686,31 +686,31 @@ export default function TransactionsTab({
                 return (
                   <tr key={t.id} className={`hover:bg-slate-50/50 transition-colors ${isFuture ? 'bg-slate-50/40 text-slate-400 opacity-70 font-mono italic' : ''}`}>
                     {/* Date */}
-                    <td className={`px-6 py-4 font-mono whitespace-nowrap ${isFuture ? 'text-slate-400 italic' : 'text-black font-semibold'}`}>
+                    <td className={`px-3 py-3 font-mono whitespace-nowrap text-[11px] ${isFuture ? 'text-slate-400 italic' : 'text-black font-semibold'}`}>
                       {new Date(t.date + 'T00:00:00').toLocaleDateString('pt-BR')}
                     </td>
 
                     {/* Badge Indicator */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 rounded-md text-[10px] font-semibold border ${isFuture ? 'bg-slate-100 text-slate-400 border-slate-200' : getTypeStyle(t.type)}`}>
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      <span className={`px-2 py-0.5 rounded-md text-[9px] font-semibold border ${isFuture ? 'bg-slate-100 text-slate-400 border-slate-200' : getTypeStyle(t.type)}`}>
                         {isFuture ? `PREVISTO / ${getTypeText(t).toUpperCase()}` : getTypeText(t)}
                       </span>
                     </td>
 
                     {/* Category */}
-                    <td className={`px-6 py-4 whitespace-nowrap ${isFuture ? 'text-slate-400 italic font-medium' : 'font-semibold text-slate-700'}`}>
+                    <td className={`px-3 py-3 whitespace-nowrap text-xs ${isFuture ? 'text-slate-400 italic font-medium' : 'font-semibold text-slate-700'}`}>
                       {t.category}
                     </td>
 
                     {/* Linked Vehicle */}
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-3 py-3">
                       {vehicle ? (
-                        <div className="flex flex-col space-y-1">
+                        <div className="flex flex-col space-y-0.5">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className={`font-mono text-[11px] px-2 py-0.5 rounded font-extrabold tracking-wide ${isFuture ? 'bg-slate-400 text-white' : 'bg-slate-900 text-white'}`}>
+                            <span className={`font-mono text-[10px] px-1.5 py-0.2 rounded font-extrabold tracking-wide ${isFuture ? 'bg-slate-400 text-white' : 'bg-slate-900 text-white'}`}>
                               {vehicle.plate}
                             </span>
-                            <span className={`text-xs ${isFuture ? 'text-slate-400 italic font-medium' : 'font-semibold text-slate-700'}`}>
+                            <span className={`text-[11px] ${isFuture ? 'text-slate-400 italic font-medium' : 'font-semibold text-slate-700'}`}>
                               {vehicle.brandModel}
                             </span>
                           </div>
@@ -718,7 +718,7 @@ export default function TransactionsTab({
                             const rent = findRentalForTransaction(t);
                             if (rent) {
                               return (
-                                <div className={`text-[10px] font-sans border px-1.5 py-0.5 rounded inline-flex items-center gap-1 ${isFuture ? 'bg-slate-50 border-slate-200 text-slate-400' : 'bg-brand-50 border-brand-100 text-slate-755'}`}>
+                                <div className={`text-[9px] font-sans border px-1.5 py-0.2 rounded inline-flex items-center gap-1 max-w-fit ${isFuture ? 'bg-slate-50 border-slate-200 text-slate-400' : 'bg-brand-50 border-brand-100 text-slate-755'}`}>
                                   <span>Locatário:</span>
                                   <strong className={`font-bold ${isFuture ? 'text-slate-400' : 'text-slate-950'}`}>{rent.tenantName}</strong>
                                 </div>
@@ -728,30 +728,30 @@ export default function TransactionsTab({
                           })()}
                         </div>
                       ) : (
-                        <span className="text-slate-400 italic font-medium">Geral / Não Vinculado</span>
+                        <span className="text-slate-400 italic font-medium text-[11px]">Geral</span>
                       )}
                     </td>
 
                     {/* Description */}
-                    <td className={`px-6 py-4 font-medium max-w-[240px] truncate ${isFuture ? 'text-slate-400 italic' : 'text-slate-500'}`} title={t.description}>
-                      {t.description}
+                    <td className={`px-3 py-3 font-medium max-w-[180px] lg:max-w-[260px] truncate text-xs ${isFuture ? 'text-slate-400 italic' : 'text-slate-500'}`} title={t.description}>
+                      {t.description || '—'}
                     </td>
 
                     {/* Cash value */}
-                    <td className={`px-6 py-4 text-right font-mono text-sm whitespace-nowrap ${isFuture ? 'text-slate-400 italic font-medium' : isPositive ? 'text-emerald-600 font-bold' : 'text-rose-600 font-normal'}`}>
+                    <td className={`px-3 py-3 text-right font-mono text-xs sm:text-sm whitespace-nowrap ${isFuture ? 'text-slate-400 italic font-medium' : isPositive ? 'text-emerald-600 font-bold' : 'text-rose-600 font-normal'}`}>
                       {isPositive ? '+' : '-'} {formatCurrency(t.value)}
                     </td>
 
                     {/* Deletion / Removal trigger */}
-                    <td className="px-6 py-4 text-center whitespace-nowrap">
+                    <td className="px-2 py-3 text-center whitespace-nowrap">
                       {!isSocio ? (
-                        <div className="flex items-center justify-center gap-1.5">
+                        <div className="flex items-center justify-center gap-1">
                           <button
                             onClick={() => openEditModal(t)}
                             className="p-1 hover:bg-slate-100 hover:text-brand-600 text-slate-350 rounded transition-all"
                             title="Editar Lançamento"
                           >
-                            <Pencil className="h-4 w-4" />
+                            <Pencil className="h-3.5 w-3.5" />
                           </button>
                           <button
                             onClick={() => {
@@ -761,11 +761,11 @@ export default function TransactionsTab({
                             className="p-1 hover:bg-rose-50 hover:text-rose-600 text-slate-350 rounded transition-all"
                             title="Excluir Lançamento"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       ) : (
-                        <span className="text-[11px] text-slate-400 italic">Visualização</span>
+                        <span className="text-[10px] text-slate-400 italic">Ver</span>
                       )}
                     </td>
                   </tr>

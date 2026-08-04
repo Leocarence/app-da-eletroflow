@@ -602,7 +602,7 @@ export function FinancialsTab({
           </div>
         ) : (
           <div className="overflow-x-auto w-full">
-            <table className="w-full text-left border-collapse min-w-[650px]">
+            <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-100 text-[10px] uppercase font-mono tracking-widest text-slate-400">
                   <th className="py-3 px-3 font-extrabold">Mês de Referência</th>

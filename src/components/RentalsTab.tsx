@@ -1359,14 +1359,14 @@ export default function RentalsTab({
               <div className="animate-fade-in">
                 {approvedLeads.length > 0 ? (
                   <div className="overflow-x-auto border border-slate-150 rounded-xl shadow-xs">
-                    <table className="w-full min-w-[700px] border-collapse text-left text-xs text-slate-600 font-sans">
+                    <table className="w-full border-collapse text-left text-xs text-slate-600 font-sans">
                       <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-100">
                         <tr>
-                          <th scope="col" className="px-5 py-3 font-semibold">Nome do Contato</th>
-                          <th scope="col" className="px-5 py-3 font-semibold">Data de Contato</th>
-                          <th scope="col" className="px-5 py-3 font-semibold">WhatsApp / Telefone</th>
-                          <th scope="col" className="px-5 py-3 font-semibold text-center">Quantidade de oportunidades</th>
-                          {!isSocio && <th scope="col" className="px-5 py-3 font-semibold text-right">Ações</th>}
+                          <th scope="col" className="px-3 py-3 font-semibold">Nome do Contato</th>
+                          <th scope="col" className="px-3 py-3 font-semibold">Data de Contato</th>
+                          <th scope="col" className="px-3 py-3 font-semibold">WhatsApp / Telefone</th>
+                          <th scope="col" className="px-3 py-3 font-semibold text-center">Contatos</th>
+                          {!isSocio && <th scope="col" className="px-3 py-3 font-semibold text-right">Ações</th>}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 bg-white">
@@ -1540,14 +1540,14 @@ export default function RentalsTab({
               <div className="animate-fade-in">
                 {unapprovedLeads.length > 0 ? (
                   <div className="overflow-x-auto border border-slate-150 rounded-xl shadow-xs">
-                    <table className="w-full min-w-[700px] border-collapse text-left text-xs text-slate-600 font-sans">
+                    <table className="w-full border-collapse text-left text-xs text-slate-600 font-sans">
                       <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-100">
                         <tr>
-                          <th scope="col" className="px-5 py-3 font-semibold">Nome do Contato</th>
-                          <th scope="col" className="px-5 py-3 font-semibold">Data de Contato</th>
-                          <th scope="col" className="px-5 py-3 font-semibold">WhatsApp / Telefone</th>
-                          <th scope="col" className="px-5 py-3 font-semibold text-center">Quantidade de oportunidades</th>
-                          {!isSocio && <th scope="col" className="px-5 py-3 font-semibold text-right">Ações</th>}
+                          <th scope="col" className="px-3 py-3 font-semibold">Nome do Contato</th>
+                          <th scope="col" className="px-3 py-3 font-semibold">Data de Contato</th>
+                          <th scope="col" className="px-3 py-3 font-semibold">WhatsApp / Telefone</th>
+                          <th scope="col" className="px-3 py-3 font-semibold text-center">Contatos</th>
+                          {!isSocio && <th scope="col" className="px-3 py-3 font-semibold text-right">Ações</th>}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 bg-white">

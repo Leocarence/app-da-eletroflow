@@ -27,9 +27,8 @@ interface VehiclesTabProps {
 
 /**
  * Calculates the vacancy (desocupação) rate for a vehicle.
- * Start counting from acquisitionDate + 15 days.
- * Grace period is 15 days.
- * Considers 1 year from the acquisition date.
+ * Start counting from acquisitionDate + 15 days grace period (carência).
+ * Evaluates all days from acquisitionDate up to today.
  */
 function calculateVacancyForVehicle(vehicle: Vehicle, rentalsList: Rental[]) {
   const acqDateStr = vehicle.acquisitionDate;
@@ -48,31 +47,40 @@ function calculateVacancyForVehicle(vehicle: Vehicle, rentalsList: Rental[]) {
   const [ay, am, ad] = acqDateStr.split('-').map(Number);
   const acqDate = new Date(ay, am - 1, ad);
 
-  // Today's date
+  // Today's date in Brasilia timezone
   const todayStr = getBrasiliaDateStr();
   const [ty, tm, td] = todayStr.split('-').map(Number);
   const todayDate = new Date(ty, tm - 1, td);
 
-  // 1 year after acquisition
-  const oneYearEndDate = new Date(acqDate.getTime() + 365 * 24 * 60 * 60 * 1000);
+  if (acqDate > todayDate) {
+    return {
+      percentage: null,
+      vacantDays: 0,
+      totalCountableDays: 0,
+      periodLabel: '—',
+      isGracePeriod: false,
+      graceDaysRemaining: 0
+    };
+  }
 
   const startYear = acqDate.getFullYear();
-  const endYear = startYear + 1;
-  const periodLabel = `${startYear}/${endYear}`;
+  const currentYear = todayDate.getFullYear();
+  const periodLabel = startYear === currentYear ? `${startYear}` : `${startYear}/${currentYear}`;
 
-  // Evaluate range: from acquisitionDate to min(todayDate, oneYearEndDate)
-  const evalEndDate = todayDate < oneYearEndDate ? todayDate : oneYearEndDate;
+  // Evaluate range: from acquisitionDate up to todayDate
+  const evalEndDate = todayDate;
 
-  // Active or completed rentals of this vehicle
+  // Active or completed non-deleted rentals for this vehicle
   const vRentals = rentalsList.filter(r => r.vehicleId === vehicle.id && !r.isDeleted);
 
-  // Determine if there are active or past rentals starting on or before today
-  const hasRentals = vRentals.some(r => r.startDate <= todayStr);
-
-  // Determine if we are currently within the grace period (less than 15 days from acquisition)
-  // and have no rentals active yet.
+  // Days since acquisition up to today
   const daysSinceAcq = Math.floor((todayDate.getTime() - acqDate.getTime()) / (24 * 60 * 60 * 1000));
-  const isGracePeriod = daysSinceAcq < 15 && !hasRentals;
+
+  // Check if we have any rentals starting on or before today
+  const hasRentalsOnOrBeforeToday = vRentals.some(r => r.startDate <= todayStr);
+
+  // Determine if we are currently within the grace period (less than 15 days from acquisition and no rentals yet)
+  const isGracePeriod = daysSinceAcq < 15 && !hasRentalsOnOrBeforeToday;
   const graceDaysRemaining = Math.max(0, 15 - daysSinceAcq);
 
   if (isGracePeriod) {
@@ -89,10 +97,9 @@ function calculateVacancyForVehicle(vehicle: Vehicle, rentalsList: Rental[]) {
   let vacantDays = 0;
   let totalCountableDays = 0;
 
-  // Step day by day from acqDate
+  // Step day by day from acqDate up to today
   let current = new Date(acqDate.getTime());
   while (current <= evalEndDate) {
-    // YYYY-MM-DD
     const cy = current.getFullYear();
     const cm = String(current.getMonth() + 1).padStart(2, '0');
     const cd = String(current.getDate()).padStart(2, '0');
@@ -101,21 +108,31 @@ function calculateVacancyForVehicle(vehicle: Vehicle, rentalsList: Rental[]) {
     const diffDays = Math.floor((current.getTime() - acqDate.getTime()) / (24 * 60 * 60 * 1000));
     const isWithinFirst15Days = diffDays < 15;
 
-    // Check if rented on this day
+    // Check if rented on this day by any valid contract
     const isRented = vRentals.some(r => {
-      const isAfterStart = r.startDate <= currentStr;
-      // If the rental is active, it is considered rented up to today (even if planned endDate has passed)
-      const effectiveEndDate = r.status === 'active'
-        ? (r.endDate && r.endDate > todayStr ? r.endDate : todayStr)
-        : r.endDate;
-      const isBeforeEnd = effectiveEndDate ? currentStr <= effectiveEndDate : true;
-      return isAfterStart && isBeforeEnd;
+      if (r.startDate > currentStr) return false;
+
+      if (r.status === 'completed') {
+        // Completed contract: covers up to r.endDate if provided, otherwise r.startDate
+        const end = r.endDate || r.startDate;
+        return currentStr <= end;
+      } else {
+        // Active contract:
+        // If an explicit endDate is set and has passed (e.g. term ended on 2026-06-30),
+        // the contract period only covered up to r.endDate.
+        if (r.endDate) {
+          return currentStr <= r.endDate;
+        } else {
+          // Open-ended active contract: covers up to today
+          return currentStr <= todayStr;
+        }
+      }
     });
 
     if (isRented) {
       totalCountableDays++;
     } else {
-      // If NOT rented, it only counts as vacant if it is OUTSIDE the first 15 days grace period
+      // If NOT rented, only count as vacant if outside the initial 15-day grace period
       if (!isWithinFirst15Days) {
         vacantDays++;
         totalCountableDays++;
@@ -1376,7 +1393,7 @@ export default function VehiclesTab({
             </div>
             
             <p className="text-xs text-slate-500 font-sans mb-4 leading-relaxed">
-              Métricas baseadas no ciclo de 1 ano após a entrega, desconsiderando a carência dos primeiros 15 dias.
+              Métricas calculadas a partir da entrega do veículo até hoje, desconsiderando a carência dos primeiros 15 dias.
             </p>
 
             {/* Consolidated Fleet Vacancy Rate Summary Box */}
