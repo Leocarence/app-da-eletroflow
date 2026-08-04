@@ -31,6 +31,11 @@ interface VehiclesTabProps {
  * Evaluates all days from acquisitionDate up to today.
  */
 function calculateVacancyForVehicle(vehicle: Vehicle, rentalsList: Rental[]) {
+  console.log('--- DIAGNÓSTICO DE DADOS ---');
+  console.log('1. DATA DE HOJE RETORNADA:', getBrasiliaDateStr());
+  console.log('2. VEÍCULO AVALIADO:', vehicle.name, '| STATUS:', vehicle.status);
+  console.log('3. CONTRATOS RECEBIDOS:', rentalsList.filter(r => r.vehicleId === vehicle.id));
+
   // 1. Filtrar apenas aluguéis válidos.
   // Removemos 'cancelled' / 'cancelado' ou deletados para evitar ocupação fantasma.
   const vRentals = rentalsList.filter(r => 
@@ -124,22 +129,19 @@ function calculateVacancyForVehicle(vehicle: Vehicle, rentalsList: Rental[]) {
       continue;
     }
 
-    // Regra de ocupação
+    // --- NOVA LÓGICA: CRONOLOGIA ESTRITA SOBRE STATUS ---
     const isRented = vRentals.some(r => {
+      // 1. O contrato tem que ter começado neste dia ou antes
       if (!r.startDate || r.startDate > currentStr) return false;
 
-      const isEnded = r.status === 'completed' || r.status === 'terminated' || r.status === 'closed' || (r.status as string) === 'encerrado';
-
-      let effectiveEnd: string;
-      if (isEnded) {
-        effectiveEnd = r.endDate || r.startDate;
-      } else {
-        // Active rental: if endDate exists, it covered up to endDate.
-        // If no endDate exists, it covers continuously up to todayStr.
-        effectiveEnd = r.endDate || todayStr;
+      // 2. Se existe uma data final explicitamente definida no contrato:
+      if (r.endDate) {
+        // A ocupação encerra nesta data, independente do status do veículo ou do contrato
+        return currentStr <= r.endDate;
       }
-
-      return currentStr <= effectiveEnd;
+      
+      // 3. Se NÃO tem data de fim (ex: contrato aberto), só consideramos alugado se estiver ativo
+      return r.status === 'active';
     });
 
     if (isRented) {
