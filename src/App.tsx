@@ -2748,6 +2748,7 @@ export default function App() {
               vehicles={vehicles}
               futureExpenses={futureExpenses}
               transactions={transactions}
+              rentals={rentals}
               onUpdateVehicle={handleUpdateVehicle}
             />
           </div>

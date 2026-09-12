@@ -33,7 +33,7 @@ interface VehiclesTabProps {
 function calculateVacancyForVehicle(vehicle: Vehicle, rentalsList: Rental[]) {
   console.log('--- DIAGNÓSTICO DE DADOS ---');
   console.log('1. DATA DE HOJE RETORNADA:', getBrasiliaDateStr());
-  console.log('2. VEÍCULO AVALIADO:', vehicle.name, '| STATUS:', vehicle.status);
+  console.log('2. VEÍCULO AVALIADO:', vehicle.brandModel || vehicle.plate, '| STATUS:', vehicle.status);
   console.log('3. CONTRATOS RECEBIDOS:', rentalsList.filter(r => r.vehicleId === vehicle.id));
 
   // 1. Filtrar apenas aluguéis válidos.
@@ -41,7 +41,7 @@ function calculateVacancyForVehicle(vehicle: Vehicle, rentalsList: Rental[]) {
   const vRentals = rentalsList.filter(r => 
     r.vehicleId === vehicle.id && 
     !r.isDeleted && 
-    r.status !== 'cancelled' &&
+    (r.status as string) !== 'cancelled' &&
     (r.status as string) !== 'cancelado'
   );
 
