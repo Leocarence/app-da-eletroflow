@@ -2,6 +2,8 @@ import mongoose, { Schema } from 'mongoose';
 
 let isConnected = false;
 let lastError: string | null = null;
+let lastAttemptTime = 0;
+const RETRY_COOLDOWN_MS = 15000;
 
 /**
  * Returns connection diagnostics and status.
@@ -25,11 +27,17 @@ export function getDbDiagnostics() {
     }
   }
 
+  let networkTip: string | null = null;
+  if (lastError && (lastError.includes('whitelisted') || lastError.includes('ServerSelection') || lastError.includes('timeout') || lastError.includes('ENOTFOUND') || lastError.includes('ETIMEDOUT'))) {
+    networkTip = "Seu cluster MongoDB Atlas pode estar restringindo IPs. Para acesso de qualquer país ou nuvem, acesse o painel do MongoDB Atlas > Network Access > adicione 0.0.0.0/0 (Allow access from anywhere).";
+  }
+
   return {
     connected: isConnected && mongoose.connection.readyState === 1,
     uriConfigured: !!uri,
     uriMasked,
     lastError,
+    networkTip,
     readyState: mongoose.connection.readyState,
   };
 }
@@ -37,6 +45,7 @@ export function getDbDiagnostics() {
 /**
  * Connects to MongoDB if MONGODB_URI is defined.
  * Returns true if connection is active/successful, false otherwise.
+ * Includes a smart cooldown to prevent blocking requests when network or whitelist restricts access.
  */
 export async function connectToDatabase(): Promise<boolean> {
   if (isConnected && mongoose.connection.readyState === 1) return true;
@@ -44,10 +53,16 @@ export async function connectToDatabase(): Promise<boolean> {
   const uri = process.env.MONGODB_URI;
   if (!uri) {
     lastError = "Variável de ambiente MONGODB_URI não definida no servidor. Certifique-se de adicioná-la nas configurações do Google AI Studio.";
-    console.warn("[Database] MONGODB_URI environment variable not defined. Using local file storage fallback.");
     isConnected = false;
     return false;
   }
+
+  // Avoid spamming slow connection attempts if we recently failed
+  const now = Date.now();
+  if (!isConnected && now - lastAttemptTime < RETRY_COOLDOWN_MS) {
+    return false;
+  }
+  lastAttemptTime = now;
 
   try {
     // Avoid re-connecting if already open
@@ -58,7 +73,8 @@ export async function connectToDatabase(): Promise<boolean> {
     }
 
     await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 3000,
+      connectTimeoutMS: 3000,
       dbName: 'eletroflow',
     });
     

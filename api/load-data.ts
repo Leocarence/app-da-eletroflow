@@ -39,8 +39,9 @@ export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, ETag, If-None-Match, x-data-version'
   );
+  res.setHeader('Access-Control-Expose-Headers', 'ETag');
 
   if (req.method === 'OPTIONS') {
     res.status(200).end();
@@ -48,22 +49,30 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const dbConnected = await connectToDatabase();
-    if (dbConnected) {
-      const doc = await EletroflowModel.findOne({ key: "eletroflow_data" });
-      if (doc && doc.data) {
-        return res.status(200).json(doc.data);
+    try {
+      const dbConnected = await connectToDatabase();
+      if (dbConnected) {
+        const doc = await EletroflowModel.findOne({ key: "eletroflow_data" }).maxTimeMS(3000);
+        if (doc && doc.data) {
+          return res.status(200).json(doc.data);
+        }
       }
+    } catch (mongoErr) {
+      console.warn("MongoDB query error in serverless:", mongoErr);
     }
     
     // Serverless fallback to local JSON template if db is not connected or empty
     const backupPath = path.join(process.cwd(), 'db_backup.json');
     if (fs.existsSync(backupPath)) {
-      const data = fs.readFileSync(backupPath, "utf-8");
-      return res.status(200).json(JSON.parse(data));
+      try {
+        const data = fs.readFileSync(backupPath, "utf-8");
+        return res.status(200).json(JSON.parse(data));
+      } catch (readErr) {
+        console.warn("Read db_backup error:", readErr);
+      }
     }
     return res.status(200).json({ status: "empty" });
   } catch (error: any) {
-    return res.status(500).json({ error: error.message || "Internal Server Error" });
+    return res.status(200).json({ status: "empty" });
   }
 }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Vehicle, Rental, Transaction, FutureExpense, FutureExpenseInstallment, InterestedLead } from './types';
-import { getBrasiliaDateStr, toLocalDateStr, getBrasiliaUiDateStr } from './utils/dateUtils';
+import { getBrasiliaDateStr, toLocalDateStr, getBrasiliaUiDateStr, formatSafeBrasiliaTimestamp } from './utils/dateUtils';
 import {
   INITIAL_VEHICLES,
   INITIAL_RENTALS,
@@ -680,13 +680,7 @@ export default function App() {
           try {
             const userObj = JSON.parse(storedSession) as AppUser;
             if (userObj && userObj.email) {
-              const now = new Date();
-              const formatter = new Intl.DateTimeFormat('pt-BR', {
-                dateStyle: 'short',
-                timeStyle: 'medium',
-                timeZone: 'America/Sao_Paulo'
-              });
-              const timestampStr = formatter.format(now);
+              const timestampStr = formatSafeBrasiliaTimestamp();
 
               const logId = 'log_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
 
@@ -1698,13 +1692,7 @@ export default function App() {
     setCurrentUser(user);
     localStorage.setItem('loca_current_user', JSON.stringify(user));
 
-    const now = new Date();
-    const formatter = new Intl.DateTimeFormat('pt-BR', {
-      dateStyle: 'short',
-      timeStyle: 'medium',
-      timeZone: 'America/Sao_Paulo'
-    });
-    const timestampStr = formatter.format(now);
+    const timestampStr = formatSafeBrasiliaTimestamp();
 
     const logId = 'log_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
     

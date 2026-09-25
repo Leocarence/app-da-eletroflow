@@ -129,19 +129,21 @@ function calculateVacancyForVehicle(vehicle: Vehicle, rentalsList: Rental[]) {
       continue;
     }
 
-    // --- NOVA LÓGICA: CRONOLOGIA ESTRITA SOBRE STATUS ---
+    // --- LÓGICA DE OCUPAÇÃO: RESPEITA CONTRATOS ATIVOS PRORROGADOS E CONTRATOS ENCERRADOS ---
     const isRented = vRentals.some(r => {
       // 1. O contrato tem que ter começado neste dia ou antes
       if (!r.startDate || r.startDate > currentStr) return false;
 
-      // 2. Se existe uma data final explicitamente definida no contrato:
-      if (r.endDate) {
-        // A ocupação encerra nesta data, independente do status do veículo ou do contrato
-        return currentStr <= r.endDate;
+      // 2. Se o contrato foi formalmente encerrado/concluído:
+      if (r.status === 'completed' || (r.status as string) === 'terminated') {
+        // A ocupação encerrou estritamente na data de término/encerramento
+        return r.endDate ? currentStr <= r.endDate : false;
       }
       
-      // 3. Se NÃO tem data de fim (ex: contrato aberto), só consideramos alugado se estiver ativo
-      return r.status === 'active';
+      // 3. Se o contrato está ATIVO (status === 'active'):
+      // O veículo continua alugado e ocupado, mesmo após a data estimada inicial do contrato
+      // ter vencido, já que o contrato é prorrogado automaticamente por prazo indeterminado.
+      return true;
     });
 
     if (isRented) {

@@ -333,23 +333,36 @@ export default function TransactionsTab({
       }
     });
 
-    // Reduce the active security deposit received in the filtered view by the amount that was converted/retained
-    caucoesRecebidos = Math.max(0, caucoesRecebidos - retainedSum);
+    // Caução líquido ativo em custódia no período/filtro:
+    // Deduz tanto o valor retido convertido em rendimento quanto as restituições já devolvidas
+    const caucaoAtivo = Math.max(0, caucoesRecebidos - caucoesDevolvidos - retainedSum);
 
-    const entradas = receitas + caucoesRecebidos;
-    const saidas = despesas + caucoesDevolvidos;
+    // Entradas filtradas: receitas + caução ativo sob custódia
+    // Se o filtro for especificamente 'caucao_recebido', exibe o total bruto de cauções recebidos filtrados
+    const entradas = filterType === 'caucao_recebido'
+      ? caucoesRecebidos
+      : filterType === 'caucao_devolvido'
+        ? 0
+        : receitas + caucaoAtivo;
+
+    // Saídas filtradas: despesas operacionais
+    // Se o filtro for especificamente 'caucao_devolvido', exibe as devoluções filtradas
+    const saidas = filterType === 'caucao_devolvido'
+      ? caucoesDevolvidos
+      : despesas;
+
     const saldoLiquido = entradas - saidas;
 
     return {
       receitas,
       despesas,
-      caucoesRecebidos,
+      caucoesRecebidos: filterType === 'caucao_recebido' ? caucoesRecebidos : caucaoAtivo,
       caucoesDevolvidos,
       entradas,
       saidas,
       saldoLiquido
     };
-  }, [filteredTransactions]);
+  }, [filteredTransactions, filterType]);
 
   const MAX_ROWS = 50;
   const totalPages = Math.ceil(filteredTransactions.length / MAX_ROWS);
@@ -624,9 +637,9 @@ export default function TransactionsTab({
             <div>
               <span className="text-[10px] font-bold text-slate-500 uppercase block tracking-wider">Saídas Filtradas</span>
               <span className="text-sm font-extrabold text-rose-700">{formatCurrency(filteredTotals.saidas)}</span>
-              {filteredTotals.caucoesDevolvidos > 0 ? (
+              {filterType === 'caucao_devolvido' ? (
                 <span className="text-[9px] text-rose-600 block leading-tight">
-                  Despesas: {formatCurrency(filteredTotals.despesas)} | Devolvido: {formatCurrency(filteredTotals.caucoesDevolvidos)}
+                  Devoluções de garantia: {formatCurrency(filteredTotals.caucoesDevolvidos)}
                 </span>
               ) : (
                 <span className="text-[9px] text-slate-400 block leading-tight">

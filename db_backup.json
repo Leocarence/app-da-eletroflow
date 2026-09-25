@@ -1,0 +1,186 @@
+{
+  "vehicles": [
+    {
+      "id": "v_dolphin",
+      "brandModel": "BYD Dolphin Mini Azul",
+      "plate": "TYU-0E16",
+      "weeklyRate": 1300,
+      "depositValue": 2600,
+      "status": "rented",
+      "acquisitionDate": "2026-03-23"
+    },
+    {
+      "id": "v_corolla",
+      "brandModel": "Toyota Corolla XEI Prata",
+      "plate": "ABC-1234",
+      "weeklyRate": 1500,
+      "depositValue": 3000,
+      "status": "rented",
+      "acquisitionDate": "2026-02-15"
+    },
+    {
+      "id": "v_onix",
+      "brandModel": "Chevrolet Onix LT Branco",
+      "plate": "XYZ-9876",
+      "weeklyRate": 950,
+      "depositValue": 1900,
+      "status": "rented",
+      "acquisitionDate": "2026-03-01"
+    },
+    {
+      "id": "v_mobi",
+      "brandModel": "Fiat Mobi Trekking Preto",
+      "plate": "QWE-4567",
+      "weeklyRate": 750,
+      "depositValue": 1500,
+      "status": "available",
+      "acquisitionDate": "2026-05-20"
+    }
+  ],
+  "rentals": [
+    {
+      "id": "r_dolphin",
+      "vehicleId": "v_dolphin",
+      "tenantName": "LEANDRO",
+      "phone": "(11) 99313-1616",
+      "startDate": "2026-03-25",
+      "endDate": "2027-03-24",
+      "weeklyRate": 1300,
+      "depositValue": 2600,
+      "status": "active"
+    },
+    {
+      "id": "r_corolla",
+      "vehicleId": "v_corolla",
+      "tenantName": "MARCELO SILVEIRA",
+      "phone": "(21) 98765-4321",
+      "startDate": "2026-04-01",
+      "endDate": "2026-06-30",
+      "weeklyRate": 1500,
+      "depositValue": 3000,
+      "status": "active"
+    },
+    {
+      "id": "r_onix",
+      "vehicleId": "v_onix",
+      "tenantName": "SABRINA",
+      "phone": "(11) 91234-5678",
+      "startDate": "2026-05-15",
+      "endDate": "2026-08-15",
+      "weeklyRate": 950,
+      "depositValue": 1900,
+      "status": "active"
+    }
+  ],
+  "transactions": [
+    {
+      "id": "t_d_dep",
+      "date": "2026-03-23",
+      "type": "caucao_recebido",
+      "value": 2600,
+      "vehicleId": "v_dolphin",
+      "category": "Caução",
+      "description": "Depósito de garantia caução - LEANDRO"
+    },
+    {
+      "id": "t_d_r1",
+      "date": "2026-04-01",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_dolphin",
+      "category": "Aluguel Semanal",
+      "description": "Semana 1 - LEANDRO"
+    },
+    {
+      "id": "t_d_r2",
+      "date": "2026-04-08",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_dolphin",
+      "category": "Aluguel Semanal",
+      "description": "Semana 2 - LEANDRO"
+    },
+    {
+      "id": "t_d_r3",
+      "date": "2026-04-15",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_dolphin",
+      "category": "Aluguel Semanal",
+      "description": "Semana 3 - LEANDRO"
+    },
+    {
+      "id": "t_d_r4",
+      "date": "2026-04-22",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_dolphin",
+      "category": "Aluguel Semanal",
+      "description": "Semana 4 - LEANDRO"
+    },
+    {
+      "id": "t_c_dep",
+      "date": "2026-03-30",
+      "type": "caucao_recebido",
+      "value": 3000,
+      "vehicleId": "v_corolla",
+      "category": "Caução",
+      "description": "Depósito de garantia caução - MARCELO"
+    },
+    {
+      "id": "t_c_r1",
+      "date": "2026-04-08",
+      "type": "receita",
+      "value": 1500,
+      "vehicleId": "v_corolla",
+      "category": "Aluguel Semanal",
+      "description": "Semana 1 - MARCELO"
+    },
+    {
+      "id": "t_c_r2",
+      "date": "2026-04-15",
+      "type": "receita",
+      "value": 1500,
+      "vehicleId": "v_corolla",
+      "category": "Aluguel Semanal",
+      "description": "Semana 2 - MARCELO"
+    },
+    {
+      "id": "t_o_dep",
+      "date": "2026-05-14",
+      "type": "caucao_recebido",
+      "value": 1900,
+      "vehicleId": "v_onix",
+      "category": "Caução",
+      "description": "Depósito de garantia caução - SABRINA"
+    },
+    {
+      "id": "t_o_r1",
+      "date": "2026-05-22",
+      "type": "receita",
+      "value": 950,
+      "vehicleId": "v_onix",
+      "category": "Aluguel Semanal",
+      "description": "Semana 1 - SABRINA"
+    }
+  ],
+  "users": [
+    {
+      "id": "u_1",
+      "name": "Leo",
+      "email": "leojoex@hotmail.com",
+      "password": "557345",
+      "role": "admin"
+    },
+    {
+      "id": "u_2",
+      "name": "Administrador",
+      "email": "carenceveiculos@gmail.com",
+      "password": "14961245",
+      "role": "admin"
+    }
+  ],
+  "futureExpenses": [],
+  "accessLogs": [],
+  "interestedLeads": []
+}
