@@ -1,4 +1,5 @@
 import { Vehicle, Rental, Transaction } from '../types';
+import { getWeekdayLabel } from './dateUtils';
 
 /**
  * Formats a number to Brazilian currency string (e.g. "R$ 1.250,00")
@@ -58,6 +59,7 @@ export function exportContractCSV(
   csv += `Status do Contrato;${rental.status === 'active' ? 'Ativo' : 'Encerrado'}\n`;
   csv += `Período Inicial;De ${formatDateBRL(rental.startDate)} a ${formatDateBRL(rental.endDate)}\n`;
   csv += `Taxa Semanal;${formatBRL(rental.weeklyRate)}\n`;
+  csv += `Dia do Repasse Semanal;Toda ${getWeekdayLabel(rental.paymentDayOfWeek, rental.startDate)}\n`;
   csv += `Caução Contratual;${formatBRL(rental.depositValue)}\n`;
   csv += `Veículo;${brandModel} (Placa: ${plate})\n`;
   csv += '\n';

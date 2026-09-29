@@ -7,34 +7,24 @@
       "weeklyRate": 1300,
       "depositValue": 2600,
       "status": "rented",
-      "acquisitionDate": "2026-03-23"
+      "mileage": 29000,
+      "mileageDate": "2026-07-16",
+      "estimatedValue": 110000,
+      "estimatedValueDate": "2026-06-20",
+      "acquisitionDate": "2026-03-22"
     },
     {
-      "id": "v_corolla",
-      "brandModel": "Toyota Corolla XEI Prata",
-      "plate": "ABC-1234",
-      "weeklyRate": 1500,
-      "depositValue": 3000,
+      "brandModel": "BYD DOLPHIN MINI AZUL ",
+      "plate": "UJA-4F76",
+      "weeklyRate": 1300,
+      "depositValue": 2600,
       "status": "rented",
-      "acquisitionDate": "2026-02-15"
-    },
-    {
-      "id": "v_onix",
-      "brandModel": "Chevrolet Onix LT Branco",
-      "plate": "XYZ-9876",
-      "weeklyRate": 950,
-      "depositValue": 1900,
-      "status": "rented",
-      "acquisitionDate": "2026-03-01"
-    },
-    {
-      "id": "v_mobi",
-      "brandModel": "Fiat Mobi Trekking Preto",
-      "plate": "QWE-4567",
-      "weeklyRate": 750,
-      "depositValue": 1500,
-      "status": "available",
-      "acquisitionDate": "2026-05-20"
+      "id": "v_wl8jpgood",
+      "estimatedValue": 110000,
+      "estimatedValueDate": "2026-06-20",
+      "mileageDate": "2026-07-10",
+      "acquisitionDate": "2026-06-03",
+      "mileage": 4700
     }
   ],
   "rentals": [
@@ -42,126 +32,1656 @@
       "id": "r_dolphin",
       "vehicleId": "v_dolphin",
       "tenantName": "LEANDRO",
-      "phone": "(11) 99313-1616",
+      "phone": "31998966940",
       "startDate": "2026-03-25",
-      "endDate": "2027-03-24",
+      "endDate": "2026-07-15",
       "weeklyRate": 1300,
       "depositValue": 2600,
-      "status": "active"
+      "status": "completed",
+      "paymentDayOfWeek": 3
     },
     {
-      "id": "r_corolla",
-      "vehicleId": "v_corolla",
-      "tenantName": "MARCELO SILVEIRA",
-      "phone": "(21) 98765-4321",
-      "startDate": "2026-04-01",
-      "endDate": "2026-06-30",
-      "weeklyRate": 1500,
-      "depositValue": 3000,
-      "status": "active"
+      "vehicleId": "v_wl8jpgood",
+      "tenantName": "PAULO CÉSAR",
+      "phone": "",
+      "startDate": "2026-06-20",
+      "endDate": "2026-09-18",
+      "weeklyRate": 1300,
+      "depositValue": 2600,
+      "id": "r_364c7rdao",
+      "status": "active",
+      "paymentDayOfWeek": 2
     },
     {
-      "id": "r_onix",
-      "vehicleId": "v_onix",
-      "tenantName": "SABRINA",
-      "phone": "(11) 91234-5678",
-      "startDate": "2026-05-15",
-      "endDate": "2026-08-15",
-      "weeklyRate": 950,
-      "depositValue": 1900,
-      "status": "active"
+      "vehicleId": "v_dolphin",
+      "tenantName": "Alvaro",
+      "phone": "",
+      "startDate": "2026-07-21",
+      "endDate": "2026-07-27",
+      "weeklyRate": 1700,
+      "depositValue": 0,
+      "semanaAdiantada": true,
+      "id": "r_i8p479v9t",
+      "status": "completed"
+    },
+    {
+      "vehicleId": "v_dolphin",
+      "tenantName": "Péricles",
+      "phone": "(31) 9927-0609",
+      "startDate": "2026-08-11",
+      "endDate": "2026-11-09",
+      "weeklyRate": 1300,
+      "depositValue": 2600,
+      "semanaAdiantada": false,
+      "id": "r_xe7t8mkf8",
+      "status": "active",
+      "paymentDayOfWeek": 4
     }
   ],
   "transactions": [
     {
-      "id": "t_d_dep",
-      "date": "2026-03-23",
+      "id": "t_dolph_c1",
+      "date": "2026-03-25",
       "type": "caucao_recebido",
       "value": 2600,
       "vehicleId": "v_dolphin",
-      "category": "Caução",
-      "description": "Depósito de garantia caução - LEANDRO"
+      "category": "Depósito de Garantia",
+      "description": "Caução recebido - Leandro (Dolphin Mini)"
     },
     {
-      "id": "t_d_r1",
+      "id": "t_dolph_r1",
       "date": "2026-04-01",
       "type": "receita",
       "value": 1300,
       "vehicleId": "v_dolphin",
       "category": "Aluguel Semanal",
-      "description": "Semana 1 - LEANDRO"
+      "description": "Semana 1 (Abril) - LEANDRO"
     },
     {
-      "id": "t_d_r2",
+      "id": "t_dolph_r2",
       "date": "2026-04-08",
       "type": "receita",
       "value": 1300,
       "vehicleId": "v_dolphin",
       "category": "Aluguel Semanal",
-      "description": "Semana 2 - LEANDRO"
+      "description": "Semana 2 (Abril) - LEANDRO"
     },
     {
-      "id": "t_d_r3",
+      "id": "t_dolph_r3",
       "date": "2026-04-15",
       "type": "receita",
       "value": 1300,
       "vehicleId": "v_dolphin",
       "category": "Aluguel Semanal",
-      "description": "Semana 3 - LEANDRO"
+      "description": "Semana 3 (Abril) - LEANDRO"
     },
     {
-      "id": "t_d_r4",
-      "date": "2026-04-22",
+      "id": "t_dolph_r4",
+      "date": "2026-04-23",
       "type": "receita",
       "value": 1300,
       "vehicleId": "v_dolphin",
       "category": "Aluguel Semanal",
-      "description": "Semana 4 - LEANDRO"
+      "description": "Semana 4 (Abril) - LEANDRO"
     },
     {
-      "id": "t_c_dep",
-      "date": "2026-03-30",
-      "type": "caucao_recebido",
-      "value": 3000,
-      "vehicleId": "v_corolla",
-      "category": "Caução",
-      "description": "Depósito de garantia caução - MARCELO"
-    },
-    {
-      "id": "t_c_r1",
-      "date": "2026-04-08",
+      "id": "t_dolph_r5",
+      "date": "2026-05-01",
       "type": "receita",
-      "value": 1500,
-      "vehicleId": "v_corolla",
+      "value": 1430,
+      "vehicleId": "v_dolphin",
       "category": "Aluguel Semanal",
-      "description": "Semana 1 - MARCELO"
+      "description": "Semana 5 (Abril) Ajustada - LEANDRO"
     },
     {
-      "id": "t_c_r2",
+      "id": "t_dolph_r6",
+      "date": "2026-05-06",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_dolphin",
+      "category": "Aluguel Semanal",
+      "description": "Semana 1 (Maio) - LEANDRO"
+    },
+    {
+      "id": "t_dolph_r7",
+      "date": "2026-05-13",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_dolphin",
+      "category": "Aluguel Semanal",
+      "description": "Semana 2 (Maio) - LEANDRO"
+    },
+    {
+      "id": "t_dolph_r8",
+      "date": "2026-05-20",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_dolphin",
+      "category": "Aluguel Semanal",
+      "description": "Semana 3 (Maio) - LEANDRO"
+    },
+    {
+      "id": "t_dolph_r9",
+      "date": "2026-05-29",
+      "type": "receita",
+      "value": 1430,
+      "vehicleId": "v_dolphin",
+      "category": "Aluguel Semanal",
+      "description": "Semana 4 (Maio) Ajustada - LEANDRO"
+    },
+    {
+      "id": "t_dolph_r10",
+      "date": "2026-06-03",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_dolphin",
+      "category": "Aluguel Semanal",
+      "description": "Semana 1 (Junho) - LEANDRO"
+    },
+    {
+      "id": "t_dolph_r11",
+      "date": "2026-06-10",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_dolphin",
+      "category": "Aluguel Semanal",
+      "description": "Semana 2 (Junho) - LEANDRO"
+    },
+    {
+      "id": "t_dolph_d1",
+      "date": "2026-03-24",
+      "type": "despesa",
+      "value": 399,
+      "vehicleId": "v_dolphin",
+      "category": "Manutenção",
+      "description": "INSULFILME"
+    },
+    {
+      "id": "t_dolph_d2",
+      "date": "2026-04-09",
+      "type": "despesa",
+      "value": 791,
+      "vehicleId": "v_dolphin",
+      "category": "Seguro",
+      "description": "SEGURO (1-10)"
+    },
+    {
+      "id": "t_dolph_d3",
       "date": "2026-04-15",
-      "type": "receita",
-      "value": 1500,
-      "vehicleId": "v_corolla",
-      "category": "Aluguel Semanal",
-      "description": "Semana 2 - MARCELO"
+      "type": "despesa",
+      "value": 1264.88,
+      "vehicleId": "v_dolphin",
+      "category": "Impostos/Taxas",
+      "description": "IPVA 1ª PARCELA"
     },
     {
-      "id": "t_o_dep",
-      "date": "2026-05-14",
+      "id": "t_dolph_d4",
+      "date": "2026-04-16",
+      "type": "despesa",
+      "value": 1655.74,
+      "vehicleId": "v_dolphin",
+      "category": "Financiamento",
+      "description": "FINANCIAMENTO (1-36)"
+    },
+    {
+      "id": "t_dolph_d5",
+      "date": "2026-05-08",
+      "type": "despesa",
+      "value": 791,
+      "vehicleId": "v_dolphin",
+      "category": "Seguro",
+      "description": "SEGURO (2-10)"
+    },
+    {
+      "id": "t_dolph_d6",
+      "date": "2026-05-15",
+      "type": "despesa",
+      "value": 1264.88,
+      "vehicleId": "v_dolphin",
+      "category": "Impostos/Taxas",
+      "description": "IPVA 2ª PARCELA"
+    },
+    {
+      "id": "t_dolph_d7",
+      "date": "2026-05-16",
+      "type": "despesa",
+      "value": 1655.74,
+      "vehicleId": "v_dolphin",
+      "category": "Financiamento",
+      "description": "FINANCIAMENTO (2-36)"
+    },
+    {
+      "id": "t_dolph_d8",
+      "date": "2026-06-10",
+      "type": "despesa",
+      "value": 313,
+      "vehicleId": "v_dolphin",
+      "category": "Manutenção",
+      "description": "DESBLOQUEIO DA CENTRAL"
+    },
+    {
+      "id": "t_dolph_d9",
+      "date": "2026-06-10",
+      "type": "despesa",
+      "value": 791,
+      "vehicleId": "v_dolphin",
+      "category": "Seguro",
+      "description": "SEGURO (3-10)"
+    },
+    {
+      "id": "t_dolph_d10",
+      "date": "2026-06-15",
+      "type": "despesa",
+      "value": 1264.88,
+      "vehicleId": "v_dolphin",
+      "category": "Impostos/Taxas",
+      "description": "IPVA 3ª PARCELA"
+    },
+    {
+      "id": "t_dolph_d11",
+      "date": "2026-06-16",
+      "type": "despesa",
+      "value": 1655.74,
+      "vehicleId": "v_dolphin",
+      "category": "Financiamento",
+      "description": "FINANCIAMENTO (3-36)"
+    },
+    {
+      "type": "despesa",
+      "value": 2500,
+      "date": "2026-06-03",
+      "vehicleId": "v_wl8jpgood",
+      "category": "FRETE ",
+      "description": "Frete",
+      "id": "t_man_sxaoo1lub"
+    },
+    {
+      "type": "despesa",
+      "value": 1000,
+      "date": "2026-06-03",
+      "vehicleId": "v_wl8jpgood",
+      "category": "EMPLACAMENTO",
+      "description": "Emplacamento",
+      "id": "t_man_4q6k1fb1q"
+    },
+    {
+      "type": "despesa",
+      "value": 200,
+      "date": "2026-06-18",
+      "vehicleId": "v_wl8jpgood",
+      "category": "SEGURO ",
+      "description": "Adesão ao seguro",
+      "id": "t_man_y0rmgzgjg"
+    },
+    {
+      "id": "t_quick_rent_xxe02well",
+      "date": "2026-06-19",
+      "type": "receita",
+      "value": 1430,
+      "vehicleId": "v_dolphin",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: LEANDRO"
+    },
+    {
       "type": "caucao_recebido",
-      "value": 1900,
-      "vehicleId": "v_onix",
-      "category": "Caução",
-      "description": "Depósito de garantia caução - SABRINA"
+      "value": 2600,
+      "date": "2026-06-20",
+      "vehicleId": "v_wl8jpgood",
+      "category": "Depósito de Garantia",
+      "description": "Caução",
+      "id": "t_man_epw2x1oe0"
     },
     {
-      "id": "t_o_r1",
-      "date": "2026-05-22",
+      "id": "t_auto_realized_gkxc4mvto",
+      "date": "2026-06-21",
+      "type": "despesa",
+      "value": 1060.85,
+      "category": "Financiamento",
+      "description": "Financiamento - Parc. 1/60 (Efetivada Automaticamente no Vencimento)",
+      "vehicleId": "v_wl8jpgood"
+    },
+    {
+      "id": "t_quick_maint_e0f7pjk68",
+      "date": "2026-07-15",
+      "type": "despesa",
+      "value": 59.9,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Manutenção",
+      "description": "Doc4sign (Placa: UJA-4F76)"
+    },
+    {
+      "id": "t_quick_maint_1u72qgwpm",
+      "date": "2026-07-15",
+      "type": "despesa",
+      "value": 9.95,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Manutenção",
+      "description": "Doc4sign crédito  GOV (Placa: UJA-4F76)"
+    },
+    {
+      "id": "t_quick_rent_9yem1grpm",
+      "date": "2026-06-23",
       "type": "receita",
-      "value": 950,
-      "vehicleId": "v_onix",
+      "value": 560,
+      "vehicleId": "v_wl8jpgood",
       "category": "Aluguel Semanal",
-      "description": "Semana 1 - SABRINA"
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: PAULO CÉSAR"
+    },
+    {
+      "id": "t_quick_rent_y4bukifhp",
+      "date": "2026-06-24",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_dolphin",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: LEANDRO"
+    },
+    {
+      "id": "t_quick_rent_7mbzxcglh",
+      "date": "2026-06-30",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: PAULO CÉSAR"
+    },
+    {
+      "id": "t_quick_rent_gm54wdacs",
+      "date": "2026-07-01",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_dolphin",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: LEANDRO"
+    },
+    {
+      "id": "t_quick_rent_6zv7so6ob",
+      "date": "2026-07-07",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: PAULO CÉSAR"
+    },
+    {
+      "id": "t_auto_realized_dva1ycr1k",
+      "date": "2026-07-10",
+      "type": "despesa",
+      "value": 790,
+      "category": "Seguro",
+      "description": "Seguro - Parc. 1/7 (Efetivada Automaticamente no Vencimento)",
+      "vehicleId": "v_dolphin"
+    },
+    {
+      "type": "receita",
+      "value": 400,
+      "date": "2026-07-10",
+      "vehicleId": "v_dolphin",
+      "category": "Aluguel Semanal parcial",
+      "description": "",
+      "status": "pending",
+      "id": "t_man_xwfwfvmk9"
+    },
+    {
+      "id": "t_quick_rent_qa8miwmoi",
+      "date": "2026-07-14",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: PAULO CÉSAR"
+    },
+    {
+      "id": "t_refund_all_dkxh5mr8f",
+      "date": "2026-07-15",
+      "type": "caucao_devolvido",
+      "value": 200,
+      "vehicleId": "v_dolphin",
+      "category": "Devolução de Garantia",
+      "description": "Devolução de Caução (Restituição ao Motorista) - Restituído: 200, Retido: 2400"
+    },
+    {
+      "id": "t_retained_vwns3rty6",
+      "date": "2026-07-15",
+      "type": "receita",
+      "value": 2400,
+      "vehicleId": "v_dolphin",
+      "category": "Retenção de Caução",
+      "description": "Retenção de valor do caução (multa/avarias) no encerramento de contrato de LEANDRO"
+    },
+    {
+      "id": "t_quick_maint_tulgyhohb",
+      "date": "2026-07-15",
+      "type": "despesa",
+      "value": 289.54,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Manutenção",
+      "description": "SEGURO (Placa: UJA-4F76)"
+    },
+    {
+      "id": "t_quick_maint_vrq71srtu",
+      "date": "2026-07-15",
+      "type": "despesa",
+      "value": 350,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Manutenção",
+      "description": "INSULFIM (Placa: UJA-4F76)"
+    },
+    {
+      "id": "t_quick_maint_id8fact97",
+      "date": "2026-07-15",
+      "type": "despesa",
+      "value": 361,
+      "vehicleId": "v_dolphin",
+      "category": "Manutenção",
+      "description": "Revisão  BYD CARBIG (Placa: TYU-0E16)"
+    },
+    {
+      "id": "t_auto_realized_lvs3ssjbj",
+      "date": "2026-07-16",
+      "type": "despesa",
+      "value": 1655.74,
+      "category": "Financiamento",
+      "description": "Financiamento - Parc. 1/32 (Efetivada Automaticamente no Vencimento)",
+      "vehicleId": "v_dolphin"
+    },
+    {
+      "type": "despesa",
+      "value": 153,
+      "date": "2026-07-15",
+      "vehicleId": "v_wl8jpgood",
+      "category": "Manutenção",
+      "description": "Tag rastreio MercadoLivre ",
+      "status": "pending",
+      "id": "t_man_zjr2rfdgl"
+    },
+    {
+      "id": "t_quick_maint_0vuv4d7dw",
+      "date": "2026-07-17",
+      "type": "despesa",
+      "value": 30,
+      "vehicleId": "v_dolphin",
+      "category": "Manutenção",
+      "description": "Borracheiro-inversao do pneu 2 rodas traseira (Placa: TYU-0E16)"
+    },
+    {
+      "id": "t_quick_maint_gzqpu9wab",
+      "date": "2026-07-17",
+      "type": "despesa",
+      "value": 25,
+      "vehicleId": "v_dolphin",
+      "category": "Manutenção",
+      "description": "Rodízio de Pneus (Placa: TYU-0E16)"
+    },
+    {
+      "id": "t_quick_maint_eppa9bogu",
+      "date": "2026-07-17",
+      "type": "despesa",
+      "value": 40,
+      "vehicleId": "v_dolphin",
+      "category": "Manutenção",
+      "description": "Lava-Jato (Placa: TYU-0E16)"
+    },
+    {
+      "type": "despesa",
+      "value": 180,
+      "date": "2026-08-10",
+      "vehicleId": "v_dolphin",
+      "category": "Alinhamento e Balanceamento",
+      "description": "Alinhamento e balanceamento entre locações.",
+      "status": "pending",
+      "id": "t_man_wha1e6pml"
+    },
+    {
+      "id": "t_quick_maint_zfmkw6kea",
+      "date": "2026-07-18",
+      "type": "despesa",
+      "value": 100,
+      "vehicleId": "v_dolphin",
+      "category": "Manutenção",
+      "description": "Devolução do resto do caução do Leandro (Placa: TYU-0E16)"
+    },
+    {
+      "id": "t_auto_realized_xyemg1x17",
+      "date": "2026-07-21",
+      "type": "despesa",
+      "value": 1060.85,
+      "category": "Financiamento",
+      "description": "Financiamento - Parc. 2/60 (Efetivada Automaticamente no Vencimento)",
+      "vehicleId": "v_wl8jpgood"
+    },
+    {
+      "id": "t_quick_rent_8fy9femj7",
+      "date": "2026-07-21",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: PAULO CÉSAR"
+    },
+    {
+      "id": "t_start_rent_1dpiy4zi5",
+      "date": "2026-07-21",
+      "type": "receita",
+      "value": 1700,
+      "vehicleId": "v_dolphin",
+      "category": "Aluguel Semanal",
+      "description": "Aluguel Semanal (Semana Adiantada) - Locatário: Alvaro"
+    },
+    {
+      "id": "t_quick_rent_iz4sqv8gd",
+      "date": "2026-07-28",
+      "type": "receita",
+      "value": 1000,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: PAULO CÉSAR"
+    },
+    {
+      "id": "t_quick_rent_gpxuqzw97",
+      "date": "2026-07-29",
+      "type": "receita",
+      "value": 300,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: PAULO CÉSAR"
+    },
+    {
+      "id": "t_quick_rent_zgxrl7ha4",
+      "date": "2026-08-04",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: PAULO CÉSAR"
+    },
+    {
+      "id": "t_auto_realized_pjof8npk8",
+      "date": "2026-08-10",
+      "type": "despesa",
+      "value": 790,
+      "category": "Seguro",
+      "description": "Seguro - Parc. 2/7 (Efetivada Automaticamente no Vencimento)",
+      "vehicleId": "v_dolphin"
+    },
+    {
+      "id": "t_quick_rent_qysuhdkmq",
+      "date": "2026-08-12",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: PAULO CÉSAR"
+    },
+    {
+      "type": "caucao_recebido",
+      "value": 2600,
+      "date": "2026-08-12",
+      "category": "Depósito de Garantia",
+      "description": "",
+      "status": "pending",
+      "id": "t_man_o9mdhzwon",
+      "vehicleId": "v_dolphin"
+    },
+    {
+      "id": "t_auto_realized_dqmje8yi6",
+      "date": "2026-08-16",
+      "type": "despesa",
+      "value": 1655.74,
+      "category": "Financiamento",
+      "description": "Financiamento - Parc. 2/32 (Efetivada Automaticamente no Vencimento)",
+      "vehicleId": "v_dolphin"
+    },
+    {
+      "id": "t_quick_maint_bycj2w9ns",
+      "date": "2026-08-17",
+      "type": "despesa",
+      "value": 289.9,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Manutenção",
+      "description": "Seguro (Placa: UJA-4F76)"
+    },
+    {
+      "id": "t_quick_maint_bb5t6zuoe",
+      "date": "2026-08-17",
+      "type": "despesa",
+      "value": 59.9,
+      "vehicleId": "v_dolphin",
+      "category": "Manutenção",
+      "description": "DOC4SIGN (Placa: TYU-0E16)"
+    },
+    {
+      "id": "t_quick_maint_g8bvto1h5",
+      "date": "2026-08-17",
+      "type": "despesa",
+      "value": 85.38,
+      "vehicleId": "v_dolphin",
+      "category": "Manutenção",
+      "description": "Carregador Portátil 1/10 (Placa: TYU-0E16)"
+    },
+    {
+      "id": "t_quick_rent_8rt8ouix4",
+      "date": "2026-08-18",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: PAULO CÉSAR"
+    },
+    {
+      "id": "t_quick_rent_wih3l48kb",
+      "date": "2026-08-19",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_dolphin",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: Péricles"
+    },
+    {
+      "id": "t_auto_realized_ey0ws1y3t",
+      "date": "2026-08-21",
+      "type": "despesa",
+      "value": 1060.85,
+      "category": "Financiamento",
+      "description": "Financiamento - Parc. 3/60 (Efetivada Automaticamente no Vencimento)",
+      "vehicleId": "v_wl8jpgood"
+    },
+    {
+      "id": "t_quick_rent_dorau32iu",
+      "date": "2026-08-25",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: PAULO CÉSAR"
+    },
+    {
+      "id": "t_quick_rent_11g6b28q5",
+      "date": "2026-08-26",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_dolphin",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: Péricles"
+    },
+    {
+      "id": "t_quick_rent_wkv08atca",
+      "date": "2026-09-01",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: PAULO CÉSAR"
+    },
+    {
+      "id": "t_quick_rent_38au66wdj",
+      "date": "2026-09-03",
+      "type": "receita",
+      "value": 1485.71,
+      "vehicleId": "v_dolphin",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: Péricles"
+    },
+    {
+      "id": "t_quick_rent_vxkpyyoa2",
+      "date": "2026-09-08",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: PAULO CÉSAR"
+    },
+    {
+      "id": "t_auto_realized_4jyy5y001",
+      "date": "2026-09-10",
+      "type": "despesa",
+      "value": 790,
+      "category": "Seguro",
+      "description": "Seguro - Parc. 3/7 (Efetivada Automaticamente no Vencimento)",
+      "vehicleId": "v_dolphin"
+    },
+    {
+      "id": "t_quick_rent_ci1oltfpj",
+      "date": "2026-09-10",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_dolphin",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: Péricles"
+    },
+    {
+      "id": "t_quick_rent_tudk7zlv2",
+      "date": "2026-09-15",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: PAULO CÉSAR"
+    },
+    {
+      "id": "t_quick_maint_ez2a6vhfw",
+      "date": "2026-09-15",
+      "type": "despesa",
+      "value": 290.19,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Manutenção",
+      "description": "Seguro (Placa: UJA-4F76)"
+    },
+    {
+      "id": "t_quick_maint_ux9al1fgx",
+      "date": "2026-09-15",
+      "type": "despesa",
+      "value": 59.9,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Manutenção",
+      "description": "Doc4sign (Placa: UJA-4F76)"
+    },
+    {
+      "id": "t_quick_maint_2dfl07jhu",
+      "date": "2026-09-15",
+      "type": "despesa",
+      "value": 100,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Manutenção",
+      "description": "Eletricista (Placa: UJA-4F76)"
+    },
+    {
+      "id": "t_auto_realized_7ebusaov7",
+      "date": "2026-09-15",
+      "type": "despesa",
+      "value": 158.8,
+      "category": "Financiamento",
+      "description": "Financiamento - Parc. 1/10 (Efetivada Automaticamente no Vencimento)"
+    },
+    {
+      "id": "t_auto_realized_56iud1g44",
+      "date": "2026-09-15",
+      "type": "despesa",
+      "value": 85.37,
+      "category": "Financiamento",
+      "description": "Financiamento - Parc. 1/9 (Efetivada Automaticamente no Vencimento)"
+    },
+    {
+      "id": "t_auto_realized_5hcpa5uad",
+      "date": "2026-09-16",
+      "type": "despesa",
+      "value": 1655.74,
+      "category": "Financiamento",
+      "description": "Financiamento - Parc. 3/32 (Efetivada Automaticamente no Vencimento)",
+      "vehicleId": "v_dolphin"
+    },
+    {
+      "id": "t_quick_rent_5480eeqrv",
+      "date": "2026-09-17",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_dolphin",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: Péricles"
+    },
+    {
+      "id": "t_auto_realized_5zr1nlzpb",
+      "date": "2026-09-21",
+      "type": "despesa",
+      "value": 1060.85,
+      "category": "Financiamento",
+      "description": "Financiamento - Parc. 4/60 (Efetivada Automaticamente no Vencimento)",
+      "vehicleId": "v_wl8jpgood"
+    },
+    {
+      "id": "t_quick_rent_x3j84bwyn",
+      "date": "2026-09-22",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: PAULO CÉSAR"
+    },
+    {
+      "type": "despesa",
+      "value": 3462,
+      "date": "2026-09-24",
+      "category": "Adesão ao consórcio",
+      "description": "Adesão ao consórcio do 03 veiculo",
+      "status": "pending",
+      "id": "t_man_s0xzim03l"
+    },
+    {
+      "id": "t_quick_rent_hjqmxo4ge",
+      "date": "2026-09-24",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_dolphin",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: Péricles"
+    }
+  ],
+  "futureExpenses": [
+    {
+      "id": "fe_dmebxgzko",
+      "description": "",
+      "category": "Financiamento",
+      "value": 1655.74,
+      "installmentsCount": 32,
+      "startDate": "2026-07-16",
+      "dueDay": 16,
+      "vehicleId": "v_dolphin",
+      "installments": [
+        {
+          "id": "fei_s3vx3mc9e",
+          "installmentNumber": 1,
+          "dueDate": "2026-07-16",
+          "status": "realized",
+          "realizedTransactionId": "t_auto_realized_lvs3ssjbj"
+        },
+        {
+          "id": "fei_wdzxn4nmd",
+          "installmentNumber": 2,
+          "dueDate": "2026-08-16",
+          "status": "realized",
+          "realizedTransactionId": "t_auto_realized_dqmje8yi6"
+        },
+        {
+          "id": "fei_71ur8ahho",
+          "installmentNumber": 3,
+          "dueDate": "2026-09-16",
+          "status": "realized",
+          "realizedTransactionId": "t_auto_realized_5hcpa5uad"
+        },
+        {
+          "id": "fei_nbu9ps50u",
+          "installmentNumber": 4,
+          "dueDate": "2026-10-16",
+          "status": "pending"
+        },
+        {
+          "id": "fei_d4ytw5sbi",
+          "installmentNumber": 5,
+          "dueDate": "2026-11-16",
+          "status": "pending"
+        },
+        {
+          "id": "fei_89mh3urpw",
+          "installmentNumber": 6,
+          "dueDate": "2026-12-16",
+          "status": "pending"
+        },
+        {
+          "id": "fei_myt59o1hj",
+          "installmentNumber": 7,
+          "dueDate": "2027-01-16",
+          "status": "pending"
+        },
+        {
+          "id": "fei_tyjuxvvyk",
+          "installmentNumber": 8,
+          "dueDate": "2027-02-16",
+          "status": "pending"
+        },
+        {
+          "id": "fei_n8ysdu4mo",
+          "installmentNumber": 9,
+          "dueDate": "2027-03-16",
+          "status": "pending"
+        },
+        {
+          "id": "fei_uwjazx5p4",
+          "installmentNumber": 10,
+          "dueDate": "2027-04-16",
+          "status": "pending"
+        },
+        {
+          "id": "fei_5jsh9znk6",
+          "installmentNumber": 11,
+          "dueDate": "2027-05-16",
+          "status": "pending"
+        },
+        {
+          "id": "fei_49szhru2p",
+          "installmentNumber": 12,
+          "dueDate": "2027-06-16",
+          "status": "pending"
+        },
+        {
+          "id": "fei_9w20avsi3",
+          "installmentNumber": 13,
+          "dueDate": "2027-07-16",
+          "status": "pending"
+        },
+        {
+          "id": "fei_aa78appr4",
+          "installmentNumber": 14,
+          "dueDate": "2027-08-16",
+          "status": "pending"
+        },
+        {
+          "id": "fei_924ho2gvp",
+          "installmentNumber": 15,
+          "dueDate": "2027-09-16",
+          "status": "pending"
+        },
+        {
+          "id": "fei_4n8ci9bx2",
+          "installmentNumber": 16,
+          "dueDate": "2027-10-16",
+          "status": "pending"
+        },
+        {
+          "id": "fei_2cu7xlros",
+          "installmentNumber": 17,
+          "dueDate": "2027-11-16",
+          "status": "pending"
+        },
+        {
+          "id": "fei_nbxa5ilfj",
+          "installmentNumber": 18,
+          "dueDate": "2027-12-16",
+          "status": "pending"
+        },
+        {
+          "id": "fei_fnzctimzu",
+          "installmentNumber": 19,
+          "dueDate": "2028-01-16",
+          "status": "pending"
+        },
+        {
+          "id": "fei_lk6s72ffc",
+          "installmentNumber": 20,
+          "dueDate": "2028-02-16",
+          "status": "pending"
+        },
+        {
+          "id": "fei_tl28qrget",
+          "installmentNumber": 21,
+          "dueDate": "2028-03-16",
+          "status": "pending"
+        },
+        {
+          "id": "fei_dk3uzzt1i",
+          "installmentNumber": 22,
+          "dueDate": "2028-04-16",
+          "status": "pending"
+        },
+        {
+          "id": "fei_05e88s45v",
+          "installmentNumber": 23,
+          "dueDate": "2028-05-16",
+          "status": "pending"
+        },
+        {
+          "id": "fei_1fjgcexb5",
+          "installmentNumber": 24,
+          "dueDate": "2028-06-16",
+          "status": "pending"
+        },
+        {
+          "id": "fei_smc71uh1z",
+          "installmentNumber": 25,
+          "dueDate": "2028-07-16",
+          "status": "pending"
+        },
+        {
+          "id": "fei_qwxjks0mg",
+          "installmentNumber": 26,
+          "dueDate": "2028-08-16",
+          "status": "pending"
+        },
+        {
+          "id": "fei_km01hhj4a",
+          "installmentNumber": 27,
+          "dueDate": "2028-09-16",
+          "status": "pending"
+        },
+        {
+          "id": "fei_dtwdy3cz2",
+          "installmentNumber": 28,
+          "dueDate": "2028-10-16",
+          "status": "pending"
+        },
+        {
+          "id": "fei_nmfzry9k0",
+          "installmentNumber": 29,
+          "dueDate": "2028-11-16",
+          "status": "pending"
+        },
+        {
+          "id": "fei_0m8657nap",
+          "installmentNumber": 30,
+          "dueDate": "2028-12-16",
+          "status": "pending"
+        },
+        {
+          "id": "fei_n3ormyw24",
+          "installmentNumber": 31,
+          "dueDate": "2029-01-16",
+          "status": "pending"
+        },
+        {
+          "id": "fei_4w1tntyac",
+          "installmentNumber": 32,
+          "dueDate": "2029-02-16",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "fe_6d0n1er8r",
+      "description": "",
+      "category": "Seguro",
+      "value": 790,
+      "installmentsCount": 7,
+      "startDate": "2026-07-10",
+      "dueDay": 10,
+      "vehicleId": "v_dolphin",
+      "installments": [
+        {
+          "id": "fei_dywf4ajfk",
+          "installmentNumber": 1,
+          "dueDate": "2026-07-10",
+          "status": "realized",
+          "realizedTransactionId": "t_auto_realized_dva1ycr1k"
+        },
+        {
+          "id": "fei_z7wicujff",
+          "installmentNumber": 2,
+          "dueDate": "2026-08-10",
+          "status": "realized",
+          "realizedTransactionId": "t_auto_realized_pjof8npk8"
+        },
+        {
+          "id": "fei_hjsw8zlgd",
+          "installmentNumber": 3,
+          "dueDate": "2026-09-10",
+          "status": "realized",
+          "realizedTransactionId": "t_auto_realized_4jyy5y001"
+        },
+        {
+          "id": "fei_dskg1qlx0",
+          "installmentNumber": 4,
+          "dueDate": "2026-10-10",
+          "status": "pending"
+        },
+        {
+          "id": "fei_iln195fji",
+          "installmentNumber": 5,
+          "dueDate": "2026-11-10",
+          "status": "pending"
+        },
+        {
+          "id": "fei_4qig6rzn6",
+          "installmentNumber": 6,
+          "dueDate": "2026-12-10",
+          "status": "pending"
+        },
+        {
+          "id": "fei_jaatmtf2q",
+          "installmentNumber": 7,
+          "dueDate": "2027-01-10",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "fe_i02xxrm1y",
+      "description": "Financiamento ",
+      "category": "Financiamento",
+      "value": 1060.85,
+      "installmentsCount": 60,
+      "startDate": "2026-06-21",
+      "dueDay": 21,
+      "vehicleId": "v_wl8jpgood",
+      "installments": [
+        {
+          "id": "fei_af2yx369b",
+          "installmentNumber": 1,
+          "dueDate": "2026-06-21",
+          "status": "realized",
+          "realizedTransactionId": "t_auto_realized_gkxc4mvto"
+        },
+        {
+          "id": "fei_kq113t3m0",
+          "installmentNumber": 2,
+          "dueDate": "2026-07-21",
+          "status": "realized",
+          "realizedTransactionId": "t_auto_realized_xyemg1x17"
+        },
+        {
+          "id": "fei_jq9c0maf0",
+          "installmentNumber": 3,
+          "dueDate": "2026-08-21",
+          "status": "realized",
+          "realizedTransactionId": "t_auto_realized_ey0ws1y3t"
+        },
+        {
+          "id": "fei_zs6lrqtbw",
+          "installmentNumber": 4,
+          "dueDate": "2026-09-21",
+          "status": "realized",
+          "realizedTransactionId": "t_auto_realized_5zr1nlzpb"
+        },
+        {
+          "id": "fei_drxepydwa",
+          "installmentNumber": 5,
+          "dueDate": "2026-10-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_ehqvy8qo0",
+          "installmentNumber": 6,
+          "dueDate": "2026-11-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_682m853kv",
+          "installmentNumber": 7,
+          "dueDate": "2026-12-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_9r7heldbi",
+          "installmentNumber": 8,
+          "dueDate": "2027-01-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_sz0n29vgg",
+          "installmentNumber": 9,
+          "dueDate": "2027-02-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_zi1wtn0y7",
+          "installmentNumber": 10,
+          "dueDate": "2027-03-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_geautbfb6",
+          "installmentNumber": 11,
+          "dueDate": "2027-04-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_t6tz141if",
+          "installmentNumber": 12,
+          "dueDate": "2027-05-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_86k6kks43",
+          "installmentNumber": 13,
+          "dueDate": "2027-06-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_emz3i2toc",
+          "installmentNumber": 14,
+          "dueDate": "2027-07-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_67ckdpcs3",
+          "installmentNumber": 15,
+          "dueDate": "2027-08-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_vat60hy7v",
+          "installmentNumber": 16,
+          "dueDate": "2027-09-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_5xof7im09",
+          "installmentNumber": 17,
+          "dueDate": "2027-10-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_x7ese4wk8",
+          "installmentNumber": 18,
+          "dueDate": "2027-11-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_8jwupsunl",
+          "installmentNumber": 19,
+          "dueDate": "2027-12-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_g3fb55qep",
+          "installmentNumber": 20,
+          "dueDate": "2028-01-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_f9kmpq8ve",
+          "installmentNumber": 21,
+          "dueDate": "2028-02-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_yf6737sn3",
+          "installmentNumber": 22,
+          "dueDate": "2028-03-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_gsbes00vi",
+          "installmentNumber": 23,
+          "dueDate": "2028-04-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_aci4e55rj",
+          "installmentNumber": 24,
+          "dueDate": "2028-05-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_8500zp5b4",
+          "installmentNumber": 25,
+          "dueDate": "2028-06-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_njmnjp8ob",
+          "installmentNumber": 26,
+          "dueDate": "2028-07-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_z1jj54ga6",
+          "installmentNumber": 27,
+          "dueDate": "2028-08-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_126nrnpwf",
+          "installmentNumber": 28,
+          "dueDate": "2028-09-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_klesy8eq6",
+          "installmentNumber": 29,
+          "dueDate": "2028-10-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_auibwoj89",
+          "installmentNumber": 30,
+          "dueDate": "2028-11-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_9taemq7oc",
+          "installmentNumber": 31,
+          "dueDate": "2028-12-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_f3r4iyuzx",
+          "installmentNumber": 32,
+          "dueDate": "2029-01-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_xqjuocjvb",
+          "installmentNumber": 33,
+          "dueDate": "2029-02-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_zn6hfvuvr",
+          "installmentNumber": 34,
+          "dueDate": "2029-03-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_gexffa5as",
+          "installmentNumber": 35,
+          "dueDate": "2029-04-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_axla3crec",
+          "installmentNumber": 36,
+          "dueDate": "2029-05-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_3yx09q6ma",
+          "installmentNumber": 37,
+          "dueDate": "2029-06-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_pc98b1i8d",
+          "installmentNumber": 38,
+          "dueDate": "2029-07-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_dusa5f6fa",
+          "installmentNumber": 39,
+          "dueDate": "2029-08-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_qq0iyldpj",
+          "installmentNumber": 40,
+          "dueDate": "2029-09-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_jjmwwk02q",
+          "installmentNumber": 41,
+          "dueDate": "2029-10-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_kvnqwgbc1",
+          "installmentNumber": 42,
+          "dueDate": "2029-11-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_v71c8dyqn",
+          "installmentNumber": 43,
+          "dueDate": "2029-12-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_5jguy4grf",
+          "installmentNumber": 44,
+          "dueDate": "2030-01-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_kaduqfu8p",
+          "installmentNumber": 45,
+          "dueDate": "2030-02-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_ip7677omh",
+          "installmentNumber": 46,
+          "dueDate": "2030-03-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_dy6t47ewl",
+          "installmentNumber": 47,
+          "dueDate": "2030-04-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_a8lbplryf",
+          "installmentNumber": 48,
+          "dueDate": "2030-05-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_50ottiiea",
+          "installmentNumber": 49,
+          "dueDate": "2030-06-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_0ksfps9vk",
+          "installmentNumber": 50,
+          "dueDate": "2030-07-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_e3aie5bxm",
+          "installmentNumber": 51,
+          "dueDate": "2030-08-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_0k50fo4w1",
+          "installmentNumber": 52,
+          "dueDate": "2030-09-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_7j65gnwwy",
+          "installmentNumber": 53,
+          "dueDate": "2030-10-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_59ma0et3v",
+          "installmentNumber": 54,
+          "dueDate": "2030-11-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_ki3w1cf88",
+          "installmentNumber": 55,
+          "dueDate": "2030-12-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_zyhbj3vb2",
+          "installmentNumber": 56,
+          "dueDate": "2031-01-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_ss4xo4ioo",
+          "installmentNumber": 57,
+          "dueDate": "2031-02-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_jh7d6u0oi",
+          "installmentNumber": 58,
+          "dueDate": "2031-03-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_7h24yzsjb",
+          "installmentNumber": 59,
+          "dueDate": "2031-04-21",
+          "status": "pending"
+        },
+        {
+          "id": "fei_ri0v69jn4",
+          "installmentNumber": 60,
+          "dueDate": "2031-05-21",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "fe_j4qhlhsbr",
+      "description": "Carregador paredr",
+      "category": "Financiamento",
+      "value": 158.8,
+      "installmentsCount": 10,
+      "startDate": "2026-09-15",
+      "dueDay": 15,
+      "installments": [
+        {
+          "id": "fei_4z2falnhe",
+          "installmentNumber": 1,
+          "dueDate": "2026-09-15",
+          "status": "realized",
+          "realizedTransactionId": "t_auto_realized_7ebusaov7"
+        },
+        {
+          "id": "fei_v5xkgbi2y",
+          "installmentNumber": 2,
+          "dueDate": "2026-10-15",
+          "status": "pending"
+        },
+        {
+          "id": "fei_e0t27pibs",
+          "installmentNumber": 3,
+          "dueDate": "2026-11-15",
+          "status": "pending"
+        },
+        {
+          "id": "fei_megruywi7",
+          "installmentNumber": 4,
+          "dueDate": "2026-12-15",
+          "status": "pending"
+        },
+        {
+          "id": "fei_50xafqnnn",
+          "installmentNumber": 5,
+          "dueDate": "2027-01-15",
+          "status": "pending"
+        },
+        {
+          "id": "fei_a68ibuodn",
+          "installmentNumber": 6,
+          "dueDate": "2027-02-15",
+          "status": "pending"
+        },
+        {
+          "id": "fei_3ua0m2uyp",
+          "installmentNumber": 7,
+          "dueDate": "2027-03-15",
+          "status": "pending"
+        },
+        {
+          "id": "fei_57giwmo4w",
+          "installmentNumber": 8,
+          "dueDate": "2027-04-15",
+          "status": "pending"
+        },
+        {
+          "id": "fei_ae38b77ps",
+          "installmentNumber": 9,
+          "dueDate": "2027-05-15",
+          "status": "pending"
+        },
+        {
+          "id": "fei_h7pp2jtn3",
+          "installmentNumber": 10,
+          "dueDate": "2027-06-15",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "fe_1zbr3vzg2",
+      "description": "Carregador portátil",
+      "category": "Financiamento",
+      "value": 85.37,
+      "installmentsCount": 9,
+      "startDate": "2026-09-15",
+      "dueDay": 15,
+      "installments": [
+        {
+          "id": "fei_zbl1d4izl",
+          "installmentNumber": 1,
+          "dueDate": "2026-09-15",
+          "status": "realized",
+          "realizedTransactionId": "t_auto_realized_56iud1g44"
+        },
+        {
+          "id": "fei_1d8jroqmd",
+          "installmentNumber": 2,
+          "dueDate": "2026-10-15",
+          "status": "pending"
+        },
+        {
+          "id": "fei_s0agot1dm",
+          "installmentNumber": 3,
+          "dueDate": "2026-11-15",
+          "status": "pending"
+        },
+        {
+          "id": "fei_dgirr2qh6",
+          "installmentNumber": 4,
+          "dueDate": "2026-12-15",
+          "status": "pending"
+        },
+        {
+          "id": "fei_bf1j6uhbi",
+          "installmentNumber": 5,
+          "dueDate": "2027-01-15",
+          "status": "pending"
+        },
+        {
+          "id": "fei_97yr3s1vg",
+          "installmentNumber": 6,
+          "dueDate": "2027-02-15",
+          "status": "pending"
+        },
+        {
+          "id": "fei_gg2mj0jkl",
+          "installmentNumber": 7,
+          "dueDate": "2027-03-15",
+          "status": "pending"
+        },
+        {
+          "id": "fei_hzi4qdkvv",
+          "installmentNumber": 8,
+          "dueDate": "2027-04-15",
+          "status": "pending"
+        },
+        {
+          "id": "fei_evdcn6n2e",
+          "installmentNumber": 9,
+          "dueDate": "2027-05-15",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "fe_amgyexsv4",
+      "description": "Revisão de 40 + serviços extras",
+      "category": "Revisão de 40mil",
+      "value": 1054.5,
+      "installmentsCount": 2,
+      "startDate": "2026-10-10",
+      "dueDay": 10,
+      "vehicleId": "v_dolphin",
+      "installments": [
+        {
+          "id": "fei_7b3hwkd7b",
+          "installmentNumber": 1,
+          "dueDate": "2026-10-10",
+          "status": "pending"
+        },
+        {
+          "id": "fei_kuddrgi9b",
+          "installmentNumber": 2,
+          "dueDate": "2026-11-10",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "fe_6vcsx5ad2",
+      "description": "Compra de dois pneus linglong",
+      "category": "PNEUS - 02",
+      "value": 399,
+      "installmentsCount": 2,
+      "startDate": "2026-10-10",
+      "dueDay": 10,
+      "vehicleId": "v_dolphin",
+      "installments": [
+        {
+          "id": "fei_dy6qqlwez",
+          "installmentNumber": 1,
+          "dueDate": "2026-10-10",
+          "status": "pending"
+        },
+        {
+          "id": "fei_ezpuxet26",
+          "installmentNumber": 2,
+          "dueDate": "2026-11-10",
+          "status": "pending"
+        }
+      ]
     }
   ],
   "users": [
@@ -178,9 +1698,2173 @@
       "email": "carenceveiculos@gmail.com",
       "password": "14961245",
       "role": "admin"
+    },
+    {
+      "name": "Natasha",
+      "email": "natashinhacamm@hotmail.com",
+      "password": "123456",
+      "role": "admin",
+      "id": "u_dwqx31jw7"
+    },
+    {
+      "name": "Vilma",
+      "email": "vilmacarence@hotmail.com",
+      "password": "123456",
+      "role": "socio",
+      "id": "u_9vuh6vfjz"
+    },
+    {
+      "name": "Antônio",
+      "email": "acfbhz@hotmail.com",
+      "password": "123456",
+      "role": "admin",
+      "id": "u_9jt6que7n"
     }
   ],
-  "futureExpenses": [],
-  "accessLogs": [],
-  "interestedLeads": []
+  "accessLogs": [
+    {
+      "id": "log_1790471553364_ggco",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "26/09/2026, 22:12:33",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1790297285841_hwpw",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "24/09/2026, 21:48:05",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1790282441315_rppb",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "24/09/2026, 17:40:41",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1790110308772_98m4",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "22/09/2026, 17:51:48",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1790023641020_unik",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "21/09/2026, 17:47:21",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1790003690793_o86t",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "21/09/2026, 12:14:50",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1789670149781_dy6n",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "17/09/2026, 15:35:49",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1789525557759_w7ef",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "15/09/2026, 23:25:57",
+      "deviceInfo": "iOS Mobile"
+    },
+    {
+      "id": "log_1789515585927_c128",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "15/09/2026, 20:39:45",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1789515522518_oz87",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "15/09/2026, 20:38:42",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1789515427153_7iet",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "15/09/2026, 20:37:07",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1789515184111_7kgi",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "15/09/2026, 20:33:04",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1789512984489_8vzg",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "15/09/2026, 19:56:24",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1789046525528_4fok",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "10/09/2026, 10:22:05",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1788899963911_gqvu",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "08/09/2026, 17:39:23",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1788443435187_bawb",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "03/09/2026, 10:50:35",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1788300359047_8dgf",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "01/09/2026, 19:05:59",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1787771769200_f8dd",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "26/08/2026, 16:16:09",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1787691747664_a81v",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "25/08/2026, 18:02:27",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1787398807799_p1sl",
+      "userName": "Vilma",
+      "userEmail": "vilmacarence@hotmail.com",
+      "userRole": "Sócio",
+      "timestamp": "22/08/2026, 08:40:07",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1787166115666_3trq",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "19/08/2026, 16:01:55",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1787091540655_2qzs",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "18/08/2026, 19:19:00",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1786976704237_5vvf",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "17/08/2026, 11:25:04",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1786936223356_l8qn",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "17/08/2026, 00:10:23",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1786655020454_4wqp",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "13/08/2026, 18:03:40",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1786396153865_mgi2",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "10/08/2026, 18:09:13",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1785872325807_ejjh",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "04/08/2026, 16:38:45",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1785602306382_homt",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "01/08/2026, 13:38:26",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1785326103113_jzyx",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "29/07/2026, 08:55:03",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1785293834614_ws8g",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "28/07/2026, 23:57:14",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1785293289205_11n0",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "28/07/2026, 23:48:09",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1785293203459_8ow8",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "28/07/2026, 23:46:43",
+      "deviceInfo": "iOS Mobile"
+    },
+    {
+      "id": "log_1785165128221_bosv",
+      "userName": "Vilma",
+      "userEmail": "vilmacarence@hotmail.com",
+      "userRole": "Sócio",
+      "timestamp": "27/07/2026, 12:12:08",
+      "deviceInfo": "iOS Mobile"
+    },
+    {
+      "id": "log_1784998211939_krgx",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "25/07/2026, 13:50:11",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784669872746_ybs1",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "21/07/2026, 18:37:52",
+      "deviceInfo": "Linux OS (Computador)"
+    },
+    {
+      "id": "log_1784653214299_edma",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "21/07/2026, 14:00:14",
+      "deviceInfo": "Apple macOS (Computador)"
+    },
+    {
+      "id": "log_1784644357411_5v1i",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "21/07/2026, 11:32:37",
+      "deviceInfo": "Apple macOS (Computador)"
+    },
+    {
+      "id": "log_1784468521761_zw62",
+      "userName": "Vilma",
+      "userEmail": "vilmacarence@hotmail.com",
+      "userRole": "Sócio",
+      "timestamp": "19/07/2026, 10:42:01",
+      "deviceInfo": "iOS Mobile"
+    },
+    {
+      "id": "log_1784250282657_cvh9",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "16/07/2026, 22:04:42",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784245763453_52ez",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "16/07/2026, 20:49:23",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784245651060_dwcd",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "16/07/2026, 20:47:31",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784245596660_imyx",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "16/07/2026, 20:46:36",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784245552399_9z5z",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "16/07/2026, 20:45:52",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784245535586_h1g8",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "16/07/2026, 20:45:35",
+      "deviceInfo": "Linux OS (Computador)"
+    },
+    {
+      "id": "log_1784244722463_1f8g",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "16/07/2026, 20:32:02",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784244306067_4s7o",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "16/07/2026, 20:25:06",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784244042511_4dz7",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "16/07/2026, 20:20:42",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784222051233_ut8f",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "16/07/2026, 14:14:11",
+      "deviceInfo": "Apple macOS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784219299540_soph",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "16/07/2026, 13:28:19",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784214387514_bhli",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "16/07/2026, 12:06:27",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784207902504_1y3g",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "16/07/2026, 10:18:22",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784207829328_abbt",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "16/07/2026, 10:17:09",
+      "deviceInfo": "Apple macOS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784169913251_jh29",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "15/07/2026, 23:45:13",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784165753651_ofm8",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "15/07/2026, 22:35:53",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784165709217_0h6j",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "15/07/2026, 22:35:09",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784165247840_2n4j",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "15/07/2026, 22:27:27",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784165125671_a26m",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "15/07/2026, 22:25:25",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784164949494_ea1s",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "15/07/2026, 22:22:29",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784164387471_k8iy",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "15/07/2026, 22:13:07",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784164333775_k0ay",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "15/07/2026, 22:12:13",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784164318714_8444",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "15/07/2026, 22:11:58",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784163697764_6wpb",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "15/07/2026, 22:01:37",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784163469898_zjlc",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "15/07/2026, 21:57:49",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784162102667_oqrl",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "15/07/2026, 21:35:02",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784070578140_w4kp",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "14/07/2026, 20:09:38",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784069449162_i60j",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "14/07/2026, 19:50:49",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784068524189_c21l",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "14/07/2026, 19:35:24",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784065055635_23rn",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "14/07/2026, 18:37:35",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784065014279_asn9",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "14/07/2026, 18:36:54",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1784050210204_aj9g",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "14/07/2026, 14:30:10",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783997854966_csnp",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "13/07/2026, 23:57:34",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783993306650_0m32",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "13/07/2026, 22:41:46",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783981114831_bwam",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "13/07/2026, 19:18:34",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783975528701_ysat",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "13/07/2026, 17:45:28",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783963519985_klxm",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "13/07/2026, 14:25:19",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783904369288_pi82",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "12/07/2026, 21:59:29",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783828783723_8414",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "12/07/2026, 00:59:43",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783825806590_q405",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "12/07/2026, 00:10:06",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783825623994_oem0",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "12/07/2026, 00:07:03",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783823301700_m4ls",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "11/07/2026, 23:28:21",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783823072665_26ki",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "11/07/2026, 23:24:32",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783823067585_9he9",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "11/07/2026, 23:24:27",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783823062606_5su2",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "11/07/2026, 23:24:22",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783822855699_k3eg",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "11/07/2026, 23:20:55",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783822380891_3zjz",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "11/07/2026, 23:13:00",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783821924032_acyk",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "11/07/2026, 23:05:24",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783816559835_nxtl",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "11/07/2026, 21:35:59",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783808020140_nhzw",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "11/07/2026, 19:13:40",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783807819303_32og",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "11/07/2026, 19:10:19",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783794768116_2ayj",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "11/07/2026, 15:32:48",
+      "deviceInfo": "Windows OS (Computador)"
+    },
+    {
+      "id": "log_1783794754893_bm2u",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "11/07/2026, 15:32:34",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783741411227_plpn",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "11/07/2026, 00:43:31",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783731538051_cp4n",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "10/07/2026, 21:58:58",
+      "deviceInfo": "Apple macOS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783730383212_7atc",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "10/07/2026, 21:39:43",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783726715922_1nxv",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "10/07/2026, 20:38:35",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783726083292_ffn2",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "10/07/2026, 20:28:03",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783725643667_6xwg",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "10/07/2026, 20:20:43",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783725640903_v12h",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "10/07/2026, 20:20:40",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783711512498_qmdq",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "10/07/2026, 16:25:12",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783698460875_ge8h",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "10/07/2026, 12:47:40",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783694885273_jl5i",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "10/07/2026, 11:48:05",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783657073856_3w8j",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "10/07/2026, 01:17:53",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783652500039_yir3",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "10/07/2026, 00:01:40",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783652344629_ijwc",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "09/07/2026, 23:59:04",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783650469740_6ilv",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "09/07/2026, 23:27:49",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783646016074_mlpp",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "09/07/2026, 22:13:36",
+      "deviceInfo": "Linux OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783638223664_iedl",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "09/07/2026, 20:03:43",
+      "deviceInfo": "Linux OS (Computador)"
+    },
+    {
+      "id": "log_1783638136857_3uky",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "09/07/2026, 20:02:16",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783526960172_pj14",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "08/07/2026, 13:09:20",
+      "deviceInfo": "Apple macOS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783468776245_yirk",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "07/07/2026, 20:59:36",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783459823802_fsfh",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "07/07/2026, 18:30:23",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783457055899_8uv0",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "07/07/2026, 17:44:15",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783440639350_fs6u",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "07/07/2026, 13:10:39",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783438271977_bhnl",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "07/07/2026, 12:31:11",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783437983074_ohst",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "07/07/2026, 12:26:23",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783431488124_sl8c",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "07/07/2026, 10:38:08",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783346581061_pbkc",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "06/07/2026, 11:03:01",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783297939558_rwae",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "05/07/2026, 21:32:19",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783256125057_8rwl",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "05/07/2026, 09:55:25",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783190037531_4gw8",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "04/07/2026, 15:33:57",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783135339805_iyoq",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "04/07/2026, 00:22:19",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783134907589_kqcu",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "04/07/2026, 00:15:07",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783134901516_wura",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "04/07/2026, 00:15:01",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783133940935_0w0j",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "03/07/2026, 23:59:00",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783133185768_b3co",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "03/07/2026, 23:46:25",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783132239525_vvqz",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "03/07/2026, 23:30:39",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783132002755_so1a",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "03/07/2026, 23:26:42",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783131999828_p69z",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "03/07/2026, 23:26:39",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783114265400_p2f2",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "03/07/2026, 18:31:05",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783100193459_vz95",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "03/07/2026, 14:36:33",
+      "deviceInfo": "Apple macOS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783085264288_j0wa",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "03/07/2026, 10:27:44",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783042301965_bqwi",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "02/07/2026, 22:31:41",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783036882910_4kb7",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "02/07/2026, 21:01:22",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1783026813734_z4f9",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "02/07/2026, 18:13:33",
+      "deviceInfo": "Apple macOS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782951961820_4et6",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 21:26:01",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782942815412_mco8",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 18:53:35",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782942569257_3sg6",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 18:49:29",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782942508348_xryn",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 18:48:28",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782942458926_qix5",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 18:47:38",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782942411937_57w0",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 18:46:51",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782942330589_vbdk",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 18:45:30",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782942251825_kg1m",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 18:44:11",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782942205902_7wlg",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 18:43:25",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782942195149_mkjo",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 18:43:15",
+      "deviceInfo": "Windows OS (Computador)"
+    },
+    {
+      "id": "log_1782942174446_vdly",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 18:42:54",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782942144755_49zk",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 18:42:24",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782942136531_h2jh",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 18:42:16",
+      "deviceInfo": "Windows OS (Computador)"
+    },
+    {
+      "id": "log_1782942122140_dw3h",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 18:42:02",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782942093789_jiqu",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 18:41:33",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782942064074_8w86",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 18:41:04",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782942040483_nq37",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 18:40:40",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782942004965_y2x8",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 18:40:04",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782941978383_b7co",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 18:39:38",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782941973226_xugq",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 18:39:33",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782941966155_s38r",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 18:39:26",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782941642032_6idu",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 18:34:02",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782941605782_98jq",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 18:33:25",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782941604360_1doe",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 18:33:24",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782941603368_qpb9",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 18:33:23",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782941590157_nis2",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 18:33:10",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782940986589_hvyw",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 18:23:06",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782940529089_baix",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 18:15:29",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782935115668_ul2f",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 16:45:15",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782933735582_mfp0",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 16:22:15",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782933660459_s5g2",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 16:21:00",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782927151529_k6ip",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "01/07/2026, 14:32:31",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782871045182_1fpa",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "30/06/2026, 22:57:25",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782870767796_ed8s",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "30/06/2026, 22:52:47",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782868906953_ttzx",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "30/06/2026, 22:21:46",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782858169236_9t0a",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "30/06/2026, 19:22:49",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782842898862_7ncm",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "30/06/2026, 15:08:18",
+      "deviceInfo": "Apple macOS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782842273589_vjkm",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "30/06/2026, 14:57:53",
+      "deviceInfo": "Apple macOS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782841757415_19fm",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "30/06/2026, 14:49:17",
+      "deviceInfo": "Linux OS (Computador)"
+    },
+    {
+      "id": "log_1782839220430_2aet",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "30/06/2026, 14:07:00",
+      "deviceInfo": "Apple macOS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782830604204_5eu4",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "30/06/2026, 11:43:24",
+      "deviceInfo": "Apple macOS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782826134381_017u",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "30/06/2026, 10:28:54",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782703014863_uc2u",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "29/06/2026, 00:16:54",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782691134470_o76s",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "28/06/2026, 20:58:54",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782683020082_g0fa",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "28/06/2026, 18:43:40",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782674499261_1kg6",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "28/06/2026, 16:21:39",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782669425348_voqh",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "28/06/2026, 14:57:05",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782616644640_5ma4",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "28/06/2026, 00:17:24",
+      "deviceInfo": "Apple macOS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782613815277_zuy6",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "27/06/2026, 23:30:15",
+      "deviceInfo": "Apple macOS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782612308055_9e5t",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "27/06/2026, 23:05:08",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782571171817_s2kr",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "27/06/2026, 11:39:31",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782487391211_xvyi",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "26/06/2026, 12:23:11",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782481477201_nqqj",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "26/06/2026, 10:44:37",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782438211161_hwy3",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "25/06/2026, 22:43:31",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782438139766_0w5i",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "25/06/2026, 22:42:19",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782438124318_bxqn",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "25/06/2026, 22:42:04",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782436935131_mawh",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "25/06/2026, 22:22:15",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782421724284_ldjv",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "25/06/2026, 18:08:44",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782416693712_i5w0",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "25/06/2026, 16:44:53",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782416663392_g85u",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "25/06/2026, 16:44:23",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782416523634_ln21",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "25/06/2026, 16:42:03",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782413573577_kabv",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "25/06/2026, 15:52:53",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782400278447_yi5i",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "25/06/2026, 12:11:18",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782391230060_8u7p",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "25/06/2026, 09:40:30",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782356252467_xab0",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "24/06/2026, 23:57:32",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782332832411_eazr",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "24/06/2026, 17:27:12",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782331071114_8gpq",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "24/06/2026, 16:57:51",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782326783650_l2k2",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "24/06/2026, 15:46:23",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782318863711_5da8",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "24/06/2026, 13:34:23",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782310161728_zpck",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "24/06/2026, 11:09:21",
+      "deviceInfo": "Apple macOS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782307758735_qz2s",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "24/06/2026, 10:29:18",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782304189868_o2bz",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "24/06/2026, 09:29:49",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782268350306_1f80",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "23/06/2026, 23:32:30",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782264798175_unt8",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "23/06/2026, 22:33:18",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782264581449_44fh",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "23/06/2026, 22:29:41",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782264577787_4m76",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "23/06/2026, 22:29:37",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782264575726_c6bw",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "23/06/2026, 22:29:35",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782264472288_as44",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "23/06/2026, 22:27:52",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782264401617_3mlw",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "23/06/2026, 22:26:41",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782264245386_jeaz",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "23/06/2026, 22:24:05",
+      "deviceInfo": "Windows OS (Computador)"
+    },
+    {
+      "id": "log_1782264236568_5qqg",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "23/06/2026, 22:23:56",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782264161145_m3k4",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "23/06/2026, 22:22:41",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782264154897_x6m3",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "23/06/2026, 22:22:34",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782263440951_duxx",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "23/06/2026, 22:10:40",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782248957262_ie96",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "23/06/2026, 18:09:17",
+      "deviceInfo": "Linux OS (Computador)"
+    },
+    {
+      "id": "log_1782236526235_csu0",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "23/06/2026, 14:42:06",
+      "deviceInfo": "Apple macOS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782235580835_4kk7",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "23/06/2026, 14:26:20",
+      "deviceInfo": "Apple macOS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782235402089_vke6",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "23/06/2026, 14:23:22",
+      "deviceInfo": "Apple macOS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782231260213_c54y",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "23/06/2026, 13:14:20",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782231171987_koob",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "23/06/2026, 13:12:51",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782224517674_5omp",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "23/06/2026, 11:21:57",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782224477714_q2t1",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "23/06/2026, 11:21:17",
+      "deviceInfo": "Linux OS (Computador)"
+    },
+    {
+      "id": "log_1782224293514_ub5k",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "23/06/2026, 11:18:13",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782224289517_nwsi",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "23/06/2026, 11:18:09",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782224257195_r934",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "23/06/2026, 11:17:37",
+      "deviceInfo": "Windows OS (Computador)"
+    },
+    {
+      "id": "log_1782224247989_b8i9",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "23/06/2026, 11:17:27",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782224233838_k0p5",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "23/06/2026, 11:17:13",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782224224054_zase",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "23/06/2026, 11:17:04",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782223094003_bkl2",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "23/06/2026, 10:58:14",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782220613973_v59h",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "23/06/2026, 10:16:53",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782179385491_ciel",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "22/06/2026, 22:49:45",
+      "deviceInfo": "Apple macOS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782168342569_e1m1",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "22/06/2026, 19:45:42",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782167470437_oro8",
+      "userName": "Natasha",
+      "userEmail": "natashinhacamm@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "22/06/2026, 19:31:10",
+      "deviceInfo": "Linux OS (Computador)"
+    },
+    {
+      "id": "log_1782166327855_1fvp",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "22/06/2026, 19:12:07",
+      "deviceInfo": "Apple macOS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782164867436_q5x2",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "22/06/2026, 18:47:47",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782163597592_wyvn",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "22/06/2026, 18:26:37",
+      "deviceInfo": "Apple macOS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782163077956_6yhh",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "22/06/2026, 18:17:57",
+      "deviceInfo": "Apple macOS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782162988752_yxgk",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "22/06/2026, 18:16:28",
+      "deviceInfo": "Apple macOS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782161462907_n9a5",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "22/06/2026, 17:51:02",
+      "deviceInfo": "Apple macOS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782159759559_bjph",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "22/06/2026, 17:22:39",
+      "deviceInfo": "Apple macOS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782159729939_kq4a",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "22/06/2026, 17:22:09",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782159694080_u64e",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "22/06/2026, 17:21:34",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782159572396_fhun",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "22/06/2026, 17:19:32",
+      "deviceInfo": "Apple macOS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782159556570_r4lw",
+      "userName": "Antônio",
+      "userEmail": "acfbhz@hotmail.com",
+      "userRole": "Administrador Pleno",
+      "timestamp": "22/06/2026, 17:19:16",
+      "deviceInfo": "Linux OS (Computador)"
+    },
+    {
+      "id": "log_1782158129584_bwi8",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "22/06/2026, 16:55:29",
+      "deviceInfo": "Apple macOS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782157885055_fpf7",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "22/06/2026, 16:51:25",
+      "deviceInfo": "Apple macOS (Computador)"
+    },
+    {
+      "id": "log_1782157699864_lb8p",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "22/06/2026, 16:48:19",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782152736019_vhu3",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "22/06/2026, 15:25:36",
+      "deviceInfo": "iOS Mobile (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782139690772_v7gw",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "22/06/2026, 11:48:10",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782139608592_clcy",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "22/06/2026, 11:46:48",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1782133261684_x7od",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "22/06/2026, 10:01:01",
+      "deviceInfo": "Windows OS (Computador)"
+    },
+    {
+      "id": "log_1782133225566_5be0",
+      "userName": "Vilma",
+      "userEmail": "vilmacarence@hotmail.com",
+      "userRole": "Sócio",
+      "timestamp": "22/06/2026, 10:00:25",
+      "deviceInfo": "Windows OS (Computador)"
+    }
+  ],
+  "interestedLeads": [
+    {
+      "name": "Demócrito",
+      "phone": "(31)97508-1841",
+      "contactDate": "2026-06-27",
+      "id": "lead_1782942621272_wwn9",
+      "createdAt": "2026-07-01T21:50:21.272Z",
+      "contactCount": 1
+    },
+    {
+      "name": "Dawson Teles",
+      "phone": "(31)98226-3883",
+      "contactDate": "2026-07-03",
+      "id": "lead_1783100263802_777e",
+      "createdAt": "2026-07-03T17:37:43.802Z",
+      "contactCount": 1
+    },
+    {
+      "name": "Juliano Castro",
+      "phone": "(31)98612-7875",
+      "contactDate": "2026-06-25",
+      "id": "lead_1783135409923_nion",
+      "createdAt": "2026-07-04T03:23:29.923Z",
+      "contactCount": 1
+    },
+    {
+      "name": "Leandro Augusto Cardoso",
+      "phone": "(31)9771-3903",
+      "contactDate": "2026-07-09",
+      "id": "lead_1783638476641_evnl",
+      "createdAt": "2026-07-09T23:07:56.641Z"
+    },
+    {
+      "name": "Jânio",
+      "phone": "(31)99882-6490",
+      "contactDate": "2026-07-09",
+      "notes": "Olx.",
+      "id": "lead_1783638553991_l78o",
+      "createdAt": "2026-07-09T23:09:13.991Z"
+    },
+    {
+      "name": "Wellington ",
+      "phone": "(31)99452-1112",
+      "contactDate": "2026-07-09",
+      "notes": "Olx",
+      "id": "lead_1783638601944_phip",
+      "createdAt": "2026-07-09T23:10:01.944Z"
+    },
+    {
+      "name": "Mateus Lana",
+      "phone": "(31)8207-6525",
+      "contactDate": "2026-07-02",
+      "notes": "Olx",
+      "id": "lead_1783638875759_5fti",
+      "createdAt": "2026-07-09T23:14:35.759Z"
+    },
+    {
+      "name": "Julio cesar",
+      "phone": "(31)99195-0803",
+      "contactDate": "2026-04-06",
+      "notes": "interesse em DolphinG\nÚltimo contato em 03/07",
+      "id": "lead_1783638980290_yqfz",
+      "createdAt": "2026-07-09T23:16:20.290Z"
+    },
+    {
+      "name": "Luciano",
+      "phone": "(31)9327-1769",
+      "contactDate": "2026-06-10",
+      "notes": "Último contato 02/07",
+      "id": "lead_1783639061790_b05a",
+      "createdAt": "2026-07-09T23:17:41.790Z"
+    },
+    {
+      "name": "Isabela forneas",
+      "phone": "(31)8323-5818",
+      "contactDate": "2026-06-23",
+      "id": "lead_1783639161482_v4y7",
+      "createdAt": "2026-07-09T23:19:21.483Z"
+    },
+    {
+      "name": "Guilherme Martins",
+      "phone": "(31)8783-0974",
+      "contactDate": "2026-07-03",
+      "id": "lead_1783639234379_o6j7",
+      "createdAt": "2026-07-09T23:20:34.379Z",
+      "docApproved": true
+    },
+    {
+      "name": "Marcos Antônio ",
+      "phone": "(31)9513-8990",
+      "contactDate": "2026-06-18",
+      "notes": "Cadastro APROVADO (pai PM aposentado)",
+      "id": "lead_1783639483984_7iz5",
+      "createdAt": "2026-07-09T23:24:43.985Z"
+    }
+  ]
 }

@@ -28,6 +28,37 @@ interface RentalsTabProps {
   onDecrementLeadContactCount?: (id: string) => void;
 }
 
+export const WEEKDAY_OPTIONS = [
+  { value: 0, label: 'Domingo', short: 'Dom' },
+  { value: 1, label: 'Segunda-feira', short: 'Seg' },
+  { value: 2, label: 'Terça-feira', short: 'Ter' },
+  { value: 3, label: 'Quarta-feira', short: 'Qua' },
+  { value: 4, label: 'Quinta-feira', short: 'Qui' },
+  { value: 5, label: 'Sexta-feira', short: 'Sex' },
+  { value: 6, label: 'Sábado', short: 'Sáb' },
+];
+
+export const getWeekdayName = (dayIndex?: number): string => {
+  if (dayIndex === undefined || dayIndex === null) return 'Segunda-feira';
+  const match = WEEKDAY_OPTIONS.find(o => o.value === Number(dayIndex));
+  return match ? match.label : 'Segunda-feira';
+};
+
+export const getEffectiveRentalPaymentWeekday = (rental: Rental): number => {
+  if (rental.paymentDayOfWeek !== undefined && rental.paymentDayOfWeek !== null) {
+    return Number(rental.paymentDayOfWeek);
+  }
+  const name = (rental.tenantName || '').toLowerCase();
+  if (name.includes('péricles') || name.includes('pericles')) return 4; // Quinta-feira
+  if (name.includes('paulo')) return 2; // Terça-feira
+  if (rental.startDate) {
+    const [y, m, d] = rental.startDate.split('-').map(Number);
+    const dateObj = new Date(y, m - 1, d);
+    return dateObj.getDay();
+  }
+  return 1; // Default Segunda-feira
+};
+
 export default function RentalsTab({
   vehicles,
   rentals,
@@ -78,6 +109,7 @@ export default function RentalsTab({
   const [editRentDepositValue, setEditRentDepositValue] = useState(2600);
   const [editRentStatus, setEditRentStatus] = useState<'active' | 'completed'>('active');
   const [editRentMinimumTermDays, setEditRentMinimumTermDays] = useState<number>(90);
+  const [editRentPaymentDayOfWeek, setEditRentPaymentDayOfWeek] = useState<number>(1);
 
   const openEditRentalModal = (r: Rental) => {
     setEditRentId(r.id);
@@ -88,6 +120,7 @@ export default function RentalsTab({
     setEditRentWeeklyRate(r.weeklyRate || 0);
     setEditRentDepositValue(r.depositValue || 0);
     setEditRentStatus(r.status || 'active');
+    setEditRentPaymentDayOfWeek(getEffectiveRentalPaymentWeekday(r));
 
     if (r.startDate && r.endDate) {
       const sDate = new Date(r.startDate + 'T00:00:00');
@@ -141,7 +174,8 @@ export default function RentalsTab({
       endDate: editRentEndDate,
       weeklyRate: Number(editRentWeeklyRate),
       depositValue: Number(editRentDepositValue),
-      status: editRentStatus
+      status: editRentStatus,
+      paymentDayOfWeek: Number(editRentPaymentDayOfWeek)
     });
     setShowEditRental(false);
   };
@@ -157,6 +191,7 @@ export default function RentalsTab({
   const [rentPayDepositNow, setRentPayDepositNow] = useState(true);
   const [rentPayFirstWeekNow, setRentPayFirstWeekNow] = useState(true);
   const [rentMinimumTermDays, setRentMinimumTermDays] = useState<number>(90);
+  const [rentPaymentDayOfWeek, setRentPaymentDayOfWeek] = useState<number>(1);
 
   // Form states - End Rental
   const [refundDeposit, setRefundDeposit] = useState(true);
@@ -191,7 +226,8 @@ export default function RentalsTab({
       endDate: endDateStr,
       weeklyRate: Number(rentWeeklyRate),
       depositValue: Number(rentDepositValue),
-      semanaAdiantada: rentPayFirstWeekNow
+      semanaAdiantada: rentPayFirstWeekNow,
+      paymentDayOfWeek: Number(rentPaymentDayOfWeek)
     });
 
     // Reset
@@ -201,6 +237,7 @@ export default function RentalsTab({
     setRentalStartDate(getBrasiliaDateStr());
     setRentalWeeks(4);
     setRentMinimumTermDays(90);
+    setRentPaymentDayOfWeek(1);
     setShowStartRental(false);
   };
 
@@ -488,6 +525,13 @@ export default function RentalsTab({
                       {new Date(selectedRental.endDate + 'T00:00:00').toLocaleDateString('pt-BR')}
                     </span>
                   </div>
+                </div>
+
+                <div className="pt-1">
+                  <span className="text-slate-400 block text-[9px] uppercase font-bold">Dia de Pagamento Semanal</span>
+                  <span className="font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 font-sans inline-block mt-0.5 text-xs">
+                    🗓️ Toda {getWeekdayName(getEffectiveRentalPaymentWeekday(selectedRental))}
+                  </span>
                 </div>
 
                 <div className="pt-2">
@@ -999,6 +1043,29 @@ export default function RentalsTab({
                   </div>
 
                   <div className="col-span-2">
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 font-sans flex items-center justify-between">
+                      <span>Dia da Semana para Pagamento Semanal</span>
+                      <span className="text-emerald-700 font-bold font-sans">
+                        Toda {WEEKDAY_OPTIONS.find(w => w.value === editRentPaymentDayOfWeek)?.label}
+                      </span>
+                    </label>
+                    <select
+                      value={editRentPaymentDayOfWeek}
+                      onChange={(e) => setEditRentPaymentDayOfWeek(Number(e.target.value))}
+                      className="w-full text-xs font-sans px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all bg-white text-slate-755 font-bold"
+                    >
+                      {WEEKDAY_OPTIONS.map(opt => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label} (Toda {opt.label})
+                        </option>
+                      ))}
+                    </select>
+                    <span className="text-[9px] text-slate-400 mt-1 block leading-tight font-sans">
+                      Utilizado pelo sistema financeiro para prever as receitas semanais nos dias exatos.
+                    </span>
+                  </div>
+
+                  <div className="col-span-2">
                     <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 font-sans">Status do Contrato</label>
                     <select
                       value={editRentStatus}
@@ -1180,6 +1247,12 @@ export default function RentalsTab({
                       <div className="flex justify-between">
                         <span className="text-slate-400">Caução Retido:</span>
                         <span className="font-bold text-brand-600 font-mono">{formatCurrency(r.depositValue)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pt-1 border-t border-slate-100/60 mt-1">
+                        <span className="text-slate-400">Pagamento:</span>
+                        <span className="font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded text-[10px] font-sans border border-emerald-100">
+                          Toda {getWeekdayName(getEffectiveRentalPaymentWeekday(r))}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -1821,6 +1894,29 @@ export default function RentalsTab({
                 </div>
               </div>
 
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1 flex items-center justify-between">
+                  <span>Dia da Semana para Pagamento Semanal</span>
+                  <span className="text-emerald-700 font-bold font-sans text-xs">
+                    Toda {WEEKDAY_OPTIONS.find(w => w.value === rentPaymentDayOfWeek)?.label}
+                  </span>
+                </label>
+                <select
+                  value={rentPaymentDayOfWeek}
+                  onChange={(e) => setRentPaymentDayOfWeek(Number(e.target.value))}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500 font-sans font-semibold text-slate-800"
+                >
+                  {WEEKDAY_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label} (Toda {opt.label})
+                    </option>
+                  ))}
+                </select>
+                <span className="text-[10px] text-slate-400 mt-1 block leading-tight font-sans">
+                  Usado pelo sistema na aba Financeiro para projetar as receitas nos dias exatos combinados.
+                </span>
+              </div>
+
               {/* MANUAL ACTION DETERMINATION (Semana Adiantada) */}
               <div className="bg-brand-50 border border-brand-100/50 rounded-xl p-4 mt-2 font-sans">
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
@@ -2078,6 +2174,29 @@ export default function RentalsTab({
                     className="w-full font-mono text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all text-slate-755"
                     placeholder="2600"
                   />
+                </div>
+
+                <div className="col-span-2">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 font-sans flex items-center justify-between">
+                    <span>Dia da Semana para Pagamento Semanal</span>
+                    <span className="text-emerald-700 font-bold font-sans">
+                      Toda {WEEKDAY_OPTIONS.find(w => w.value === editRentPaymentDayOfWeek)?.label}
+                    </span>
+                  </label>
+                  <select
+                    value={editRentPaymentDayOfWeek}
+                    onChange={(e) => setEditRentPaymentDayOfWeek(Number(e.target.value))}
+                    className="w-full text-xs font-sans px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all bg-white text-slate-755 font-bold"
+                  >
+                    {WEEKDAY_OPTIONS.map(opt => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label} (Toda {opt.label})
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-[9px] text-slate-400 mt-1 block leading-tight font-sans">
+                    Utilizado pelo sistema financeiro para prever as receitas semanais nos dias exatos.
+                  </span>
                 </div>
 
                 <div className="col-span-2">

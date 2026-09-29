@@ -16,10 +16,22 @@ import {
   FileText,
   Clock,
   ShieldCheck,
-  ArrowRight
+  ArrowRight,
+  Table,
+  LayoutList,
+  RotateCcw,
+  CalendarRange,
+  SlidersHorizontal,
+  Layers,
+  Filter
 } from 'lucide-react';
 import { Vehicle, FutureExpense, Transaction, Rental } from '../types';
 import { getBrasiliaDateStr } from '../utils/dateUtils';
+import { 
+  getEffectiveRentalPaymentWeekday, 
+  getWeekdayName, 
+  WEEKDAY_OPTIONS 
+} from './RentalsTab';
 import { 
   FutureExpensesForecastModal, 
   MonthProjectionData, 
@@ -36,6 +48,28 @@ interface FinancialsTabProps {
   onUpdateVehicle: (id: string, updatedFields: Partial<Vehicle>) => void;
 }
 
+export interface DailyExpenseGroup {
+  dateStr: string;
+  dayNumber: number;
+  dayName: string;
+  shortDayName: string;
+  formattedDate: string;
+  fullFormattedDate: string;
+  totalValue: number;
+  items: ProjectedExpenseItem[];
+}
+
+export interface DailyRevenueGroup {
+  dateStr: string;
+  dayNumber: number;
+  dayName: string;
+  shortDayName: string;
+  formattedDate: string;
+  fullFormattedDate: string;
+  totalValue: number;
+  items: ProjectedRevenueItem[];
+}
+
 export function FinancialsTab({ 
   vehicles, 
   futureExpenses, 
@@ -50,7 +84,7 @@ export function FinancialsTab({
   const [yearFilter, setYearFilter] = useState<string>(new Date().getFullYear().toString());
   const [subView, setSubView] = useState<'overview' | 'forecast_report'>('overview');
   const [forecastReportTab, setForecastReportTab] = useState<'despesas' | 'receitas' | 'comparativo'>('despesas');
-  const [forecastViewTab, setForecastViewTab] = useState<'both' | 'despesas' | 'receitas'>('both');
+  const [forecastViewTab, setForecastViewTab] = useState<'both' | 'despesas' | 'receitas' | 'resultado'>('both');
 
   const openForecastReportPage = (tab: 'despesas' | 'receitas' | 'comparativo' = 'despesas') => {
     setForecastReportTab(tab);
@@ -302,26 +336,12 @@ export function FinancialsTab({
 
       const items: ProjectedRevenueItem[] = [];
 
-      // Month boundaries & billing Mondays
+      // Month boundaries
       const daysInMonth = new Date(y, m, 0).getDate();
       const monthStartDateStr = `${monthKey}-01`;
       const monthEndDateStr = `${monthKey}-${String(daysInMonth).padStart(2, '0')}`;
 
-      const mondaysInMonth: string[] = [];
-      for (let day = 1; day <= daysInMonth; day++) {
-        const d = new Date(y, m - 1, day);
-        if (d.getDay() === 1) { // 1 = Monday
-          mondaysInMonth.push(`${monthKey}-${String(day).padStart(2, '0')}`);
-        }
-      }
-      const billingCycles = mondaysInMonth.length > 0 ? mondaysInMonth : [
-        `${monthKey}-05`,
-        `${monthKey}-12`,
-        `${monthKey}-19`,
-        `${monthKey}-26`
-      ];
-
-      // 1. Revenues from Active Rental Contracts
+      // 1. Revenues from Active Rental Contracts (Itemized by driver's exact weekly payment day)
       activeRentals.forEach(r => {
         const veh = vehiclesMap.get(r.vehicleId);
         const weeklyRate = r.weeklyRate || veh?.weeklyRate || 0;
@@ -330,31 +350,41 @@ export function FinancialsTab({
         // Se o contrato começa após o encerramento deste mês avaliado, ainda não é faturado nele
         if (r.startDate && r.startDate > monthEndDateStr) return;
 
-        // Se o contrato começou no decorrer deste mês futuro, contabiliza apenas ciclos a partir de startDate
-        const validCycles = billingCycles.filter(cycleDate => {
-          if (r.startDate && cycleDate < r.startDate) return false;
+        const targetWeekday = getEffectiveRentalPaymentWeekday(r);
+        const weekdayName = getWeekdayName(targetWeekday);
+
+        // Find all days in this month that fall on targetWeekday
+        const paymentDatesInMonth: string[] = [];
+        for (let day = 1; day <= daysInMonth; day++) {
+          const d = new Date(y, m - 1, day);
+          if (d.getDay() === targetWeekday) {
+            paymentDatesInMonth.push(`${monthKey}-${String(day).padStart(2, '0')}`);
+          }
+        }
+
+        // Only include payment dates on or after rental startDate
+        const validDates = paymentDatesInMonth.filter(dateStr => {
+          if (r.startDate && dateStr < r.startDate) return false;
           return true;
         });
 
-        const activeWeeksCount = validCycles.length > 0 ? validCycles.length : billingCycles.length;
-
-        if (activeWeeksCount > 0) {
-          const totalRentForMonth = activeWeeksCount * weeklyRate;
+        validDates.forEach(dateStr => {
+          const [yr, mo, da] = dateStr.split('-');
           items.push({
-            id: `rev_rental_${r.id}_${monthKey}`,
+            id: `rev_rental_${r.id}_${dateStr}`,
             source: 'contrato',
             title: `Aluguel: ${r.tenantName}`,
-            description: `Contrato de locação ativa (${activeWeeksCount} semanas a ${formatBRL(weeklyRate)}/sem)`,
+            description: `Pagamento semanal (${weekdayName})`,
             category: 'Locação Semanal',
-            dueDate: validCycles[0] || `${monthKey}-05`,
-            installmentLabel: `${activeWeeksCount} semanas faturadas`,
-            value: totalRentForMonth,
+            dueDate: dateStr,
+            installmentLabel: `Semana de ${da}/${mo}`,
+            value: weeklyRate,
             vehicleId: r.vehicleId,
             vehiclePlate: veh?.plate,
             vehicleModel: veh?.brandModel,
             tenantName: r.tenantName
           });
-        }
+        });
       });
 
       // 2. Direct future scheduled revenue transactions
@@ -425,6 +455,477 @@ export function FinancialsTab({
   const activeRevenueMonthData = useMemo(() => {
     return next12MonthsRevenueProjection.find(m => m.monthKey === activeRevenueMonthKey) || next12MonthsRevenueProjection[0];
   }, [next12MonthsRevenueProjection, activeRevenueMonthKey]);
+
+  // Daily breakdown states for Expectativa de Despesas
+  const [selectedExpenseDay, setSelectedExpenseDay] = useState<string>('all');
+  const [expenseBreakdownMode, setExpenseBreakdownMode] = useState<'cards' | 'table'>('cards');
+
+  const effectiveSelectedExpenseDay = 
+    selectedExpenseDay.startsWith(activeExpenseMonthKey) ? selectedExpenseDay : 'all';
+
+  const dailyExpenseBreakdown: DailyExpenseGroup[] = useMemo(() => {
+    if (!activeExpenseMonthData || !activeExpenseMonthData.items) return [];
+
+    const dayMap = new Map<string, ProjectedExpenseItem[]>();
+    activeExpenseMonthData.items.forEach((item) => {
+      const dateKey = item.dueDate || `${activeExpenseMonthData.monthKey}-01`;
+      if (!dayMap.has(dateKey)) {
+        dayMap.set(dateKey, []);
+      }
+      dayMap.get(dateKey)!.push(item);
+    });
+
+    const sortedDates = Array.from(dayMap.keys()).sort();
+
+    return sortedDates.map((dateStr) => {
+      const items = dayMap.get(dateStr) || [];
+      const totalValue = items.reduce((sum, it) => sum + it.value, 0);
+
+      const [y, m, d] = dateStr.split('-').map(Number);
+      const dateObj = new Date(y, m - 1, d);
+
+      const weekdayRaw = dateObj.toLocaleDateString('pt-BR', { weekday: 'long' });
+      const dayName = weekdayRaw.charAt(0).toUpperCase() + weekdayRaw.slice(1);
+      const shortWeekdayRaw = dateObj.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
+      const shortDayName = shortWeekdayRaw.charAt(0).toUpperCase() + shortWeekdayRaw.slice(1);
+
+      return {
+        dateStr,
+        dayNumber: d,
+        dayName,
+        shortDayName,
+        formattedDate: `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`,
+        fullFormattedDate: `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`,
+        totalValue,
+        items
+      };
+    });
+  }, [activeExpenseMonthData]);
+
+  const displayedDailyGroups = useMemo(() => {
+    if (effectiveSelectedExpenseDay === 'all') {
+      return dailyExpenseBreakdown;
+    }
+    return dailyExpenseBreakdown.filter(g => g.dateStr === effectiveSelectedExpenseDay);
+  }, [dailyExpenseBreakdown, effectiveSelectedExpenseDay]);
+
+  // -------------------------------------------------------------
+  // Daily & Period Selection states for Expectativa de Receitas (Intervalo Livre)
+  // -------------------------------------------------------------
+  // Mode toggle for Expectativa de Receitas (Por Dia vs Tabela)
+  const [revenueBreakdownMode, setRevenueBreakdownMode] = useState<'cards' | 'table'>('cards');
+
+  // Group active revenue month items by exact payment day
+  const dailyRevenueBreakdown: DailyRevenueGroup[] = useMemo(() => {
+    if (!activeRevenueMonthData || !activeRevenueMonthData.items) return [];
+
+    const dayMap = new Map<string, ProjectedRevenueItem[]>();
+    activeRevenueMonthData.items.forEach((item) => {
+      const dateKey = item.dueDate || `${activeRevenueMonthData.monthKey}-01`;
+      if (!dayMap.has(dateKey)) {
+        dayMap.set(dateKey, []);
+      }
+      dayMap.get(dateKey)!.push(item);
+    });
+
+    const sortedDates = Array.from(dayMap.keys()).sort();
+
+    return sortedDates.map((dateStr) => {
+      const items = dayMap.get(dateStr) || [];
+      const totalValue = items.reduce((sum, it) => sum + it.value, 0);
+
+      const [y, m, d] = dateStr.split('-').map(Number);
+      const dateObj = new Date(y, m - 1, d);
+
+      const weekdayRaw = dateObj.toLocaleDateString('pt-BR', { weekday: 'long' });
+      const dayName = weekdayRaw.charAt(0).toUpperCase() + weekdayRaw.slice(1);
+      const shortWeekdayRaw = dateObj.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
+      const shortDayName = shortWeekdayRaw.charAt(0).toUpperCase() + shortWeekdayRaw.slice(1);
+
+      return {
+        dateStr,
+        dayNumber: d,
+        dayName,
+        shortDayName,
+        formattedDate: `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`,
+        fullFormattedDate: `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`,
+        totalValue,
+        items
+      };
+    });
+  }, [activeRevenueMonthData]);
+
+  // -------------------------------------------------------------
+  // ABA AUTÔNOMA: RESULTADO FINANCEIRO (Filtros Específicos & Intervalo Livre Complexo / Entre Meses)
+  // -------------------------------------------------------------
+  const baseProjectedMonthKey = next12MonthsRevenueProjection[0]?.monthKey || '2026-10';
+  const defaultInitialStartDate = `${baseProjectedMonthKey}-01`;
+  const defaultInitialEndDate = (() => {
+    const [y, m] = baseProjectedMonthKey.split('-').map(Number);
+    const d = new Date(y, m, 0).getDate();
+    return `${baseProjectedMonthKey}-${String(d).padStart(2, '0')}`;
+  })();
+
+  const [resultStartDate, setResultStartDate] = useState<string>(defaultInitialStartDate);
+  const [resultEndDate, setResultEndDate] = useState<string>(defaultInitialEndDate);
+  const [resultViewMode, setResultViewMode] = useState<'split' | 'timeline'>('split');
+
+  // Compute selected dates metadata across months (Sempre Intervalo Livre Complexo)
+  const resultSelectionMeta = useMemo(() => {
+    const sDate = resultStartDate || defaultInitialStartDate;
+    const eDate = resultEndDate || defaultInitialEndDate;
+    const actualStart = sDate <= eDate ? sDate : eDate;
+    const actualEnd = sDate <= eDate ? eDate : sDate;
+
+    const [startY, startM, startD] = actualStart.split('-').map(Number);
+    const [endY, endM, endD] = actualEnd.split('-').map(Number);
+
+    const startDt = new Date(startY, startM - 1, startD);
+    const endDt = new Date(endY, endM - 1, endD);
+    const diffTime = Math.abs(endDt.getTime() - startDt.getTime());
+    const daysCount = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+    const formattedStart = `${String(startD).padStart(2, '0')}/${String(startM).padStart(2, '0')}/${startY}`;
+    const formattedEnd = `${String(endD).padStart(2, '0')}/${String(endM).padStart(2, '0')}/${endY}`;
+
+    const isSameDay = actualStart === actualEnd;
+    const isSameMonth = startY === endY && startM === endM;
+    const isCrossMonth = !isSameMonth;
+
+    const selectedDateSet = new Set<string>();
+    const cur = new Date(actualStart + 'T12:00:00Z');
+    const end = new Date(actualEnd + 'T12:00:00Z');
+    while (cur <= end) {
+      selectedDateSet.add(cur.toISOString().split('T')[0]);
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+
+    const isFiltered = !(actualStart === defaultInitialStartDate && actualEnd === defaultInitialEndDate);
+
+    let selectionTitle = `Intervalo Livre: ${formattedStart} a ${formattedEnd}`;
+    let selectionSubtitle = `${daysCount} ${daysCount === 1 ? 'dia analisado' : 'dias analisados'}`;
+
+    if (isSameDay) {
+      const weekdayRaw = startDt.toLocaleDateString('pt-BR', { weekday: 'long' });
+      const capitalizedWeekday = weekdayRaw.charAt(0).toUpperCase() + weekdayRaw.slice(1);
+      selectionTitle = `Dia ${formattedStart} (${capitalizedWeekday})`;
+      selectionSubtitle = `Análise pontual de 1 dia específico`;
+    } else if (isSameMonth) {
+      const monthName = startDt.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+      const capitalizedMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+      selectionTitle = `Período em ${capitalizedMonth} (${formattedStart} a ${formattedEnd})`;
+      selectionSubtitle = `${daysCount} dias selecionados em ${capitalizedMonth}`;
+    } else {
+      const startMonthName = startDt.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '').toUpperCase();
+      const endMonthName = endDt.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '').toUpperCase();
+      selectionTitle = `Período Complexo: ${formattedStart} a ${formattedEnd}`;
+      selectionSubtitle = `Recorte entre meses: ${daysCount} dias (${startMonthName}/${startY} a ${endMonthName}/${endY})`;
+    }
+
+    return {
+      startDate: actualStart,
+      endDate: actualEnd,
+      daysCount,
+      formattedStart,
+      formattedEnd,
+      selectionTitle,
+      selectionSubtitle,
+      isSameDay,
+      isSameMonth,
+      isCrossMonth,
+      selectedDateSet,
+      isFiltered
+    };
+  }, [resultStartDate, resultEndDate, defaultInitialStartDate, defaultInitialEndDate]);
+
+  // Derived current month references for single-month context or fallback
+  const activeResultMonthKey = resultSelectionMeta.startDate.substring(0, 7);
+  const activeResultRevenueMonth = useMemo(() => {
+    return next12MonthsRevenueProjection.find(m => m.monthKey === activeResultMonthKey) || next12MonthsRevenueProjection[0];
+  }, [next12MonthsRevenueProjection, activeResultMonthKey]);
+
+  const activeResultExpenseMonth = useMemo(() => {
+    return next12MonthsProjection.find(m => m.monthKey === activeResultMonthKey) || next12MonthsProjection[0];
+  }, [next12MonthsProjection, activeResultMonthKey]);
+
+  // Compute financial result of the selection for autonomous tab (Multi-Month / Cross-Month Engine)
+  const autonomousFinancialResult = useMemo(() => {
+    const { startDate, endDate } = resultSelectionMeta;
+    if (!startDate || !endDate) {
+      return {
+        revenuesTotal: 0,
+        revenuesItems: [],
+        expensesTotal: 0,
+        expensesItems: [],
+        balance: 0,
+        revenuesDriversSummary: '',
+        expensesSummary: ''
+      };
+    }
+
+    const vehiclesMap = new Map(vehicles.map(v => [v.id, v]));
+
+    // 1. Calculate revenues in [startDate, endDate] from active rentals based on weekly payment days
+    const activeRentals = (rentals || []).filter(r => !r.isDeleted && r.status === 'active');
+    const revenuesItems: ProjectedRevenueItem[] = [];
+
+    activeRentals.forEach(r => {
+      const veh = vehiclesMap.get(r.vehicleId);
+      const weeklyRate = r.weeklyRate || veh?.weeklyRate || 0;
+      if (weeklyRate <= 0) return;
+
+      const targetWeekday = getEffectiveRentalPaymentWeekday(r);
+      const weekdayName = getWeekdayName(targetWeekday);
+
+      const curr = new Date(startDate + 'T12:00:00Z');
+      const end = new Date(endDate + 'T12:00:00Z');
+
+      while (curr <= end) {
+        if (curr.getUTCDay() === targetWeekday) {
+          const dateStr = curr.toISOString().split('T')[0];
+          if (!r.startDate || dateStr >= r.startDate) {
+            const [yr, mo, da] = dateStr.split('-');
+            revenuesItems.push({
+              id: `rev_${r.id}_${dateStr}`,
+              source: 'contrato',
+              title: `Aluguel: ${r.tenantName}`,
+              description: `Pagamento semanal (${weekdayName})`,
+              category: 'Locação Semanal',
+              dueDate: dateStr,
+              installmentLabel: `Semana de ${da}/${mo}`,
+              value: weeklyRate,
+              vehicleId: r.vehicleId,
+              vehiclePlate: veh?.plate,
+              vehicleModel: veh?.brandModel,
+              tenantName: r.tenantName
+            });
+          }
+        }
+        curr.setUTCDate(curr.getUTCDate() + 1);
+      }
+    });
+
+    revenuesItems.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+    const revenuesTotal = revenuesItems.reduce((sum, it) => sum + it.value, 0);
+
+    // 2. Calculate expenses in [startDate, endDate]
+    const realizedTxIds = new Set<string>();
+    futureExpenses.forEach(fe => {
+      (fe.installments || []).forEach(inst => {
+        if (inst.realizedTransactionId) {
+          realizedTxIds.add(inst.realizedTransactionId);
+        }
+      });
+    });
+
+    const expensesItems: ProjectedExpenseItem[] = [];
+
+    // From futureExpenses installments
+    futureExpenses.forEach(exp => {
+      (exp.installments || []).forEach(inst => {
+        if (inst.status === 'pending' || !inst.status) {
+          if (inst.dueDate && inst.dueDate >= startDate && inst.dueDate <= endDate) {
+            const veh = exp.vehicleId ? vehiclesMap.get(exp.vehicleId) : undefined;
+            expensesItems.push({
+              id: `fe_${exp.id}_${inst.id}`,
+              source: 'parcelamento',
+              title: exp.category,
+              description: exp.description || '',
+              category: exp.category,
+              dueDate: inst.dueDate,
+              installmentNumber: inst.installmentNumber,
+              installmentsCount: exp.installmentsCount,
+              installmentLabel: `Parc. ${inst.installmentNumber}/${exp.installmentsCount}`,
+              value: exp.value,
+              vehicleId: exp.vehicleId,
+              vehiclePlate: veh?.plate,
+              vehicleModel: veh?.brandModel
+            });
+          }
+        }
+      });
+    });
+
+    // From direct transactions scheduled in future in range
+    transactions.forEach(t => {
+      if (t.type === 'despesa' && t.date && t.date >= startDate && t.date <= endDate) {
+        if (!realizedTxIds.has(t.id)) {
+          const veh = t.vehicleId ? vehiclesMap.get(t.vehicleId) : undefined;
+          expensesItems.push({
+            id: `tx_${t.id}`,
+            source: 'programada',
+            title: t.category,
+            description: t.description || 'Lançamento agendado',
+            category: t.category,
+            dueDate: t.date,
+            installmentNumber: 1,
+            installmentsCount: 1,
+            installmentLabel: 'Fixa/Avulsa',
+            value: t.value,
+            vehicleId: t.vehicleId,
+            vehiclePlate: veh?.plate,
+            vehicleModel: veh?.brandModel
+          });
+        }
+      }
+    });
+
+    expensesItems.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+    const expensesTotal = expensesItems.reduce((sum, it) => sum + it.value, 0);
+
+    const balance = revenuesTotal - expensesTotal;
+
+    const driverNames = Array.from(new Set(revenuesItems.map(it => it.tenantName || it.title).filter(Boolean)));
+    const revenuesDriversSummary = driverNames.length > 0 
+      ? driverNames.join(', ') 
+      : 'Sem recebimentos na seleção';
+
+    const expenseCategories = Array.from(new Set(expensesItems.map(it => it.category).filter(Boolean)));
+    const expensesSummary = expenseCategories.length > 0
+      ? expenseCategories.join(', ')
+      : 'Sem despesas na seleção';
+
+    return {
+      revenuesTotal,
+      revenuesItems,
+      expensesTotal,
+      expensesItems,
+      balance,
+      revenuesDriversSummary,
+      expensesSummary
+    };
+  }, [resultSelectionMeta, vehicles, rentals, futureExpenses, transactions]);
+
+  // Breakdown by month when the selected range spans across multiple months
+  const crossMonthBreakdown = useMemo(() => {
+    if (!resultSelectionMeta.isCrossMonth) return [];
+
+    const monthMap = new Map<string, { label: string; revTotal: number; expTotal: number }>();
+
+    autonomousFinancialResult.revenuesItems.forEach(it => {
+      const monthKey = it.dueDate.substring(0, 7); // YYYY-MM
+      const cur = monthMap.get(monthKey) || { label: '', revTotal: 0, expTotal: 0 };
+      cur.revTotal += it.value;
+      monthMap.set(monthKey, cur);
+    });
+
+    autonomousFinancialResult.expensesItems.forEach(it => {
+      const monthKey = it.dueDate.substring(0, 7); // YYYY-MM
+      const cur = monthMap.get(monthKey) || { label: '', revTotal: 0, expTotal: 0 };
+      cur.expTotal += it.value;
+      monthMap.set(monthKey, cur);
+    });
+
+    const sortedMonths = Array.from(monthMap.keys()).sort();
+
+    return sortedMonths.map(monthKey => {
+      const data = monthMap.get(monthKey)!;
+      const [y, m] = monthKey.split('-').map(Number);
+      const dateObj = new Date(y, m - 1, 1);
+      const rawMonthName = dateObj.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+      const label = rawMonthName.charAt(0).toUpperCase() + rawMonthName.slice(1);
+      const shortLabel = dateObj.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '').toUpperCase();
+
+      return {
+        monthKey,
+        label,
+        shortLabel: `${shortLabel}/${String(y).slice(2)}`,
+        revTotal: data.revTotal,
+        expTotal: data.expTotal,
+        balance: data.revTotal - data.expTotal
+      };
+    });
+  }, [resultSelectionMeta.isCrossMonth, autonomousFinancialResult]);
+
+  // Days in range with scheduled financial activity (revenue or expense)
+  const allActiveResultDays = useMemo(() => {
+    const { revenuesItems, expensesItems } = autonomousFinancialResult;
+
+    const dayMap = new Map<string, { revTotal: number; expTotal: number }>();
+
+    revenuesItems.forEach(it => {
+      const cur = dayMap.get(it.dueDate) || { revTotal: 0, expTotal: 0 };
+      cur.revTotal += it.value;
+      dayMap.set(it.dueDate, cur);
+    });
+
+    expensesItems.forEach(it => {
+      const cur = dayMap.get(it.dueDate) || { revTotal: 0, expTotal: 0 };
+      cur.expTotal += it.value;
+      dayMap.set(it.dueDate, cur);
+    });
+
+    const sortedDates = Array.from(dayMap.keys()).sort();
+
+    return sortedDates.map(dateStr => {
+      const { revTotal, expTotal } = dayMap.get(dateStr)!;
+      const [y, m, d] = dateStr.split('-').map(Number);
+      const dateObj = new Date(y, m - 1, d);
+
+      const weekdayRaw = dateObj.toLocaleDateString('pt-BR', { weekday: 'long' });
+      const dayName = weekdayRaw.charAt(0).toUpperCase() + weekdayRaw.slice(1);
+      const shortWeekdayRaw = dateObj.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
+      const shortDayName = shortWeekdayRaw.charAt(0).toUpperCase() + shortWeekdayRaw.slice(1);
+
+      return {
+        dateStr,
+        dayNumber: d,
+        monthNumber: m,
+        year: y,
+        dayName,
+        shortDayName,
+        formattedDate: `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`,
+        shortFormattedDate: `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`,
+        revTotal,
+        expTotal,
+        balance: revTotal - expTotal
+      };
+    });
+  }, [autonomousFinancialResult]);
+
+  const handleSetRangeForMonth = (mKey: string) => {
+    const [y, m] = mKey.split('-').map(Number);
+    const daysInM = new Date(y, m, 0).getDate();
+    setResultStartDate(`${mKey}-01`);
+    setResultEndDate(`${mKey}-${String(daysInM).padStart(2, '0')}`);
+  };
+
+  const handleSetPresetRange = (monthsSpan: number) => {
+    const baseKey = next12MonthsRevenueProjection[0]?.monthKey || '2026-10';
+    const [y, m] = baseKey.split('-').map(Number);
+    const startStr = `${baseKey}-01`;
+
+    let endM = m + monthsSpan - 1;
+    let endY = y;
+    while (endM > 12) {
+      endM -= 12;
+      endY += 1;
+    }
+    const endMonthKey = `${endY}-${String(endM).padStart(2, '0')}`;
+    const daysInEndMonth = new Date(endY, endM, 0).getDate();
+    const endStr = `${endMonthKey}-${String(daysInEndMonth).padStart(2, '0')}`;
+
+    setResultStartDate(startStr);
+    setResultEndDate(endStr);
+  };
+
+  const handleResetResultToDefault = () => {
+    setResultStartDate(defaultInitialStartDate);
+    setResultEndDate(defaultInitialEndDate);
+  };
+
+  const handleResetResultToFullMonth = () => {
+    handleSetRangeForMonth(activeResultMonthKey);
+  };
+
+  const handleSelectResultSingleDay = (dateStr: string) => {
+    if (resultStartDate === dateStr && resultEndDate === dateStr) {
+      handleSetRangeForMonth(dateStr.substring(0, 7));
+    } else {
+      setResultStartDate(dateStr);
+      setResultEndDate(dateStr);
+    }
+  };
 
   // Helper: Count exact Mondays in a month (representing standard corporate cycles/weeks)
   const countMondaysInMonth = (year: number, monthIndex: number) => {
@@ -723,47 +1224,62 @@ export function FinancialsTab({
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
-            {/* Subtab Switcher */}
-            <div className="flex p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs font-semibold shadow-2xs overflow-x-auto scrollbar-none w-full sm:w-auto">
+            {/* Subtab Switcher - Ergonomic, Responsive & Zero Horizontal Scroll */}
+            <div className="grid grid-cols-2 sm:flex sm:items-center p-1 bg-slate-100/90 rounded-xl border border-slate-200/80 text-xs font-semibold shadow-2xs gap-1 w-full sm:w-auto">
               <button
-                id="forecast-tab-both"
+                id="forecast-tab-resultado"
                 type="button"
-                onClick={() => setForecastViewTab('both')}
-                className={`flex-1 sm:flex-none text-center px-2.5 sm:px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer ${
-                  forecastViewTab === 'both'
-                    ? 'bg-white text-slate-900 shadow-xs font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
+                onClick={() => setForecastViewTab('resultado')}
+                className={`text-center px-2.5 sm:px-3 py-2 sm:py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  forecastViewTab === 'resultado'
+                    ? 'bg-indigo-600 text-white shadow-xs font-bold ring-1 ring-indigo-500'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                 }`}
               >
-                Ver Ambas
-              </button>
-              <button
-                id="forecast-tab-despesas"
-                type="button"
-                onClick={() => setForecastViewTab('despesas')}
-                className={`flex-1 sm:flex-none text-center px-2.5 sm:px-3 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                  forecastViewTab === 'despesas'
-                    ? 'bg-white text-rose-700 shadow-xs font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <TrendingDown className="h-3.5 w-3.5 text-rose-500 shrink-0" />
-                <span className="sm:hidden">Despesas</span>
-                <span className="hidden sm:inline">Expectativa de Despesas</span>
+                <Calculator className="h-3.5 w-3.5 shrink-0" />
+                <span>Resultado</span>
+                <span className="hidden lg:inline">Financeiro</span>
               </button>
               <button
                 id="forecast-tab-receitas"
                 type="button"
                 onClick={() => setForecastViewTab('receitas')}
-                className={`flex-1 sm:flex-none text-center px-2.5 sm:px-3 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                className={`text-center px-2.5 sm:px-3 py-2 sm:py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                   forecastViewTab === 'receitas'
-                    ? 'bg-white text-emerald-800 shadow-xs font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-emerald-600 text-white shadow-xs font-bold ring-1 ring-emerald-500'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                 }`}
               >
-                <TrendingUp className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                <span className="sm:hidden">Receitas</span>
-                <span className="hidden sm:inline">Expectativa de Receitas</span>
+                <TrendingUp className={`h-3.5 w-3.5 shrink-0 ${forecastViewTab === 'receitas' ? 'text-white' : 'text-emerald-600'}`} />
+                <span>Receitas</span>
+                <span className="hidden xl:inline">Previstas</span>
+              </button>
+              <button
+                id="forecast-tab-despesas"
+                type="button"
+                onClick={() => setForecastViewTab('despesas')}
+                className={`text-center px-2.5 sm:px-3 py-2 sm:py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  forecastViewTab === 'despesas'
+                    ? 'bg-rose-600 text-white shadow-xs font-bold ring-1 ring-rose-500'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                }`}
+              >
+                <TrendingDown className={`h-3.5 w-3.5 shrink-0 ${forecastViewTab === 'despesas' ? 'text-white' : 'text-rose-500'}`} />
+                <span>Despesas</span>
+                <span className="hidden xl:inline">Previstas</span>
+              </button>
+              <button
+                id="forecast-tab-both"
+                type="button"
+                onClick={() => setForecastViewTab('both')}
+                className={`text-center px-2.5 sm:px-3 py-2 sm:py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  forecastViewTab === 'both'
+                    ? 'bg-slate-900 text-white shadow-xs font-bold ring-1 ring-slate-800'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                }`}
+              >
+                <Layers className={`h-3.5 w-3.5 shrink-0 ${forecastViewTab === 'both' ? 'text-white' : 'text-slate-500'}`} />
+                <span>Ver Ambas</span>
               </button>
             </div>
 
@@ -772,14 +1288,631 @@ export function FinancialsTab({
               type="button"
               id="open-full-report-page-btn"
               onClick={() => openForecastReportPage('comparativo')}
-              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer w-full sm:w-auto shrink-0"
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 hover:text-slate-900 text-xs font-semibold shadow-2xs transition-colors cursor-pointer w-full sm:w-auto shrink-0"
               title="Acessar página de relatório completo das projeções (12 meses)"
             >
+              <FileText className="h-3.5 w-3.5 text-slate-500" />
               <span>Relatório Completo</span>
               <ArrowRight className="h-3.5 w-3.5 text-slate-400" />
             </button>
           </div>
         </div>
+
+        {/* 0. ABA AUTÔNOMA: RESULTADO FINANCEIRO (COM FILTROS ESPECÍFICOS & INTERVALO LIVRE) */}
+        {forecastViewTab === 'resultado' && (
+          <div 
+            id="financial-autonomous-result-box"
+            className="bg-white border-2 border-indigo-200/90 rounded-2xl p-4 sm:p-6 shadow-premium transition-all duration-200 space-y-5 overflow-hidden"
+          >
+            {/* Header do Resultado Financeiro */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-200">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold font-sans bg-indigo-50 text-indigo-800 border border-indigo-200/80 shadow-2xs">
+                    <Calculator className="h-4 w-4 text-indigo-600 shrink-0" />
+                    <span>Resultado Financeiro Autônomo</span>
+                  </span>
+                  <span className="text-xs font-mono font-black px-2 py-0.5 bg-slate-100 text-slate-800 rounded-md border border-slate-200">
+                    {resultSelectionMeta.isCrossMonth 
+                      ? `${resultSelectionMeta.formattedStart} → ${resultSelectionMeta.formattedEnd}`
+                      : activeResultRevenueMonth?.label}
+                  </span>
+                  {resultSelectionMeta.isCrossMonth && (
+                    <span className="text-[10px] font-mono font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full border border-indigo-200">
+                      Recorte Entre Meses ({resultSelectionMeta.daysCount} dias)
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 font-sans">
+                  Apuração autônoma comparando Receitas Previstas e Obrigações/Despesas no período filtrado.
+                </p>
+              </div>
+
+              {/* Resumo do Recorte Selecionado */}
+              <div className="flex items-center gap-3 shrink-0 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
+                <div className="text-right">
+                  <span className="text-[10px] uppercase font-mono font-bold text-slate-400 block">
+                    {resultSelectionMeta.isCrossMonth ? 'Saldo Projetado no Recorte' : 'Saldo Projetado (Mês)'}
+                  </span>
+                  <span className={`font-mono text-base sm:text-lg font-black block ${
+                    autonomousFinancialResult.balance >= 0
+                      ? 'text-emerald-700'
+                      : 'text-rose-600'
+                  }`}>
+                    {autonomousFinancialResult.balance >= 0 ? '+ ' : ''}
+                    {formatBRL(autonomousFinancialResult.balance)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Seletor Interativo de Meses (Timeline) */}
+            <div className="bg-slate-50/80 p-3 sm:p-3.5 rounded-xl border border-slate-200/80">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-slate-600 font-mono mb-2 gap-1">
+                <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                  <span>Mês de Análise (Projeção 12 Meses):</span>
+                  <span className="text-slate-400 font-normal hidden sm:inline">clique para selecionar o mês no intervalo livre</span>
+                </span>
+                <span className="text-indigo-800 font-bold truncate">
+                  {resultSelectionMeta.isCrossMonth 
+                    ? `Período selecionado: ${resultSelectionMeta.formattedStart} a ${resultSelectionMeta.formattedEnd} (${resultSelectionMeta.daysCount} dias)`
+                    : `Ativo: ${activeResultRevenueMonth?.shortLabel} (Rec: ${formatBRL(activeResultRevenueMonth?.totalValue || 0)} | Desp: ${formatBRL(activeResultExpenseMonth?.totalValue || 0)})`}
+                </span>
+              </div>
+
+              <div className="overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
+                <div className="flex items-end justify-between gap-1 sm:gap-2 min-w-[320px] sm:min-w-0">
+                  {next12MonthsRevenueProjection.map((m) => {
+                    const isSelected = !resultSelectionMeta.isCrossMonth
+                      ? m.monthKey === activeResultMonthKey
+                      : (m.monthKey >= resultSelectionMeta.startDate.substring(0, 7) && m.monthKey <= resultSelectionMeta.endDate.substring(0, 7));
+                    const expM = next12MonthsProjection.find(x => x.monthKey === m.monthKey);
+                    const netVal = m.totalValue - (expM?.totalValue || 0);
+
+                    return (
+                      <button
+                        key={m.monthKey}
+                        type="button"
+                        onClick={() => {
+                          handleSetRangeForMonth(m.monthKey);
+                        }}
+                        className={`flex-1 flex flex-col items-center gap-1 p-1 rounded-lg transition-all cursor-pointer focus:outline-none min-w-[28px] ${
+                          isSelected 
+                            ? 'bg-indigo-100/90 ring-2 ring-indigo-500 shadow-xs' 
+                            : 'hover:bg-slate-200/60'
+                        }`}
+                        title={`${m.label}: Receitas ${formatBRL(m.totalValue)} / Despesas ${formatBRL(expM?.totalValue || 0)}`}
+                      >
+                        <div className="w-full h-9 bg-slate-200/70 rounded-xs flex flex-col justify-end p-0.5 overflow-hidden">
+                          <div
+                            style={{ height: '100%' }}
+                            className={`w-full rounded-xs transition-all duration-200 ${
+                              isSelected
+                                ? 'bg-indigo-600'
+                                : netVal >= 0 ? 'bg-emerald-400' : 'bg-rose-400'
+                            }`}
+                          />
+                        </div>
+                        <span className={`text-[9px] sm:text-[10px] font-mono leading-none ${
+                          isSelected 
+                            ? 'text-indigo-950 font-black underline' 
+                            : 'text-slate-600 font-semibold'
+                        }`}>
+                          {m.shortLabel.split('/')[0]}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* PAINEL DE DESTAQUE FINANCEIRO DA SELEÇÃO (EM DESTAQUE ABSOLUTO) */}
+            <div className="bg-gradient-to-br from-slate-900 via-slate-850 to-indigo-950 text-white rounded-2xl p-4 sm:p-5 shadow-xl border-2 border-indigo-500/50 relative overflow-hidden transition-all">
+              {/* Ambient Glows */}
+              <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute bottom-0 left-0 w-64 h-64 bg-rose-500/15 rounded-full blur-3xl pointer-events-none" />
+
+              {/* Top Header of the Highlight Banner */}
+              <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3.5 border-b border-slate-700/80">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shrink-0">
+                    <Calculator className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 bg-indigo-500/20 px-2 py-0.5 rounded-full border border-indigo-500/30 font-sans">
+                        Resultado Financeiro Selecionado
+                      </span>
+                      <span className="text-xs font-mono font-bold text-slate-200 bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-700">
+                        {resultSelectionMeta.selectionTitle}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-300 font-sans mt-1">
+                      {resultSelectionMeta.selectionSubtitle}
+                    </p>
+                  </div>
+                </div>
+
+                {resultSelectionMeta.isFiltered && (
+                  <button
+                    type="button"
+                    onClick={handleResetResultToDefault}
+                    className="self-start sm:self-center px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-750 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-all border border-slate-600 cursor-pointer hover:text-white shrink-0 shadow-sm"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5 text-indigo-400" />
+                    <span>Redefinir Filtro</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Big Stat Cards Side-by-Side in Focus */}
+              <div className="relative z-10 grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3.5">
+                {/* Receitas */}
+                <div className="bg-slate-800/90 rounded-xl p-3 sm:p-3.5 border border-emerald-500/30 shadow-inner">
+                  <div className="flex items-center justify-between text-xs text-emerald-400 font-semibold mb-1">
+                    <span className="flex items-center gap-1.5">
+                      <TrendingUp className="h-3.5 w-3.5" />
+                      Receitas Previstas
+                    </span>
+                    <span className="text-[10px] bg-emerald-500/20 px-1.5 py-0.2 rounded font-mono text-emerald-300 font-bold">
+                      {autonomousFinancialResult.revenuesItems.length} {autonomousFinancialResult.revenuesItems.length === 1 ? 'rec.' : 'rec.'}
+                    </span>
+                  </div>
+                  <div className="text-xl sm:text-2xl font-black font-mono text-emerald-400 tracking-tight">
+                    + {formatBRL(autonomousFinancialResult.revenuesTotal)}
+                  </div>
+                  <p className="text-[11px] text-slate-300 mt-1 truncate font-sans">
+                    {autonomousFinancialResult.revenuesDriversSummary}
+                  </p>
+                </div>
+
+                {/* Despesas */}
+                <div className="bg-slate-800/90 rounded-xl p-3 sm:p-3.5 border border-rose-500/30 shadow-inner">
+                  <div className="flex items-center justify-between text-xs text-rose-400 font-semibold mb-1">
+                    <span className="flex items-center gap-1.5">
+                      <TrendingDown className="h-3.5 w-3.5" />
+                      Despesas no Recorte
+                    </span>
+                    <span className="text-[10px] bg-rose-500/20 px-1.5 py-0.2 rounded font-mono text-rose-300 font-bold">
+                      {autonomousFinancialResult.expensesItems.length} {autonomousFinancialResult.expensesItems.length === 1 ? 'obrig.' : 'obrig.'}
+                    </span>
+                  </div>
+                  <div className="text-xl sm:text-2xl font-black font-mono text-rose-400 tracking-tight">
+                    - {formatBRL(autonomousFinancialResult.expensesTotal)}
+                  </div>
+                  <p className="text-[11px] text-slate-300 mt-1 truncate font-sans">
+                    {autonomousFinancialResult.expensesSummary}
+                  </p>
+                </div>
+
+                {/* Saldo Líquido */}
+                <div className={`rounded-xl p-3 sm:p-3.5 border shadow-inner ${
+                  autonomousFinancialResult.balance >= 0
+                    ? 'bg-emerald-950/80 border-emerald-500/60'
+                    : 'bg-rose-950/80 border-rose-500/60'
+                }`}>
+                  <div className="flex items-center justify-between text-xs font-semibold mb-1">
+                    <span className={`flex items-center gap-1.5 ${autonomousFinancialResult.balance >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                      <DollarSign className="h-3.5 w-3.5" />
+                      Saldo Líquido Projetado
+                    </span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded font-black uppercase tracking-wider ${
+                      autonomousFinancialResult.balance >= 0 ? 'bg-emerald-500/30 text-emerald-200' : 'bg-rose-500/30 text-rose-200'
+                    }`}>
+                      {autonomousFinancialResult.balance >= 0 ? 'Superávit' : 'Déficit'}
+                    </span>
+                  </div>
+                  <div className={`text-xl sm:text-2xl font-black font-mono tracking-tight ${
+                    autonomousFinancialResult.balance >= 0 ? 'text-emerald-300' : 'text-rose-300'
+                  }`}>
+                    {autonomousFinancialResult.balance >= 0 ? '+ ' : ''}{formatBRL(autonomousFinancialResult.balance)}
+                  </div>
+                  <p className="text-[11px] text-slate-300 mt-1 font-sans">
+                    {autonomousFinancialResult.balance >= 0 
+                      ? 'Receitas superam as despesas na seleção' 
+                      : 'Despesas superam as receitas na seleção'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* CONSOLIDAÇÃO MÊS A MÊS NO PERÍODO COMPLEXO */}
+            {resultSelectionMeta.isCrossMonth && crossMonthBreakdown.length > 0 && (
+              <div className="bg-gradient-to-br from-indigo-900/10 via-slate-50 to-indigo-50/30 border-2 border-indigo-200/80 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-100 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="p-1.5 rounded-lg bg-indigo-600 text-white shadow-2xs">
+                      <Layers className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <h4 className="text-xs sm:text-sm font-bold text-slate-900 font-sans flex items-center gap-2">
+                        <span>Evolução Consolidada Mês a Mês ({crossMonthBreakdown.length} Meses no Período)</span>
+                        <span className="text-[10px] font-mono font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full border border-indigo-200">
+                          Recorte Entre Meses
+                        </span>
+                      </h4>
+                      <p className="text-[11px] text-slate-500 font-sans">
+                        Comportamento comparativo mensal dentro do intervalo livre selecionado ({resultSelectionMeta.formattedStart} a {resultSelectionMeta.formattedEnd}).
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 pt-1">
+                  {crossMonthBreakdown.map((mb) => {
+                    const isSuperavit = mb.balance >= 0;
+                    return (
+                      <div
+                        key={mb.monthKey}
+                        className="bg-white border border-slate-200 hover:border-indigo-300 rounded-xl p-3 shadow-2xs hover:shadow-xs transition-all space-y-2 group"
+                      >
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                          <span className="text-xs font-bold font-sans text-slate-800">
+                            {mb.label}
+                          </span>
+                          <span className={`text-[10px] font-black font-mono px-1.5 py-0.5 rounded ${
+                            isSuperavit ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60' : 'bg-rose-50 text-rose-700 border border-rose-200/60'
+                          }`}>
+                            {isSuperavit ? 'Superávit' : 'Déficit'}
+                          </span>
+                        </div>
+
+                        <div className="space-y-1 text-xs font-mono">
+                          <div className="flex items-center justify-between text-slate-600">
+                            <span className="flex items-center gap-1 text-[11px]">
+                              <TrendingUp className="h-3 w-3 text-emerald-600" />
+                              Receitas:
+                            </span>
+                            <span className="font-bold text-emerald-700">
+                              + {formatBRL(mb.revTotal)}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between text-slate-600">
+                            <span className="flex items-center gap-1 text-[11px]">
+                              <TrendingDown className="h-3 w-3 text-rose-500" />
+                              Despesas:
+                            </span>
+                            <span className="font-bold text-rose-700">
+                              - {formatBRL(mb.expTotal)}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                            <span className="font-sans font-bold text-slate-800 text-[11px]">
+                              Saldo:
+                            </span>
+                            <span className={`font-black ${isSuperavit ? 'text-emerald-800' : 'text-rose-700'}`}>
+                              {isSuperavit ? '+ ' : ''}{formatBRL(mb.balance)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleSetRangeForMonth(mb.monthKey)}
+                          className="w-full mt-1 py-1 text-[10px] font-semibold text-indigo-700 hover:text-indigo-900 bg-indigo-50/70 hover:bg-indigo-100 rounded-lg transition-colors cursor-pointer text-center"
+                        >
+                          Focar somente neste mês
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* FILTROS ESPECÍFICOS: INTERVALO LIVRE COMPLEXO & DIAS EXATOS */}
+            <div className="bg-slate-50/90 border border-slate-200/80 rounded-xl p-3 sm:p-3.5 space-y-2.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 rounded-lg bg-indigo-100 text-indigo-800 shrink-0">
+                    <Filter className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <span className="text-xs font-bold text-slate-900 block font-sans">
+                      Filtro por Intervalo Livre Complexo & Dias
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      Selecione qualquer período inicial e final (inclusive entre meses) para apuração imediata
+                    </span>
+                  </div>
+                </div>
+
+                {/* View Mode: Lado a Lado vs Cronológico */}
+                <div className="flex items-center self-start sm:self-center bg-white border border-slate-200 rounded-lg p-0.5 text-[11px] font-medium font-sans shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => setResultViewMode('split')}
+                    className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                      resultViewMode === 'split'
+                        ? 'bg-indigo-50 text-indigo-800 font-bold shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <LayoutList className="h-3 w-3" />
+                    <span>Lado a Lado (Rec. x Desp.)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setResultViewMode('timeline')}
+                    className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                      resultViewMode === 'timeline'
+                        ? 'bg-indigo-50 text-indigo-800 font-bold shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Table className="h-3 w-3" />
+                    <span>Extrato Diário</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Controles de Intervalo Livre */}
+              <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between gap-3 flex-wrap bg-white p-3 rounded-xl border border-slate-200 shadow-2xs font-sans">
+                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <SlidersHorizontal className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                    Intervalo Livre:
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-slate-500 font-medium">De</span>
+                    <input
+                      type="date"
+                      value={resultStartDate}
+                      onChange={(e) => {
+                        if (e.target.value) setResultStartDate(e.target.value);
+                      }}
+                      className="px-2.5 py-1 border border-slate-200 rounded-lg font-mono text-xs font-bold text-slate-900 bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 focus:outline-hidden"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-slate-500 font-medium">Até</span>
+                    <input
+                      type="date"
+                      value={resultEndDate}
+                      onChange={(e) => {
+                        if (e.target.value) setResultEndDate(e.target.value);
+                      }}
+                      className="px-2.5 py-1 border border-slate-200 rounded-lg font-mono text-xs font-bold text-slate-900 bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 focus:outline-hidden"
+                    />
+                  </div>
+                  <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-md border ${
+                    resultSelectionMeta.isCrossMonth 
+                      ? 'bg-indigo-50 text-indigo-800 border-indigo-200/80 font-black' 
+                      : 'bg-slate-100 text-slate-700 border-slate-200'
+                  }`}>
+                    {resultSelectionMeta.daysCount} {resultSelectionMeta.daysCount === 1 ? 'dia' : 'dias'}
+                    {resultSelectionMeta.isCrossMonth && ' • Entre Meses'}
+                  </span>
+                </div>
+
+                {resultSelectionMeta.isFiltered && (
+                  <button
+                    type="button"
+                    onClick={handleResetResultToDefault}
+                    className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:text-indigo-800 hover:bg-indigo-50 border border-slate-200 transition-all flex items-center gap-1 cursor-pointer"
+                    title="Redefinir para o mês inicial padrão"
+                  >
+                    <RotateCcw className="h-3 w-3 text-indigo-600" />
+                    <span>Redefinir Filtro</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Chips dos Dias com Pagamento Previsto ou Despesas */}
+              {allActiveResultDays.length > 0 && (
+                <div className="pt-1.5 border-t border-slate-200/60">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5 font-sans">
+                    Dias com Atividade Financeira Prevista (Clique para focar no dia):
+                  </span>
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+                    {allActiveResultDays.map((d) => {
+                      const isExactSingleDay = resultStartDate === d.dateStr && resultEndDate === d.dateStr;
+                      const isInActiveSet = resultSelectionMeta.selectedDateSet.has(d.dateStr);
+
+                      return (
+                        <button
+                          key={d.dateStr}
+                          type="button"
+                          onClick={() => handleSelectResultSingleDay(d.dateStr)}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-mono transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                            isExactSingleDay
+                              ? 'bg-indigo-700 text-white font-bold shadow-xs ring-2 ring-indigo-300'
+                              : isInActiveSet
+                                ? 'bg-indigo-50 text-indigo-900 border border-indigo-300 font-bold'
+                                : 'bg-white text-slate-600 hover:bg-indigo-50/50 border border-slate-200 opacity-70'
+                          }`}
+                          title={`${d.formattedDate} (${d.dayName}) - Rec: ${formatBRL(d.revTotal)} | Desp: ${formatBRL(d.expTotal)}`}
+                        >
+                          <span className="font-bold">
+                            {d.shortFormattedDate} ({d.shortDayName})
+                          </span>
+                          {d.revTotal > 0 && (
+                            <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800">
+                              +{formatBRL(d.revTotal)}
+                            </span>
+                          )}
+                          {d.expTotal > 0 && (
+                            <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-rose-100 text-rose-700">
+                              -{formatBRL(d.expTotal)}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Detalhamento dos Lançamentos do Recorte: Lado a Lado ou Diário */}
+            {resultViewMode === 'split' ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Coluna 1: Receitas do Recorte */}
+                <div className="bg-white border border-emerald-200 rounded-xl overflow-hidden shadow-2xs">
+                  <div className="bg-emerald-50/90 px-3.5 py-2.5 border-b border-emerald-200 flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-900 flex items-center gap-1.5 font-sans">
+                      <TrendingUp className="h-4 w-4 text-emerald-700" />
+                      Receitas do Recorte ({autonomousFinancialResult.revenuesItems.length})
+                    </span>
+                    <span className="font-mono text-sm font-black text-emerald-800">
+                      + {formatBRL(autonomousFinancialResult.revenuesTotal)}
+                    </span>
+                  </div>
+                  <div className="p-2 space-y-1.5 max-h-[360px] overflow-y-auto scrollbar-thin">
+                    {autonomousFinancialResult.revenuesItems.length === 0 ? (
+                      <div className="p-4 text-center text-xs text-slate-400 font-sans">
+                        Nenhum recebimento previsto para as datas selecionadas.
+                      </div>
+                    ) : (
+                      autonomousFinancialResult.revenuesItems.map((item) => (
+                        <div key={item.id} className="p-2 rounded-lg bg-emerald-50/40 border border-emerald-100 hover:bg-emerald-50 flex items-center justify-between text-xs">
+                          <div className="min-w-0 flex-1 pr-2">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-slate-800 truncate">{item.title}</span>
+                              <span className="font-mono text-[10px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.2 rounded">
+                                {item.dueDate ? `${item.dueDate.split('-')[2]}/${item.dueDate.split('-')[1]}` : ''}
+                              </span>
+                              {item.vehiclePlate && (
+                                <span className="text-[9px] font-mono bg-slate-200 text-slate-700 px-1 py-0.2 rounded">
+                                  {item.vehiclePlate}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                              {item.description || item.installmentLabel}
+                            </p>
+                          </div>
+                          <div className="shrink-0 font-mono font-bold text-emerald-700">
+                            + {formatBRL(item.value)}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Coluna 2: Despesas do Recorte */}
+                <div className="bg-white border border-rose-200 rounded-xl overflow-hidden shadow-2xs">
+                  <div className="bg-rose-50/90 px-3.5 py-2.5 border-b border-rose-200 flex items-center justify-between">
+                    <span className="text-xs font-bold text-rose-900 flex items-center gap-1.5 font-sans">
+                      <TrendingDown className="h-4 w-4 text-rose-700" />
+                      Despesas do Recorte ({autonomousFinancialResult.expensesItems.length})
+                    </span>
+                    <span className="font-mono text-sm font-black text-rose-700">
+                      - {formatBRL(autonomousFinancialResult.expensesTotal)}
+                    </span>
+                  </div>
+                  <div className="p-2 space-y-1.5 max-h-[360px] overflow-y-auto scrollbar-thin">
+                    {autonomousFinancialResult.expensesItems.length === 0 ? (
+                      <div className="p-4 text-center text-xs text-slate-400 font-sans">
+                        Nenhuma despesa prevista para as datas selecionadas.
+                      </div>
+                    ) : (
+                      autonomousFinancialResult.expensesItems.map((item) => (
+                        <div key={item.id} className="p-2 rounded-lg bg-rose-50/40 border border-rose-100 hover:bg-rose-50 flex items-center justify-between text-xs">
+                          <div className="min-w-0 flex-1 pr-2">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-slate-800 truncate">{item.title}</span>
+                              <span className="font-mono text-[10px] font-bold text-rose-800 bg-rose-100 px-1.5 py-0.2 rounded">
+                                {item.dueDate ? `${item.dueDate.split('-')[2]}/${item.dueDate.split('-')[1]}` : ''}
+                              </span>
+                              <span className="text-[9px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 px-1 py-0.2 rounded">
+                                {item.category}
+                              </span>
+                              {item.vehiclePlate && (
+                                <span className="text-[9px] font-mono bg-slate-200 text-slate-700 px-1 py-0.2 rounded">
+                                  {item.vehiclePlate}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                              {item.description || item.installmentLabel}
+                            </p>
+                          </div>
+                          <div className="shrink-0 font-mono font-bold text-rose-600">
+                            - {formatBRL(item.value)}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* Extrato Diário Consolidado */
+              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs max-h-[380px] overflow-y-auto scrollbar-thin bg-white">
+                <table className="w-full text-left border-collapse text-xs font-sans">
+                  <thead className="bg-slate-100/90 text-slate-700 font-bold border-b border-slate-200 sticky top-0 z-10">
+                    <tr>
+                      <th className="p-2.5">Dia / Data</th>
+                      <th className="p-2.5">Dia da Semana</th>
+                      <th className="p-2.5 text-right">Receitas</th>
+                      <th className="p-2.5 text-right">Despesas</th>
+                      <th className="p-2.5 text-right">Saldo do Dia</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {allActiveResultDays.filter(d => resultSelectionMeta.selectedDateSet.has(d.dateStr)).length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="p-4 text-center text-slate-400">
+                          Nenhum lançamento para o recorte selecionado.
+                        </td>
+                      </tr>
+                    ) : (
+                      allActiveResultDays
+                        .filter(d => resultSelectionMeta.selectedDateSet.has(d.dateStr))
+                        .map((d) => (
+                          <tr key={d.dateStr} className="hover:bg-slate-50 transition-colors">
+                            <td className="p-2.5 font-mono font-bold text-slate-900 whitespace-nowrap">
+                              <span className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 mr-1.5 font-black text-indigo-900">
+                                Dia {String(d.dayNumber).padStart(2, '0')}
+                              </span>
+                              {d.formattedDate}
+                            </td>
+                            <td className="p-2.5 text-slate-600 font-medium">
+                              {d.dayName}
+                            </td>
+                            <td className="p-2.5 text-right font-mono font-bold text-emerald-700">
+                              {d.revTotal > 0 ? `+ ${formatBRL(d.revTotal)}` : '—'}
+                            </td>
+                            <td className="p-2.5 text-right font-mono font-bold text-rose-600">
+                              {d.expTotal > 0 ? `- ${formatBRL(d.expTotal)}` : '—'}
+                            </td>
+                            <td className={`p-2.5 text-right font-mono font-black text-xs sm:text-sm ${
+                              d.balance >= 0 ? 'text-emerald-800' : 'text-rose-700'
+                            }`}>
+                              {d.balance >= 0 ? '+ ' : ''}{formatBRL(d.balance)}
+                            </td>
+                          </tr>
+                        ))
+                    )}
+                  </tbody>
+                  <tfoot className="bg-slate-50 border-t border-slate-200 font-bold">
+                    <tr>
+                      <td colSpan={2} className="p-2.5 text-slate-800 font-sans">
+                        Total do Recorte Selecionado
+                      </td>
+                      <td className="p-2.5 text-right font-mono font-black text-emerald-800 text-xs sm:text-sm">
+                        + {formatBRL(autonomousFinancialResult.revenuesTotal)}
+                      </td>
+                      <td className="p-2.5 text-right font-mono font-black text-rose-700 text-xs sm:text-sm">
+                        - {formatBRL(autonomousFinancialResult.expensesTotal)}
+                      </td>
+                      <td className={`p-2.5 text-right font-mono font-black text-sm ${
+                        autonomousFinancialResult.balance >= 0 ? 'text-emerald-800' : 'text-rose-700'
+                      }`}>
+                        {autonomousFinancialResult.balance >= 0 ? '+ ' : ''}{formatBRL(autonomousFinancialResult.balance)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 1. EXPECTATIVA DE DESPESAS (VISUAL REFINADO, CLARO E ALTO CONTRASTE) */}
         {(forecastViewTab === 'both' || forecastViewTab === 'despesas') && (
@@ -915,6 +2048,11 @@ export function FinancialsTab({
                     <span className="px-1.5 py-0.5 rounded-md text-[10px] md:text-xs font-mono font-semibold bg-slate-100 text-slate-600 border border-slate-200/60 shrink-0">
                       {activeExpenseMonthData?.items.length || 0} {activeExpenseMonthData?.items.length === 1 ? 'item' : 'itens'}
                     </span>
+                    {dailyExpenseBreakdown.length > 0 && (
+                      <span className="hidden xs:inline-block px-1.5 py-0.5 rounded-md text-[10px] md:text-xs font-mono font-bold bg-rose-50 text-rose-700 border border-rose-200/80 shrink-0">
+                        {dailyExpenseBreakdown.length} {dailyExpenseBreakdown.length === 1 ? 'dia' : 'dias'}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -925,46 +2063,270 @@ export function FinancialsTab({
               </button>
 
               {showExpenseItems && (
-                <div className="mt-2.5 space-y-2 max-h-60 overflow-y-auto pr-1 animate-fade-in">
+                <div className="mt-3 space-y-3 animate-fade-in">
                   {activeExpenseMonthData?.items.length === 0 ? (
-                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-center text-xs text-slate-500">
+                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 text-center text-xs text-slate-500 font-sans">
                       Nenhuma despesa agendada para este mês.
                     </div>
                   ) : (
-                    activeExpenseMonthData.items.map((item) => (
-                      <div 
-                        key={item.id} 
-                        className="flex flex-col xs:flex-row xs:items-center justify-between p-2.5 sm:p-3 bg-slate-50 hover:bg-slate-100/80 rounded-xl border border-slate-200/70 transition-colors text-xs gap-2"
-                      >
-                        <div className="flex items-start xs:items-center gap-2.5 min-w-0">
-                          <div className="shrink-0 flex flex-col items-center justify-center w-11 py-1 bg-white rounded-lg border border-slate-200 text-slate-700 font-mono">
-                            <span className="text-[8px] text-slate-400 uppercase leading-tight font-sans">Venc.</span>
-                            <span className="text-[11px] font-bold leading-tight text-slate-800">
-                              {item.dueDate ? item.dueDate.split('-').slice(1).reverse().join('/') : '--'}
+                    <>
+                      {/* Destrinchamento Diário Header & Quick Day Selector */}
+                      <div className="bg-slate-50/90 border border-slate-200/80 rounded-xl p-3 sm:p-3.5 space-y-2.5">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="p-1.5 rounded-lg bg-rose-100 text-rose-700 shrink-0">
+                              <CalendarDays className="h-4 w-4" />
                             </span>
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-bold text-slate-800 truncate">{item.title}</span>
-                              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-                                {item.category}
+                            <div>
+                              <span className="text-xs font-bold text-slate-900 block font-sans">
+                                Destrinchamento Diário ({activeExpenseMonthData?.label})
                               </span>
-                              {item.vehiclePlate && (
-                                <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-slate-200 text-slate-700">
-                                  {item.vehiclePlate} {item.vehicleModel ? `• ${item.vehicleModel}` : ''}
-                                </span>
-                              )}
+                              <span className="text-[10px] text-slate-500 font-mono">
+                                {dailyExpenseBreakdown.length} {dailyExpenseBreakdown.length === 1 ? 'dia com vencimento' : 'dias com vencimentos no mês'} • Total Previsto: <strong className="text-rose-600 font-bold">{formatBRL(activeExpenseMonthData?.totalValue || 0)}</strong>
+                              </span>
                             </div>
-                            <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                              {item.description || item.installmentLabel}
-                            </p>
                           </div>
-                        </div>
-                        <div className="shrink-0 font-mono font-bold text-rose-600 self-end xs:self-center pl-2">
-                          - {formatBRL(item.value)}
+
+                        <div className="flex items-center gap-2 flex-wrap self-start sm:self-center">
+                          {/* Atalho para Resultado Financeiro Autônomo */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleSetRangeForMonth(activeExpenseMonthKey);
+                              setForecastViewTab('resultado');
+                            }}
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                            title="Ir para a aba autônoma de Resultado Financeiro"
+                          >
+                            <Calculator className="h-3.5 w-3.5 text-indigo-600" />
+                            <span>Analisar Resultado Financeiro</span>
+                          </button>
+
+                          {/* Mode Toggle: Cards vs Table */}
+                          <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 text-[11px] font-medium font-sans shadow-2xs">
+                            <button
+                              type="button"
+                              onClick={() => setExpenseBreakdownMode('cards')}
+                              className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                                expenseBreakdownMode === 'cards'
+                                  ? 'bg-rose-50 text-rose-700 font-bold shadow-2xs'
+                                  : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              <LayoutList className="h-3 w-3" />
+                              <span>Por Dia & Lançamentos</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setExpenseBreakdownMode('table')}
+                              className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                                expenseBreakdownMode === 'table'
+                                  ? 'bg-rose-50 text-rose-700 font-bold shadow-2xs'
+                                  : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              <Table className="h-3 w-3" />
+                              <span>Tabela Diária</span>
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    ))
+
+                      {/* Interactive Horizontal Day Chips with exact day and amount */}
+                        <div className="pt-1.5 border-t border-slate-200/60">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5 font-sans">
+                            Selecione um dia para filtrar ou veja o consolidado:
+                          </span>
+                          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedExpenseDay('all')}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-mono transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
+                                effectiveSelectedExpenseDay === 'all'
+                                  ? 'bg-rose-600 text-white font-bold shadow-xs'
+                                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                              }`}
+                            >
+                              <span>Todos ({dailyExpenseBreakdown.length} dias)</span>
+                              <span className={`px-1.5 py-0.2 rounded text-[10px] ${
+                                effectiveSelectedExpenseDay === 'all' ? 'bg-rose-700 text-white' : 'bg-slate-100 text-slate-700 font-bold'
+                              }`}>
+                                {formatBRL(activeExpenseMonthData?.totalValue || 0)}
+                              </span>
+                            </button>
+
+                            {dailyExpenseBreakdown.map((group) => {
+                              const isSelected = effectiveSelectedExpenseDay === group.dateStr;
+                              return (
+                                <button
+                                  key={group.dateStr}
+                                  type="button"
+                                  onClick={() => setSelectedExpenseDay(isSelected ? 'all' : group.dateStr)}
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-mono transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-rose-600 text-white font-bold shadow-xs ring-2 ring-rose-300'
+                                      : 'bg-white text-slate-700 hover:bg-rose-50 hover:border-rose-200 border border-slate-200'
+                                  }`}
+                                  title={`${group.fullFormattedDate} (${group.dayName}) - ${group.items.length} itens: ${formatBRL(group.totalValue)}`}
+                                >
+                                  <span className="font-bold">
+                                    Dia {String(group.dayNumber).padStart(2, '0')} ({group.shortDayName})
+                                  </span>
+                                  <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                                    isSelected
+                                      ? 'bg-rose-700 text-white'
+                                      : 'bg-rose-50 text-rose-700 border border-rose-100'
+                                  }`}>
+                                    {formatBRL(group.totalValue)}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Display Mode 1: Daily Group Cards with item breakdown */}
+                      {expenseBreakdownMode === 'cards' && (
+                        <div className="space-y-2.5 max-h-[380px] sm:max-h-[460px] overflow-y-auto pr-1 scrollbar-thin">
+                          {displayedDailyGroups.map((group) => (
+                            <div 
+                              key={group.dateStr}
+                              className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden transition-all hover:border-rose-200"
+                            >
+                              {/* Daily Group Header with exact total */}
+                              <div className="bg-slate-50/90 px-3 py-2 sm:px-3.5 sm:py-2.5 border-b border-slate-200/80 flex items-center justify-between gap-2 flex-wrap">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="flex flex-col items-center justify-center bg-white border border-slate-200/90 rounded-lg px-2 py-0.5 shadow-2xs text-center shrink-0 min-w-[46px]">
+                                    <span className="text-[8px] uppercase font-bold text-slate-400 font-sans leading-none">
+                                      {group.shortDayName}
+                                    </span>
+                                    <span className="text-sm font-black font-mono text-slate-900 leading-tight">
+                                      {String(group.dayNumber).padStart(2, '0')}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-xs font-bold text-slate-900 font-sans">
+                                        {group.fullFormattedDate}
+                                      </span>
+                                      <span className="text-[11px] text-slate-500 font-medium font-sans">
+                                        • {group.dayName}
+                                      </span>
+                                    </div>
+                                    <span className="text-[10px] text-slate-400 font-mono block leading-tight">
+                                      {group.items.length} {group.items.length === 1 ? 'despesa prevista' : 'despesas previstas'}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Total value for this day */}
+                                <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200/80 px-2.5 py-1 rounded-lg">
+                                  <span className="text-[10px] font-bold text-rose-700 uppercase font-sans">
+                                    Total do Dia:
+                                  </span>
+                                  <span className="font-mono text-xs sm:text-sm font-black text-rose-700">
+                                    - {formatBRL(group.totalValue)}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Items on this day */}
+                              <div className="divide-y divide-slate-100 p-1 sm:p-1.5 bg-white">
+                                {group.items.map((item) => (
+                                  <div 
+                                    key={item.id}
+                                    className="flex flex-col xs:flex-row xs:items-center justify-between p-2 hover:bg-slate-50/80 rounded-lg transition-colors text-xs gap-2"
+                                  >
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="font-bold text-slate-800 truncate">
+                                          {item.title}
+                                        </span>
+                                        <span className="px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                                          {item.category}
+                                        </span>
+                                        {item.vehiclePlate && (
+                                          <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-slate-200 text-slate-700">
+                                            {item.vehiclePlate} {item.vehicleModel ? `• ${item.vehicleModel}` : ''}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                                        {item.description || item.installmentLabel}
+                                      </p>
+                                    </div>
+                                    <div className="shrink-0 font-mono font-bold text-rose-600 self-end xs:self-center pl-2 text-xs sm:text-sm">
+                                      - {formatBRL(item.value)}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Display Mode 2: Compact Summary Table */}
+                      {expenseBreakdownMode === 'table' && (
+                        <div className="border border-slate-200/90 rounded-xl overflow-hidden shadow-2xs max-h-[380px] sm:max-h-[460px] overflow-y-auto scrollbar-thin bg-white">
+                          <table className="w-full text-left border-collapse text-xs font-sans">
+                            <thead className="bg-slate-100/90 text-slate-700 font-bold border-b border-slate-200 sticky top-0 z-10">
+                              <tr>
+                                <th className="p-2.5">Dia / Data</th>
+                                <th className="p-2.5 hidden sm:table-cell">Dia da Semana</th>
+                                <th className="p-2.5">Lançamentos Previstos</th>
+                                <th className="p-2.5 text-right">Valor Total do Dia</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {displayedDailyGroups.map((group) => (
+                                <tr key={group.dateStr} className="hover:bg-slate-50 transition-colors">
+                                  <td className="p-2.5 font-mono font-bold text-slate-900 whitespace-nowrap">
+                                    <span className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 mr-1.5 font-black text-rose-700">
+                                      Dia {String(group.dayNumber).padStart(2, '0')}
+                                    </span>
+                                    {group.formattedDate}
+                                  </td>
+                                  <td className="p-2.5 text-slate-600 hidden sm:table-cell font-medium">
+                                    {group.dayName}
+                                  </td>
+                                  <td className="p-2.5 text-slate-700">
+                                    <div className="space-y-0.5">
+                                      <div className="font-semibold text-slate-800">
+                                        {group.items.length} {group.items.length === 1 ? 'despesa' : 'despesas'}
+                                      </div>
+                                      <div className="text-[11px] text-slate-500 line-clamp-1">
+                                        {group.items.map(it => it.title).join(', ')}
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="p-2.5 text-right font-mono font-black text-rose-600 whitespace-nowrap text-xs sm:text-sm">
+                                    - {formatBRL(group.totalValue)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot className="bg-slate-50 border-t border-slate-200 font-bold">
+                              <tr>
+                                <td colSpan={2} className="p-2.5 text-slate-700 font-sans hidden sm:table-cell">
+                                  Total Consolidado ({displayedDailyGroups.length} dias listados)
+                                </td>
+                                <td className="p-2.5 text-slate-700 font-sans sm:hidden">
+                                  Total ({displayedDailyGroups.length} dias)
+                                </td>
+                                <td className="p-2.5 text-slate-500 text-[11px] font-mono sm:table-cell hidden">
+                                  {displayedDailyGroups.reduce((acc, g) => acc + g.items.length, 0)} itens
+                                </td>
+                                <td className="p-2.5 text-right font-mono font-black text-rose-700 text-sm">
+                                  - {formatBRL(displayedDailyGroups.reduce((acc, g) => acc + g.totalValue, 0))}
+                                </td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}
@@ -1106,6 +2468,11 @@ export function FinancialsTab({
                     <span className="px-1.5 py-0.5 rounded-md text-[10px] md:text-xs font-mono font-semibold bg-slate-100 text-slate-600 border border-slate-200/60 shrink-0">
                       {activeRevenueMonthData?.items.length || 0} {activeRevenueMonthData?.items.length === 1 ? 'item' : 'itens'}
                     </span>
+                    {dailyRevenueBreakdown.length > 0 && (
+                      <span className="hidden xs:inline-block px-1.5 py-0.5 rounded-md text-[10px] md:text-xs font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/80 shrink-0">
+                        {dailyRevenueBreakdown.length} {dailyRevenueBreakdown.length === 1 ? 'dia' : 'dias'}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -1116,46 +2483,229 @@ export function FinancialsTab({
               </button>
 
               {showRevenueItems && (
-                <div className="mt-2.5 space-y-2 max-h-60 overflow-y-auto pr-1 animate-fade-in">
+                <div className="mt-3 space-y-3 animate-fade-in">
                   {activeRevenueMonthData?.items.length === 0 ? (
-                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-center text-xs text-slate-500">
+                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 text-center text-xs text-slate-500 font-sans">
                       Nenhuma receita estimada para este mês.
                     </div>
                   ) : (
-                    activeRevenueMonthData.items.map((item) => (
-                      <div 
-                        key={item.id} 
-                        className="flex flex-col xs:flex-row xs:items-center justify-between p-2.5 sm:p-3 bg-slate-50 hover:bg-slate-100/80 rounded-xl border border-slate-200/70 transition-colors text-xs gap-2"
-                      >
-                        <div className="flex items-start xs:items-center gap-2.5 min-w-0">
-                          <div className="shrink-0 flex flex-col items-center justify-center w-11 py-1 bg-white rounded-lg border border-slate-200 text-slate-700 font-mono">
-                            <span className="text-[8px] text-slate-400 uppercase leading-tight font-sans">Ciclo</span>
-                            <span className="text-[11px] font-bold leading-tight text-emerald-800">
-                              {item.dueDate ? item.dueDate.split('-').slice(1).reverse().join('/') : '--'}
+                    <>
+                      {/* BARRA SUPERIOR DAS RECEITAS DO MÊS */}
+                      <div className="bg-slate-50/90 border border-slate-200/80 rounded-xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-800 font-sans">
+                              Discriminação de Receitas de {activeRevenueMonthData?.label}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              + {formatBRL(activeRevenueMonthData?.totalValue || 0)}
                             </span>
                           </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-bold text-slate-800 truncate">{item.title}</span>
-                              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                {item.category}
-                              </span>
-                              {item.vehiclePlate && (
-                                <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-slate-200 text-slate-700">
-                                  {item.vehiclePlate} {item.vehicleModel ? `• ${item.vehicleModel}` : ''}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                              {item.description || item.installmentLabel}
-                            </p>
+                          <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
+                            {dailyRevenueBreakdown.length} {dailyRevenueBreakdown.length === 1 ? 'dia com recebimento' : 'dias com recebimento'} • {activeRevenueMonthData?.items.length || 0} parcelas calculadas pelos dias combinados
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {/* Atalho para Resultado Financeiro Autônomo */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleSetRangeForMonth(activeRevenueMonthKey);
+                              setForecastViewTab('resultado');
+                            }}
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                            title="Ir para a aba autônoma de Resultado Financeiro"
+                          >
+                            <Calculator className="h-3.5 w-3.5 text-indigo-600" />
+                            <span>Analisar Resultado Financeiro</span>
+                          </button>
+
+                          {/* Toggle Mode: Cards vs Table */}
+                          <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 text-[11px] font-medium font-sans shadow-2xs">
+                            <button
+                              type="button"
+                              onClick={() => setRevenueBreakdownMode('cards')}
+                              className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                                revenueBreakdownMode === 'cards'
+                                  ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs'
+                                  : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              <LayoutList className="h-3 w-3" />
+                              <span>Por Dia</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setRevenueBreakdownMode('table')}
+                              className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                                revenueBreakdownMode === 'table'
+                                  ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs'
+                                  : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              <Table className="h-3 w-3" />
+                              <span>Tabela</span>
+                            </button>
                           </div>
                         </div>
-                        <div className="shrink-0 font-mono font-bold text-emerald-700 self-end xs:self-center pl-2">
-                          + {formatBRL(item.value)}
-                        </div>
                       </div>
-                    ))
+
+                      {/* Display Mode 1: Daily Group Cards with item breakdown */}
+                      {revenueBreakdownMode === 'cards' && (
+                        <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1 scrollbar-thin">
+                          {dailyRevenueBreakdown.length === 0 ? (
+                            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 text-center text-xs text-slate-500 font-sans">
+                              Nenhuma receita prevista para este mês.
+                            </div>
+                          ) : (
+                            dailyRevenueBreakdown.map((group) => (
+                              <div 
+                                key={group.dateStr}
+                                className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden transition-all hover:border-emerald-200"
+                              >
+                                {/* Daily Group Header with exact total */}
+                                <div className="bg-slate-50/90 px-3 py-2 sm:px-3.5 sm:py-2.5 border-b border-slate-200/80 flex items-center justify-between gap-2 flex-wrap">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="flex flex-col items-center justify-center bg-white border border-slate-200/90 rounded-lg px-2 py-0.5 shadow-2xs text-center shrink-0 min-w-[46px]">
+                                      <span className="text-[8px] uppercase font-bold text-slate-400 font-sans leading-none">
+                                        {group.shortDayName}
+                                      </span>
+                                      <span className="text-sm font-black font-mono text-slate-900 leading-tight">
+                                        {String(group.dayNumber).padStart(2, '0')}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-xs font-bold text-slate-900 font-sans">
+                                          {group.fullFormattedDate}
+                                        </span>
+                                        <span className="text-[11px] text-slate-500 font-medium font-sans">
+                                          • {group.dayName}
+                                        </span>
+                                      </div>
+                                      <span className="text-[10px] text-slate-400 font-mono block leading-tight">
+                                        {group.items.length} {group.items.length === 1 ? 'recebimento previsto' : 'recebimentos previstos'}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Total value for this day */}
+                                  <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-lg">
+                                    <span className="text-[10px] font-bold text-emerald-800 uppercase font-sans">
+                                      Total do Dia:
+                                    </span>
+                                    <span className="font-mono text-xs sm:text-sm font-black text-emerald-800">
+                                      + {formatBRL(group.totalValue)}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Items on this day */}
+                                <div className="divide-y divide-slate-100 p-1 sm:p-1.5 bg-white">
+                                  {group.items.map((item) => (
+                                    <div 
+                                      key={item.id}
+                                      className="flex flex-col xs:flex-row xs:items-center justify-between p-2 hover:bg-slate-50/80 rounded-lg transition-colors text-xs gap-2"
+                                    >
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <span className="font-bold text-slate-800 truncate">
+                                            {item.title}
+                                          </span>
+                                          <span className="px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                            {item.category}
+                                          </span>
+                                          {item.vehiclePlate && (
+                                            <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-slate-200 text-slate-700">
+                                              {item.vehiclePlate} {item.vehicleModel ? `• ${item.vehicleModel}` : ''}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                                          {item.description || item.installmentLabel}
+                                        </p>
+                                      </div>
+                                      <div className="shrink-0 font-mono font-bold text-emerald-700 self-end xs:self-center pl-2 text-xs sm:text-sm">
+                                        + {formatBRL(item.value)}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
+
+                      {/* Display Mode 2: Compact Summary Table */}
+                      {revenueBreakdownMode === 'table' && (
+                        <div className="border border-slate-200/90 rounded-xl overflow-hidden shadow-2xs max-h-[420px] overflow-y-auto scrollbar-thin bg-white">
+                          <table className="w-full text-left border-collapse text-xs font-sans">
+                            <thead className="bg-slate-100/90 text-slate-700 font-bold border-b border-slate-200 sticky top-0 z-10">
+                              <tr>
+                                <th className="p-2.5">Dia / Data</th>
+                                <th className="p-2.5 hidden sm:table-cell">Dia da Semana</th>
+                                <th className="p-2.5">Recebimentos Previstos</th>
+                                <th className="p-2.5 text-right">Valor Total do Dia</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {dailyRevenueBreakdown.length === 0 ? (
+                                <tr>
+                                  <td colSpan={4} className="p-4 text-center text-slate-500">
+                                    Nenhuma receita prevista para este mês.
+                                  </td>
+                                </tr>
+                              ) : (
+                                dailyRevenueBreakdown.map((group) => (
+                                  <tr key={group.dateStr} className="hover:bg-slate-50 transition-colors">
+                                    <td className="p-2.5 font-mono font-bold text-slate-900 whitespace-nowrap">
+                                      <span className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 mr-1.5 font-black text-emerald-800">
+                                        Dia {String(group.dayNumber).padStart(2, '0')}
+                                      </span>
+                                      {group.formattedDate}
+                                    </td>
+                                    <td className="p-2.5 text-slate-600 hidden sm:table-cell font-medium">
+                                      {group.dayName}
+                                    </td>
+                                    <td className="p-2.5 text-slate-700">
+                                      <div className="space-y-0.5">
+                                        <div className="font-semibold text-slate-800">
+                                          {group.items.length} {group.items.length === 1 ? 'recebimento' : 'recebimentos'}
+                                        </div>
+                                        <div className="text-[11px] text-slate-500 line-clamp-1">
+                                          {group.items.map(it => it.title).join(', ')}
+                                        </div>
+                                      </div>
+                                    </td>
+                                    <td className="p-2.5 text-right font-mono font-black text-emerald-700 whitespace-nowrap text-xs sm:text-sm">
+                                      + {formatBRL(group.totalValue)}
+                                    </td>
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                            <tfoot className="bg-slate-50 border-t border-slate-200 font-bold">
+                              <tr>
+                                <td colSpan={2} className="p-2.5 text-slate-700 font-sans hidden sm:table-cell">
+                                  Total Consolidado ({dailyRevenueBreakdown.length} dias de recebimento)
+                                </td>
+                                <td className="p-2.5 text-slate-700 font-sans sm:hidden">
+                                  Total ({dailyRevenueBreakdown.length} dias)
+                                </td>
+                                <td className="p-2.5 text-slate-500 text-[11px] font-mono sm:table-cell hidden">
+                                  {activeRevenueMonthData?.items.length || 0} recebimentos
+                                </td>
+                                <td className="p-2.5 text-right font-mono font-black text-emerald-800 text-sm">
+                                  + {formatBRL(activeRevenueMonthData?.totalValue || 0)}
+                                </td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}

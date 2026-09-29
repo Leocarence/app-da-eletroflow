@@ -49,7 +49,8 @@ export const INITIAL_RENTALS: Rental[] = [
     endDate: '2027-03-24',
     weeklyRate: 1300,
     depositValue: 2600,
-    status: 'active'
+    status: 'active',
+    paymentDayOfWeek: 3 // Quarta-feira
   },
   {
     id: 'r_corolla',
@@ -60,7 +61,8 @@ export const INITIAL_RENTALS: Rental[] = [
     endDate: '2026-06-30',
     weeklyRate: 1500,
     depositValue: 3000,
-    status: 'active'
+    status: 'active',
+    paymentDayOfWeek: 1 // Segunda-feira
   },
   {
     id: 'r_onix',
@@ -71,7 +73,8 @@ export const INITIAL_RENTALS: Rental[] = [
     endDate: '2026-08-13',
     weeklyRate: 950,
     depositValue: 1900,
-    status: 'active'
+    status: 'active',
+    paymentDayOfWeek: 5 // Sexta-feira
   }
 ];
 
