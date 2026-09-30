@@ -23,7 +23,9 @@ import {
   CalendarRange,
   SlidersHorizontal,
   Layers,
-  Filter
+  Filter,
+  Coins,
+  Scale
 } from 'lucide-react';
 import { Vehicle, FutureExpense, Transaction, Rental } from '../types';
 import { getBrasiliaDateStr } from '../utils/dateUtils';
@@ -39,6 +41,7 @@ import {
   MonthRevenueProjectionData,
   ProjectedRevenueItem
 } from './FutureExpensesForecastModal';
+import { PeriodFilterAutonomousView } from './PeriodFilterAutonomousView';
 
 interface FinancialsTabProps {
   vehicles: Vehicle[];
@@ -82,9 +85,9 @@ export function FinancialsTab({
   const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>('');
   const [yearFilter, setYearFilter] = useState<string>(new Date().getFullYear().toString());
-  const [subView, setSubView] = useState<'overview' | 'forecast_report'>('overview');
+  const [subView, setSubView] = useState<'overview' | 'forecast_report' | 'period_filter'>('overview');
   const [forecastReportTab, setForecastReportTab] = useState<'despesas' | 'receitas' | 'comparativo'>('despesas');
-  const [forecastViewTab, setForecastViewTab] = useState<'both' | 'despesas' | 'receitas' | 'resultado'>('both');
+  const [forecastViewTab, setForecastViewTab] = useState<'both' | 'despesas' | 'receitas' | 'liquido'>('both');
 
   const openForecastReportPage = (tab: 'despesas' | 'receitas' | 'comparativo' = 'despesas') => {
     setForecastReportTab(tab);
@@ -437,24 +440,79 @@ export function FinancialsTab({
     return Math.max(...next12MonthsRevenueProjection.map(m => m.totalValue), 1);
   }, [next12MonthsRevenueProjection]);
 
-  // Independent active selected months for in-panel interactive forecast display
-  const [selectedExpenseMonthKey, setSelectedExpenseMonthKey] = useState<string>('');
+  // 1. Independent active selected months for all 3 panels:
+  // - selectedNetMonthKey (for Previsão Líquida da Seleção)
+  // - selectedRevenueMonthKey (for Expectativa de Receitas)
+  // - selectedExpenseMonthKey (for Expectativa de Despesas)
+  const [selectedNetMonthKey, setSelectedNetMonthKey] = useState<string>('');
   const [selectedRevenueMonthKey, setSelectedRevenueMonthKey] = useState<string>('');
+  const [selectedExpenseMonthKey, setSelectedExpenseMonthKey] = useState<string>('');
 
   // Breakdown lists visibility state (collapsed by default, toggled via arrow button)
   const [showExpenseItems, setShowExpenseItems] = useState<boolean>(false);
   const [showRevenueItems, setShowRevenueItems] = useState<boolean>(false);
 
-  const activeExpenseMonthKey = selectedExpenseMonthKey || next12MonthsProjection[0]?.monthKey || '';
+  const activeNetMonthKey = selectedNetMonthKey || next12MonthsProjection[0]?.monthKey || '';
   const activeRevenueMonthKey = selectedRevenueMonthKey || next12MonthsRevenueProjection[0]?.monthKey || '';
+  const activeExpenseMonthKey = selectedExpenseMonthKey || next12MonthsProjection[0]?.monthKey || '';
 
+  // Data for Previsão Líquida panel (strictly scoped to activeNetMonthKey):
+  const activeNetMonthExpenseData = useMemo(() => {
+    return next12MonthsProjection.find(m => m.monthKey === activeNetMonthKey) || next12MonthsProjection[0];
+  }, [next12MonthsProjection, activeNetMonthKey]);
+
+  const activeNetMonthRevenueData = useMemo(() => {
+    return next12MonthsRevenueProjection.find(m => m.monthKey === activeNetMonthKey) || next12MonthsRevenueProjection[0];
+  }, [next12MonthsRevenueProjection, activeNetMonthKey]);
+
+  // Data for Expectativa de Receitas panel (strictly scoped to activeRevenueMonthKey):
+  const activeRevenueMonthData = useMemo(() => {
+    return next12MonthsRevenueProjection.find(m => m.monthKey === activeRevenueMonthKey) || next12MonthsRevenueProjection[0];
+  }, [next12MonthsRevenueProjection, activeRevenueMonthKey]);
+
+  // Data for Expectativa de Despesas panel (strictly scoped to activeExpenseMonthKey):
   const activeExpenseMonthData = useMemo(() => {
     return next12MonthsProjection.find(m => m.monthKey === activeExpenseMonthKey) || next12MonthsProjection[0];
   }, [next12MonthsProjection, activeExpenseMonthKey]);
 
-  const activeRevenueMonthData = useMemo(() => {
-    return next12MonthsRevenueProjection.find(m => m.monthKey === activeRevenueMonthKey) || next12MonthsRevenueProjection[0];
-  }, [next12MonthsRevenueProjection, activeRevenueMonthKey]);
+  // Projected Net Calculation for activeNetMonthKey selection:
+  const netSelectedRevenueVal = activeNetMonthRevenueData?.totalValue || 0;
+  const netSelectedExpenseVal = activeNetMonthExpenseData?.totalValue || 0;
+  const netSelectedValue = netSelectedRevenueVal - netSelectedExpenseVal;
+  const isNetPositive = netSelectedValue >= 0;
+
+  // 12-Month Net Horizon metrics
+  const total12MonthsNet = total12MonthsFutureRevenues - total12MonthsFutureExpenses;
+  const averageMonthlyNet = total12MonthsNet / 12;
+
+  // Month-by-month net projection for the 12-month horizon
+  const next12MonthsNetProjection = useMemo(() => {
+    return next12MonthsRevenueProjection.map((revMonth, index) => {
+      const expMonth = next12MonthsProjection[index] || { totalValue: 0, items: [] };
+      const netVal = revMonth.totalValue - expMonth.totalValue;
+      return {
+        monthKey: revMonth.monthKey,
+        label: revMonth.label,
+        shortLabel: revMonth.shortLabel,
+        isNextMonth: revMonth.isNextMonth,
+        revenueValue: revMonth.totalValue,
+        expenseValue: expMonth.totalValue,
+        netValue: netVal,
+        isPositive: netVal >= 0
+      };
+    });
+  }, [next12MonthsRevenueProjection, next12MonthsProjection]);
+
+  const maxMonthNetValue = useMemo(() => {
+    return Math.max(...next12MonthsNetProjection.map(m => Math.abs(m.netValue)), 1);
+  }, [next12MonthsNetProjection]);
+
+  // Operational projected margin (%) for activeNetMonthKey
+  const operationalMarginStr = useMemo(() => {
+    if (netSelectedRevenueVal <= 0) return netSelectedValue >= 0 ? '0%' : '-100%';
+    const pct = ((netSelectedValue / netSelectedRevenueVal) * 100).toFixed(1);
+    return `${pct}%`;
+  }, [netSelectedRevenueVal, netSelectedValue]);
 
   // Daily breakdown states for Expectativa de Despesas
   const [selectedExpenseDay, setSelectedExpenseDay] = useState<string>('all');
@@ -665,11 +723,61 @@ export function FinancialsTab({
 
     const vehiclesMap = new Map(vehicles.map(v => [v.id, v]));
 
-    // 1. Calculate revenues in [startDate, endDate] from active rentals based on weekly payment days
-    const activeRentals = (rentals || []).filter(r => !r.isDeleted && r.status === 'active');
+    // 1. Calculate revenues in [startDate, endDate]
     const revenuesItems: ProjectedRevenueItem[] = [];
+    const txDatesByVehicle = new Map<string, string[]>();
 
-    activeRentals.forEach(r => {
+    // A. Actual revenue transactions recorded in ledger within [startDate, endDate]
+    transactions.forEach(t => {
+      if (t.type === 'receita' && t.date && t.date >= startDate && t.date <= endDate) {
+        const veh = t.vehicleId ? vehiclesMap.get(t.vehicleId) : undefined;
+        const matchingRental = (rentals || []).find(r => 
+          r.vehicleId === t.vehicleId && 
+          (!r.startDate || t.date >= r.startDate) && 
+          (!r.endDate || t.date <= r.endDate)
+        );
+        let tenantName = matchingRental?.tenantName;
+        if (!tenantName && t.description) {
+          const match = t.description.match(/(?:Motorista|Locatário|Leandro|Paulo|Péricles|Alvaro)[\s:]*([A-Za-zÀ-ÿ\s]+)/i);
+          if (match) tenantName = match[1].trim();
+        }
+
+        revenuesItems.push({
+          id: `tx_rev_${t.id}`,
+          source: 'programada',
+          title: t.category,
+          description: t.description || 'Receita realizada',
+          category: t.category,
+          dueDate: t.date,
+          installmentLabel: 'Lançamento Realizado',
+          value: t.value,
+          vehicleId: t.vehicleId,
+          vehiclePlate: veh?.plate,
+          vehicleModel: veh?.brandModel,
+          tenantName: tenantName || veh?.brandModel || 'Receita'
+        });
+
+        if (t.vehicleId) {
+          if (!txDatesByVehicle.has(t.vehicleId)) txDatesByVehicle.set(t.vehicleId, []);
+          txDatesByVehicle.get(t.vehicleId)!.push(t.date);
+        }
+      }
+    });
+
+    // Helper: Check if a vehicle already has a recorded transaction near a date (within ±3 days)
+    const hasTxNearDate = (vehicleId: string, dateStr: string) => {
+      const dates = txDatesByVehicle.get(vehicleId);
+      if (!dates) return false;
+      const targetTime = new Date(dateStr + 'T12:00:00Z').getTime();
+      return dates.some(d => {
+        const tTime = new Date(d + 'T12:00:00Z').getTime();
+        const diffDays = Math.abs(targetTime - tTime) / (1000 * 60 * 60 * 24);
+        return diffDays < 4;
+      });
+    };
+
+    // B. Projected weekly rental revenues from contracts for dates not already covered by recorded transactions
+    (rentals || []).filter(r => !r.isDeleted).forEach(r => {
       const veh = vehiclesMap.get(r.vehicleId);
       const weeklyRate = r.weeklyRate || veh?.weeklyRate || 0;
       if (weeklyRate <= 0) return;
@@ -683,22 +791,28 @@ export function FinancialsTab({
       while (curr <= end) {
         if (curr.getUTCDay() === targetWeekday) {
           const dateStr = curr.toISOString().split('T')[0];
-          if (!r.startDate || dateStr >= r.startDate) {
-            const [yr, mo, da] = dateStr.split('-');
-            revenuesItems.push({
-              id: `rev_${r.id}_${dateStr}`,
-              source: 'contrato',
-              title: `Aluguel: ${r.tenantName}`,
-              description: `Pagamento semanal (${weekdayName})`,
-              category: 'Locação Semanal',
-              dueDate: dateStr,
-              installmentLabel: `Semana de ${da}/${mo}`,
-              value: weeklyRate,
-              vehicleId: r.vehicleId,
-              vehiclePlate: veh?.plate,
-              vehicleModel: veh?.brandModel,
-              tenantName: r.tenantName
-            });
+          const afterStart = !r.startDate || dateStr >= r.startDate;
+          // Valid during contract period, or continuing into future projection if active
+          const beforeEnd = !r.endDate || dateStr <= r.endDate || r.status === 'active';
+
+          if (afterStart && beforeEnd) {
+            if (!hasTxNearDate(r.vehicleId, dateStr)) {
+              const [yr, mo, da] = dateStr.split('-');
+              revenuesItems.push({
+                id: `rev_${r.id}_${dateStr}`,
+                source: 'contrato',
+                title: `Aluguel: ${r.tenantName}`,
+                description: `Pagamento semanal (${weekdayName})`,
+                category: 'Locação Semanal',
+                dueDate: dateStr,
+                installmentLabel: `Semana de ${da}/${mo}`,
+                value: weeklyRate,
+                vehicleId: r.vehicleId,
+                vehiclePlate: veh?.plate,
+                vehicleModel: veh?.brandModel,
+                tenantName: r.tenantName
+              });
+            }
           }
         }
         curr.setUTCDate(curr.getUTCDate() + 1);
@@ -802,6 +916,25 @@ export function FinancialsTab({
 
     const monthMap = new Map<string, { label: string; revTotal: number; expTotal: number }>();
 
+    // Pre-populate all months in the selected interval to guarantee complete chronological visibility
+    const [startYear, startMonth] = resultSelectionMeta.startDate.split('-').map(Number);
+    const [endYear, endMonth] = resultSelectionMeta.endDate.split('-').map(Number);
+
+    let curY = startYear;
+    let curM = startMonth;
+
+    while (curY < endYear || (curY === endYear && curM <= endMonth)) {
+      const mKey = `${curY}-${String(curM).padStart(2, '0')}`;
+      if (!monthMap.has(mKey)) {
+        monthMap.set(mKey, { label: '', revTotal: 0, expTotal: 0 });
+      }
+      curM++;
+      if (curM > 12) {
+        curM = 1;
+        curY++;
+      }
+    }
+
     autonomousFinancialResult.revenuesItems.forEach(it => {
       const monthKey = it.dueDate.substring(0, 7); // YYYY-MM
       const cur = monthMap.get(monthKey) || { label: '', revTotal: 0, expTotal: 0 };
@@ -835,7 +968,7 @@ export function FinancialsTab({
         balance: data.revTotal - data.expTotal
       };
     });
-  }, [resultSelectionMeta.isCrossMonth, autonomousFinancialResult]);
+  }, [resultSelectionMeta.isCrossMonth, resultSelectionMeta.startDate, resultSelectionMeta.endDate, autonomousFinancialResult]);
 
   // Days in range with scheduled financial activity (revenue or expense)
   const allActiveResultDays = useMemo(() => {
@@ -1077,9 +1210,80 @@ export function FinancialsTab({
     );
   }
 
+  if (subView === 'period_filter') {
+    return (
+      <PeriodFilterAutonomousView
+        onClose={() => {
+          setSubView('overview');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        vehicles={vehicles}
+        futureExpenses={futureExpenses}
+        transactions={transactions}
+        rentals={rentals || []}
+        formatBRL={formatBRL}
+        initialStartDate={resultStartDate}
+        initialEndDate={resultEndDate}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6 sm:space-y-8 animate-fade-in w-full max-w-full overflow-hidden">
       
+      {/* EXECUTIVE COMMAND BAR & PROMINENT AUTONOMOUS FEATURE: FILTRO POR DIA/PERÍODO */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-premium relative overflow-hidden flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        {/* Subtle decorative background gradient aura */}
+        <div className="absolute -right-12 -top-12 w-64 h-64 bg-gradient-to-br from-indigo-500/10 via-brand-500/5 to-transparent rounded-full blur-2xl pointer-events-none" />
+
+        <div className="space-y-1.5 relative z-10 max-w-xl">
+          <div className="flex items-center gap-2">
+            <span className="p-1.5 bg-indigo-50 border border-indigo-100 rounded-lg text-indigo-600 shadow-2xs shrink-0">
+              <Coins className="h-4.5 w-4.5" />
+            </span>
+            <span className="text-[10px] font-mono font-extrabold uppercase tracking-widest text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200/60">
+              Módulo Financeiro Geral
+            </span>
+          </div>
+          <h2 className="text-lg sm:text-xl font-black font-display text-slate-900 tracking-tight">
+            Gestão Financeira & Balanço Operacional
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-500 font-medium leading-relaxed">
+            Consolidação do caixa real, faturamento histórico, custos da frota e projeções de contratos.
+          </p>
+        </div>
+
+        {/* PROMINENT STANDALONE FEATURE BUTTON: FILTRO POR DIA/PERÍODO */}
+        <div className="relative z-10 shrink-0">
+          <button
+            type="button"
+            id="open-period-filter-autonomous-btn"
+            onClick={() => {
+              setSubView('period_filter');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className="group relative w-full sm:w-auto inline-flex items-center justify-between gap-4 px-5 py-3 rounded-2xl bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-900 hover:from-indigo-950 hover:via-indigo-900 hover:to-slate-900 text-white shadow-xl shadow-indigo-950/20 hover:shadow-indigo-900/30 border border-indigo-500/35 hover:border-indigo-400/60 active:scale-[0.98] transition-all duration-300 cursor-pointer overflow-hidden"
+            title="Acessar tela autônoma para filtrar e analisar qualquer dia ou período personalizado"
+          >
+            {/* Shimmer light sweep animation */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out pointer-events-none" />
+
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-gradient-to-br from-indigo-500/30 to-indigo-600/10 text-indigo-300 border border-indigo-400/30 group-hover:bg-indigo-500 group-hover:text-white transition-all duration-300 shrink-0 shadow-inner">
+                <SlidersHorizontal className="h-4.5 w-4.5 group-hover:rotate-12 transition-transform duration-300" />
+              </div>
+              <span className="text-xs sm:text-sm font-extrabold tracking-tight text-white font-sans">
+                Filtro por Dia/Período
+              </span>
+            </div>
+
+            <div className="h-7 w-7 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center text-indigo-200 group-hover:bg-white group-hover:text-indigo-950 group-hover:translate-x-1 transition-all duration-300 shrink-0 ml-1">
+              <ArrowRight className="h-3.5 w-3.5" />
+            </div>
+          </button>
+        </div>
+      </div>
+
       {/* SECTION 1: HEADER SUMMARY AND CASH IN HAND */}
       <div className="space-y-4 sm:space-y-6">
         
@@ -1199,11 +1403,24 @@ export function FinancialsTab({
                     {formatBRL(netResultValue)}
                   </div>
                 </div>
-                <p className={`text-[10px] mt-2 sm:mt-3 leading-relaxed font-semibold ${
-                  isPositive ? 'text-indigo-700/80' : 'text-rose-700/80'
-                }`}>
-                  {isPositive ? '✓ Superávit Operacional Geral' : '⚠ Atenção: Defasagem Acumulada'}
-                </p>
+                <div>
+                  <p className={`text-[10px] mt-2 sm:mt-3 leading-relaxed font-semibold ${
+                    isPositive ? 'text-indigo-700/80' : 'text-rose-700/80'
+                  }`}>
+                    {isPositive ? '✓ Superávit Operacional Geral' : '⚠ Atenção: Defasagem Acumulada'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSubView('period_filter');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className="mt-2.5 pt-2 border-t border-slate-200/60 w-full flex items-center justify-between text-[10.5px] font-bold text-indigo-600 hover:text-indigo-800 transition-colors cursor-pointer group/link"
+                  >
+                    <span>Abrir no Filtro por Período</span>
+                    <ArrowRight className="h-3 w-3 text-indigo-500 group-hover/link:translate-x-1 transition-transform" />
+                  </button>
+                </div>
               </div>
             );
           })()}
@@ -1224,22 +1441,8 @@ export function FinancialsTab({
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
-            {/* Subtab Switcher - Ergonomic, Responsive & Zero Horizontal Scroll */}
+            {/* Subtab Switcher - Receitas Previstas, Despesas Previstas, Previsão Líquida, Ver Ambas */}
             <div className="grid grid-cols-2 sm:flex sm:items-center p-1 bg-slate-100/90 rounded-xl border border-slate-200/80 text-xs font-semibold shadow-2xs gap-1 w-full sm:w-auto">
-              <button
-                id="forecast-tab-resultado"
-                type="button"
-                onClick={() => setForecastViewTab('resultado')}
-                className={`text-center px-2.5 sm:px-3 py-2 sm:py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                  forecastViewTab === 'resultado'
-                    ? 'bg-indigo-600 text-white shadow-xs font-bold ring-1 ring-indigo-500'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                }`}
-              >
-                <Calculator className="h-3.5 w-3.5 shrink-0" />
-                <span>Resultado</span>
-                <span className="hidden lg:inline">Financeiro</span>
-              </button>
               <button
                 id="forecast-tab-receitas"
                 type="button"
@@ -1267,6 +1470,19 @@ export function FinancialsTab({
                 <TrendingDown className={`h-3.5 w-3.5 shrink-0 ${forecastViewTab === 'despesas' ? 'text-white' : 'text-rose-500'}`} />
                 <span>Despesas</span>
                 <span className="hidden xl:inline">Previstas</span>
+              </button>
+              <button
+                id="forecast-tab-liquido"
+                type="button"
+                onClick={() => setForecastViewTab('liquido')}
+                className={`text-center px-2.5 sm:px-3 py-2 sm:py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  forecastViewTab === 'liquido'
+                    ? 'bg-indigo-600 text-white shadow-xs font-bold ring-1 ring-indigo-500'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                }`}
+              >
+                <Scale className={`h-3.5 w-3.5 shrink-0 ${forecastViewTab === 'liquido' ? 'text-white' : 'text-indigo-600'}`} />
+                <span>Previsão Líquida</span>
               </button>
               <button
                 id="forecast-tab-both"
@@ -1298,105 +1514,259 @@ export function FinancialsTab({
           </div>
         </div>
 
-        {/* 0. ABA AUTÔNOMA: RESULTADO FINANCEIRO (COM FILTROS ESPECÍFICOS & INTERVALO LIVRE) */}
-        {forecastViewTab === 'resultado' && (
+        {/* 0. PREVISÃO LÍQUIDA DA SELEÇÃO (IGUAL DESTAQUE AOS VALORES DE RECEITAS E DESPESAS) */}
+        {(forecastViewTab === 'both' || forecastViewTab === 'liquido') && (
           <div 
-            id="financial-autonomous-result-box"
-            className="bg-white border-2 border-indigo-200/90 rounded-2xl p-4 sm:p-6 shadow-premium transition-all duration-200 space-y-5 overflow-hidden"
+            id="financial-future-net-box"
+            className={`bg-white border rounded-2xl p-4 sm:p-6 shadow-premium transition-all duration-200 overflow-hidden ${
+              isNetPositive 
+                ? 'border-indigo-300/90 shadow-indigo-950/5' 
+                : 'border-rose-300/90 shadow-rose-950/5'
+            }`}
           >
-            {/* Header do Resultado Financeiro */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-200">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold font-sans bg-indigo-50 text-indigo-800 border border-indigo-200/80 shadow-2xs">
-                    <Calculator className="h-4 w-4 text-indigo-600 shrink-0" />
-                    <span>Resultado Financeiro Autônomo</span>
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 sm:gap-6">
+              {/* Left side: Mês Selecionado & Valor Líquido com Igual Destaque */}
+              <div className="space-y-2.5 sm:space-y-3">
+                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap max-w-full">
+                  <span className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold font-sans border shadow-2xs shrink-0 whitespace-nowrap ${
+                    isNetPositive 
+                      ? 'bg-indigo-50 text-indigo-700 border-indigo-200/80' 
+                      : 'bg-rose-50 text-rose-700 border-rose-200/80'
+                  }`}>
+                    {isNetPositive ? (
+                      <TrendingUp className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-indigo-600 shrink-0" />
+                    ) : (
+                      <TrendingDown className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-rose-600 shrink-0" />
+                    )}
+                    <span>Previsão Líquida da Seleção</span>
                   </span>
-                  <span className="text-xs font-mono font-black px-2 py-0.5 bg-slate-100 text-slate-800 rounded-md border border-slate-200">
-                    {resultSelectionMeta.isCrossMonth 
-                      ? `${resultSelectionMeta.formattedStart} → ${resultSelectionMeta.formattedEnd}`
-                      : activeResultRevenueMonth?.label}
+
+                  <span className="shrink-0 text-[10px] sm:text-xs text-slate-900 font-mono font-black px-1.5 sm:px-2 py-0.5 bg-slate-100 rounded-md border border-slate-200 whitespace-nowrap">
+                    {activeNetMonthExpenseData?.label}
                   </span>
-                  {resultSelectionMeta.isCrossMonth && (
-                    <span className="text-[10px] font-mono font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full border border-indigo-200">
-                      Recorte Entre Meses ({resultSelectionMeta.daysCount} dias)
-                    </span>
-                  )}
+
+                  <span className={`text-[10px] sm:text-xs font-mono font-bold px-2 py-0.5 rounded-md shrink-0 ${
+                    isNetPositive ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                  }`}>
+                    {isNetPositive ? '✓ Superávit Projetado' : '⚠ Déficit Projetado'}
+                  </span>
                 </div>
-                <p className="text-xs text-slate-500 font-sans">
-                  Apuração autônoma comparando Receitas Previstas e Obrigações/Despesas no período filtrado.
-                </p>
+
+                <div>
+                  <div className={`font-mono text-2xl xs:text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight ${
+                    isNetPositive ? 'text-indigo-600' : 'text-rose-600'
+                  }`}>
+                    <span>{isNetPositive ? '+' : ''}{formatBRL(netSelectedValue)}</span>
+                  </div>
+
+                  {/* Fórmula visual explicativa com os valores da seleção */}
+                  <div className="mt-2.5 flex items-center gap-2 flex-wrap text-xs text-slate-600 font-mono font-semibold">
+                    <span className="inline-flex items-center gap-1 text-emerald-700">
+                      <span className="text-slate-400 font-sans text-[11px]">Receitas ({activeNetMonthRevenueData?.shortLabel}):</span>
+                      <strong className="font-black">+{formatBRL(netSelectedRevenueVal)}</strong>
+                    </span>
+                    <span className="text-slate-400 font-bold">−</span>
+                    <span className="inline-flex items-center gap-1 text-rose-600">
+                      <span className="text-slate-400 font-sans text-[11px]">Despesas ({activeNetMonthExpenseData?.shortLabel}):</span>
+                      <strong className="font-black">{formatBRL(netSelectedExpenseVal)}</strong>
+                    </span>
+                    <span className="text-slate-400 font-bold">=</span>
+                    <span className="text-slate-700 font-sans font-medium text-[11px] bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/60">
+                      Margem Projetada: <strong className="font-bold text-slate-900">{operationalMarginStr}</strong>
+                    </span>
+                  </div>
+                </div>
               </div>
 
-              {/* Resumo do Recorte Selecionado */}
-              <div className="flex items-center gap-3 shrink-0 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
-                <div className="text-right">
-                  <span className="text-[10px] uppercase font-mono font-bold text-slate-400 block">
-                    {resultSelectionMeta.isCrossMonth ? 'Saldo Projetado no Recorte' : 'Saldo Projetado (Mês)'}
+              {/* Right side: 12-Month Net Horizon */}
+              <div className="flex flex-row lg:flex-col items-center lg:items-end justify-between gap-3 shrink-0 pt-3 lg:pt-0 border-t border-slate-100 lg:border-t-0">
+                <div className="text-left lg:text-right">
+                  <span className="text-[10px] uppercase font-mono font-bold tracking-wider text-slate-500 block">
+                    Total Líquido Previsto (12 Meses)
                   </span>
-                  <span className={`font-mono text-base sm:text-lg font-black block ${
-                    autonomousFinancialResult.balance >= 0
-                      ? 'text-emerald-700'
-                      : 'text-rose-600'
+                  <span className={`font-mono text-lg sm:text-xl lg:text-2xl font-black block ${
+                    total12MonthsNet >= 0 ? 'text-indigo-700' : 'text-rose-700'
                   }`}>
-                    {autonomousFinancialResult.balance >= 0 ? '+ ' : ''}
-                    {formatBRL(autonomousFinancialResult.balance)}
+                    {total12MonthsNet >= 0 ? '+' : ''}{formatBRL(total12MonthsNet)}
                   </span>
+                  <span className="block text-[11px] sm:text-xs text-slate-500 font-mono">
+                    Média de {total12MonthsNet >= 0 ? '+' : ''}{formatBRL(averageMonthlyNet)} / mês
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openForecastReportPage('comparativo')}
+                    className="text-xs font-bold text-indigo-700 hover:text-indigo-900 flex items-center gap-1 cursor-pointer bg-slate-100 hover:bg-slate-200/80 px-2.5 py-1 rounded-lg transition-colors"
+                  >
+                    <span>DRE Comparativo</span>
+                    <ArrowRight className="h-3 w-3" />
+                  </button>
                 </div>
               </div>
             </div>
 
-            {/* Seletor Interativo de Meses (Timeline) */}
-            <div className="bg-slate-50/80 p-3 sm:p-3.5 rounded-xl border border-slate-200/80">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-slate-600 font-mono mb-2 gap-1">
+            {/* 12 Months Interactive Sparkline Timeline for NET RESULT */}
+            <div className="mt-4 sm:mt-5 pt-3 sm:pt-4 border-t border-slate-100 bg-slate-50/80 p-2.5 sm:p-3.5 rounded-xl border border-slate-200/80">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-slate-600 font-mono mb-2 sm:mb-2.5 gap-1">
                 <span className="font-bold text-slate-700 flex items-center gap-1.5">
-                  <span>Mês de Análise (Projeção 12 Meses):</span>
-                  <span className="text-slate-400 font-normal hidden sm:inline">clique para selecionar o mês no intervalo livre</span>
+                  <span>Evolução Líquida Mês a Mês (12 Meses):</span>
+                  <span className="text-slate-400 font-normal hidden sm:inline">filtro independente da previsão líquida</span>
                 </span>
-                <span className="text-indigo-800 font-bold truncate">
-                  {resultSelectionMeta.isCrossMonth 
-                    ? `Período selecionado: ${resultSelectionMeta.formattedStart} a ${resultSelectionMeta.formattedEnd} (${resultSelectionMeta.daysCount} dias)`
-                    : `Ativo: ${activeResultRevenueMonth?.shortLabel} (Rec: ${formatBRL(activeResultRevenueMonth?.totalValue || 0)} | Desp: ${formatBRL(activeResultExpenseMonth?.totalValue || 0)})`}
+                <span className={`font-bold truncate ${netSelectedValue >= 0 ? 'text-indigo-700' : 'text-rose-700'}`}>
+                  Mês Ativo: {activeNetMonthExpenseData?.shortLabel} ({netSelectedValue >= 0 ? '+' : ''}{formatBRL(netSelectedValue)})
+                </span>
+              </div>
+
+              <div className="overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
+                <div className="flex items-end justify-between gap-1 sm:gap-2 min-w-[320px] sm:min-w-0">
+                  {next12MonthsNetProjection.map((m) => {
+                    const isSelected = m.monthKey === activeNetMonthKey;
+                    const isNext = m.isNextMonth;
+                    const heightPercent = maxMonthNetValue > 0 
+                      ? Math.max((Math.abs(m.netValue) / maxMonthNetValue) * 100, 14) 
+                      : 14;
+
+                    return (
+                      <button
+                        key={m.monthKey} 
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedNetMonthKey(m.monthKey);
+                        }}
+                        className={`flex-1 flex flex-col items-center gap-1 p-0.5 sm:p-1 rounded-lg transition-all cursor-pointer group/bar focus:outline-none min-w-[22px] ${
+                          isSelected 
+                            ? 'bg-indigo-100/90 ring-2 ring-indigo-500 shadow-xs' 
+                            : 'hover:bg-slate-200/60'
+                        }`}
+                        title={`${m.label}: Receitas ${formatBRL(m.revenueValue)} − Despesas ${formatBRL(m.expenseValue)} = Líquido ${m.isPositive ? '+' : ''}${formatBRL(m.netValue)}`}
+                      >
+                        <div className="w-full h-10 sm:h-12 bg-slate-200/70 rounded-xs flex flex-col justify-end p-0.5 overflow-hidden">
+                          <div
+                            style={{ height: `${heightPercent}%` }}
+                            className={`w-full rounded-xs transition-all duration-200 ${
+                              isSelected
+                                ? (m.isPositive ? 'bg-indigo-600 shadow-xs' : 'bg-rose-600 shadow-xs')
+                                : (m.isPositive ? 'bg-slate-300 group-hover/bar:bg-indigo-400' : 'bg-slate-300 group-hover/bar:bg-rose-400')
+                            }`}
+                          />
+                        </div>
+                        <span className={`text-[9px] sm:text-[10px] font-mono leading-none ${
+                          isSelected 
+                            ? 'text-indigo-900 font-black underline' 
+                            : 'text-slate-500 font-semibold group-hover/bar:text-slate-800'
+                        }`}>
+                          {m.shortLabel.split('/')[0]}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 1. EXPECTATIVA DE RECEITAS (VISUAL REFINADO, CLARO E ALTO CONTRASTE) */}
+        {(forecastViewTab === 'both' || forecastViewTab === 'receitas') && (
+          <div 
+            id="financial-future-revenues-box"
+            className="bg-white border border-emerald-200/90 rounded-2xl p-4 sm:p-6 shadow-premium transition-all duration-200 overflow-hidden"
+          >
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 sm:gap-6">
+              {/* Left side: Mês Selecionado */}
+              <div className="space-y-2.5 sm:space-y-3">
+                <div className="flex items-center gap-1.5 sm:gap-2 flex-nowrap max-w-full overflow-hidden">
+                  <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold font-sans bg-emerald-50 text-emerald-800 border border-emerald-200/80 shadow-2xs shrink-0 whitespace-nowrap">
+                    <TrendingUp className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-emerald-600 shrink-0" />
+                    <span className="hidden sm:inline">{activeRevenueMonthData?.isNextMonth ? 'Expectativa de Receitas • Próximo Mês' : 'Expectativa de Receitas'}</span>
+                    <span className="sm:hidden">{activeRevenueMonthData?.isNextMonth ? 'Receitas • Próx. Mês' : 'Expectativa Receitas'}</span>
+                  </span>
+                  <span className="shrink-0 text-[10px] sm:text-xs text-slate-900 font-mono font-black px-1.5 sm:px-2 py-0.5 bg-slate-100 rounded-md border border-slate-200 whitespace-nowrap">
+                    {activeRevenueMonthData?.label}
+                  </span>
+                </div>
+
+                <div>
+                  <div className="font-mono text-2xl xs:text-3xl sm:text-4xl lg:text-5xl font-black text-emerald-700 tracking-tight">
+                    <span>{formatBRL(activeRevenueMonthData?.totalValue || 0)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right side: 12-Month Horizon Pill */}
+              <div className="flex flex-row lg:flex-col items-center lg:items-end justify-between gap-3 shrink-0 pt-3 lg:pt-0 border-t border-slate-100 lg:border-t-0">
+                <div className="text-left lg:text-right">
+                  <span className="text-[10px] uppercase font-mono font-bold tracking-wider text-slate-500 block">
+                    Total Previsto (12 Meses)
+                  </span>
+                  <span className="font-mono text-lg sm:text-xl lg:text-2xl font-black text-slate-900 block">
+                    {formatBRL(total12MonthsFutureRevenues)}
+                  </span>
+                  <span className="block text-[11px] sm:text-xs text-slate-500 font-mono">
+                    Média de {formatBRL(averageMonthlyFutureRevenues)} / mês
+                  </span>
+                </div>
+
+                <div className="text-[10px] sm:text-[11px] text-slate-400 font-medium text-right lg:text-right hidden xs:block">
+                  Clique no mês abaixo para trocar
+                </div>
+              </div>
+            </div>
+
+            {/* 12 Months Interactive Sparkline Timeline */}
+            <div className="mt-4 sm:mt-5 pt-3 sm:pt-4 border-t border-slate-100 bg-slate-50/80 p-2.5 sm:p-3.5 rounded-xl border border-slate-200/80">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-slate-600 font-mono mb-2 sm:mb-2.5 gap-1">
+                <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                  <span>Cronograma Interativo (Mês a Mês):</span>
+                  <span className="text-slate-400 font-normal hidden sm:inline">clique para selecionar</span>
+                </span>
+                <span className="text-emerald-800 font-bold truncate">
+                  Selecionado: {activeRevenueMonthData?.shortLabel} ({formatBRL(activeRevenueMonthData?.totalValue || 0)})
                 </span>
               </div>
 
               <div className="overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
                 <div className="flex items-end justify-between gap-1 sm:gap-2 min-w-[320px] sm:min-w-0">
                   {next12MonthsRevenueProjection.map((m) => {
-                    const isSelected = !resultSelectionMeta.isCrossMonth
-                      ? m.monthKey === activeResultMonthKey
-                      : (m.monthKey >= resultSelectionMeta.startDate.substring(0, 7) && m.monthKey <= resultSelectionMeta.endDate.substring(0, 7));
-                    const expM = next12MonthsProjection.find(x => x.monthKey === m.monthKey);
-                    const netVal = m.totalValue - (expM?.totalValue || 0);
+                    const isSelected = m.monthKey === activeRevenueMonthKey;
+                    const isNext = m.isNextMonth;
+                    const heightPercent = maxMonthRevenueProjectionValue > 0 
+                      ? Math.max((m.totalValue / maxMonthRevenueProjectionValue) * 100, 12) 
+                      : 12;
+                    const hasVal = m.totalValue > 0;
 
                     return (
                       <button
-                        key={m.monthKey}
+                        key={m.monthKey} 
                         type="button"
-                        onClick={() => {
-                          handleSetRangeForMonth(m.monthKey);
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedRevenueMonthKey(m.monthKey);
                         }}
-                        className={`flex-1 flex flex-col items-center gap-1 p-1 rounded-lg transition-all cursor-pointer focus:outline-none min-w-[28px] ${
+                        className={`flex-1 flex flex-col items-center gap-1 p-0.5 sm:p-1 rounded-lg transition-all cursor-pointer group/bar focus:outline-none min-w-[22px] ${
                           isSelected 
-                            ? 'bg-indigo-100/90 ring-2 ring-indigo-500 shadow-xs' 
+                            ? 'bg-emerald-100/90 ring-2 ring-emerald-500 shadow-xs' 
                             : 'hover:bg-slate-200/60'
                         }`}
-                        title={`${m.label}: Receitas ${formatBRL(m.totalValue)} / Despesas ${formatBRL(expM?.totalValue || 0)}`}
+                        title={`${m.label}: ${formatBRL(m.totalValue)} (Clique para exibir no painel)`}
                       >
-                        <div className="w-full h-9 bg-slate-200/70 rounded-xs flex flex-col justify-end p-0.5 overflow-hidden">
+                        <div className="w-full h-10 sm:h-12 bg-slate-200/70 rounded-xs flex flex-col justify-end p-0.5 overflow-hidden">
                           <div
-                            style={{ height: '100%' }}
+                            style={{ height: `${heightPercent}%` }}
                             className={`w-full rounded-xs transition-all duration-200 ${
                               isSelected
-                                ? 'bg-indigo-600'
-                                : netVal >= 0 ? 'bg-emerald-400' : 'bg-rose-400'
+                                ? 'bg-emerald-600 shadow-xs'
+                                : (hasVal ? 'bg-slate-300 group-hover/bar:bg-emerald-400' : 'bg-slate-200')
                             }`}
                           />
                         </div>
                         <span className={`text-[9px] sm:text-[10px] font-mono leading-none ${
                           isSelected 
-                            ? 'text-indigo-950 font-black underline' 
-                            : 'text-slate-600 font-semibold'
+                            ? 'text-emerald-900 font-black underline' 
+                            : 'text-slate-500 font-semibold group-hover/bar:text-slate-800'
                         }`}>
                           {m.shortLabel.split('/')[0]}
                         </span>
@@ -1407,514 +1777,273 @@ export function FinancialsTab({
               </div>
             </div>
 
-            {/* PAINEL DE DESTAQUE FINANCEIRO DA SELEÇÃO (EM DESTAQUE ABSOLUTO) */}
-            <div className="bg-gradient-to-br from-slate-900 via-slate-850 to-indigo-950 text-white rounded-2xl p-4 sm:p-5 shadow-xl border-2 border-indigo-500/50 relative overflow-hidden transition-all">
-              {/* Ambient Glows */}
-              <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
-              <div className="absolute bottom-0 left-0 w-64 h-64 bg-rose-500/15 rounded-full blur-3xl pointer-events-none" />
-
-              {/* Top Header of the Highlight Banner */}
-              <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3.5 border-b border-slate-700/80">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shrink-0">
-                    <Calculator className="h-5 w-5" />
+            {/* In-Panel Itemized Breakdown for Selected Month (Hidden by default, toggled via arrow) */}
+            <div className="mt-3 sm:mt-4 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                id="toggle-revenue-breakdown-btn"
+                onClick={() => setShowRevenueItems(prev => !prev)}
+                className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 border border-slate-200/80 transition-all text-left group/revToggle cursor-pointer bg-white shadow-2xs"
+                aria-expanded={showRevenueItems}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 shrink-0">
+                    <FileText className="h-3.5 w-3.5" />
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 bg-indigo-500/20 px-2 py-0.5 rounded-full border border-indigo-500/30 font-sans">
-                        Resultado Financeiro Selecionado
+                  <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                    <span className="text-xs md:text-base font-bold text-slate-800 whitespace-nowrap">
+                      Receitas do Mês
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded-md text-[10px] md:text-xs font-mono font-semibold bg-slate-100 text-slate-600 border border-slate-200/60 shrink-0">
+                      {activeRevenueMonthData?.items.length || 0} {activeRevenueMonthData?.items.length === 1 ? 'item' : 'itens'}
+                    </span>
+                    {dailyRevenueBreakdown.length > 0 && (
+                      <span className="hidden xs:inline-block px-1.5 py-0.5 rounded-md text-[10px] md:text-xs font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/80 shrink-0">
+                        {dailyRevenueBreakdown.length} {dailyRevenueBreakdown.length === 1 ? 'dia' : 'dias'}
                       </span>
-                      <span className="text-xs font-mono font-bold text-slate-200 bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-700">
-                        {resultSelectionMeta.selectionTitle}
-                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold font-sans transition-colors shrink-0 ml-2 bg-emerald-50/80 text-emerald-700 group-hover/revToggle:bg-emerald-100">
+                  <span>{showRevenueItems ? 'Ocultar' : 'Ver'}</span>
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${showRevenueItems ? 'rotate-180' : ''}`} />
+                </div>
+              </button>
+
+              {showRevenueItems && (
+                <div className="mt-3 space-y-3 animate-fade-in">
+                  {activeRevenueMonthData?.items.length === 0 ? (
+                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 text-center text-xs text-slate-500 font-sans">
+                      Nenhuma receita estimada para este mês.
                     </div>
-                    <p className="text-[11px] text-slate-300 font-sans mt-1">
-                      {resultSelectionMeta.selectionSubtitle}
-                    </p>
-                  </div>
-                </div>
-
-                {resultSelectionMeta.isFiltered && (
-                  <button
-                    type="button"
-                    onClick={handleResetResultToDefault}
-                    className="self-start sm:self-center px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-750 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-all border border-slate-600 cursor-pointer hover:text-white shrink-0 shadow-sm"
-                  >
-                    <RotateCcw className="h-3.5 w-3.5 text-indigo-400" />
-                    <span>Redefinir Filtro</span>
-                  </button>
-                )}
-              </div>
-
-              {/* Big Stat Cards Side-by-Side in Focus */}
-              <div className="relative z-10 grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3.5">
-                {/* Receitas */}
-                <div className="bg-slate-800/90 rounded-xl p-3 sm:p-3.5 border border-emerald-500/30 shadow-inner">
-                  <div className="flex items-center justify-between text-xs text-emerald-400 font-semibold mb-1">
-                    <span className="flex items-center gap-1.5">
-                      <TrendingUp className="h-3.5 w-3.5" />
-                      Receitas Previstas
-                    </span>
-                    <span className="text-[10px] bg-emerald-500/20 px-1.5 py-0.2 rounded font-mono text-emerald-300 font-bold">
-                      {autonomousFinancialResult.revenuesItems.length} {autonomousFinancialResult.revenuesItems.length === 1 ? 'rec.' : 'rec.'}
-                    </span>
-                  </div>
-                  <div className="text-xl sm:text-2xl font-black font-mono text-emerald-400 tracking-tight">
-                    + {formatBRL(autonomousFinancialResult.revenuesTotal)}
-                  </div>
-                  <p className="text-[11px] text-slate-300 mt-1 truncate font-sans">
-                    {autonomousFinancialResult.revenuesDriversSummary}
-                  </p>
-                </div>
-
-                {/* Despesas */}
-                <div className="bg-slate-800/90 rounded-xl p-3 sm:p-3.5 border border-rose-500/30 shadow-inner">
-                  <div className="flex items-center justify-between text-xs text-rose-400 font-semibold mb-1">
-                    <span className="flex items-center gap-1.5">
-                      <TrendingDown className="h-3.5 w-3.5" />
-                      Despesas no Recorte
-                    </span>
-                    <span className="text-[10px] bg-rose-500/20 px-1.5 py-0.2 rounded font-mono text-rose-300 font-bold">
-                      {autonomousFinancialResult.expensesItems.length} {autonomousFinancialResult.expensesItems.length === 1 ? 'obrig.' : 'obrig.'}
-                    </span>
-                  </div>
-                  <div className="text-xl sm:text-2xl font-black font-mono text-rose-400 tracking-tight">
-                    - {formatBRL(autonomousFinancialResult.expensesTotal)}
-                  </div>
-                  <p className="text-[11px] text-slate-300 mt-1 truncate font-sans">
-                    {autonomousFinancialResult.expensesSummary}
-                  </p>
-                </div>
-
-                {/* Saldo Líquido */}
-                <div className={`rounded-xl p-3 sm:p-3.5 border shadow-inner ${
-                  autonomousFinancialResult.balance >= 0
-                    ? 'bg-emerald-950/80 border-emerald-500/60'
-                    : 'bg-rose-950/80 border-rose-500/60'
-                }`}>
-                  <div className="flex items-center justify-between text-xs font-semibold mb-1">
-                    <span className={`flex items-center gap-1.5 ${autonomousFinancialResult.balance >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
-                      <DollarSign className="h-3.5 w-3.5" />
-                      Saldo Líquido Projetado
-                    </span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded font-black uppercase tracking-wider ${
-                      autonomousFinancialResult.balance >= 0 ? 'bg-emerald-500/30 text-emerald-200' : 'bg-rose-500/30 text-rose-200'
-                    }`}>
-                      {autonomousFinancialResult.balance >= 0 ? 'Superávit' : 'Déficit'}
-                    </span>
-                  </div>
-                  <div className={`text-xl sm:text-2xl font-black font-mono tracking-tight ${
-                    autonomousFinancialResult.balance >= 0 ? 'text-emerald-300' : 'text-rose-300'
-                  }`}>
-                    {autonomousFinancialResult.balance >= 0 ? '+ ' : ''}{formatBRL(autonomousFinancialResult.balance)}
-                  </div>
-                  <p className="text-[11px] text-slate-300 mt-1 font-sans">
-                    {autonomousFinancialResult.balance >= 0 
-                      ? 'Receitas superam as despesas na seleção' 
-                      : 'Despesas superam as receitas na seleção'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* CONSOLIDAÇÃO MÊS A MÊS NO PERÍODO COMPLEXO */}
-            {resultSelectionMeta.isCrossMonth && crossMonthBreakdown.length > 0 && (
-              <div className="bg-gradient-to-br from-indigo-900/10 via-slate-50 to-indigo-50/30 border-2 border-indigo-200/80 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-100 pb-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="p-1.5 rounded-lg bg-indigo-600 text-white shadow-2xs">
-                      <Layers className="h-4 w-4" />
-                    </span>
-                    <div>
-                      <h4 className="text-xs sm:text-sm font-bold text-slate-900 font-sans flex items-center gap-2">
-                        <span>Evolução Consolidada Mês a Mês ({crossMonthBreakdown.length} Meses no Período)</span>
-                        <span className="text-[10px] font-mono font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full border border-indigo-200">
-                          Recorte Entre Meses
-                        </span>
-                      </h4>
-                      <p className="text-[11px] text-slate-500 font-sans">
-                        Comportamento comparativo mensal dentro do intervalo livre selecionado ({resultSelectionMeta.formattedStart} a {resultSelectionMeta.formattedEnd}).
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 pt-1">
-                  {crossMonthBreakdown.map((mb) => {
-                    const isSuperavit = mb.balance >= 0;
-                    return (
-                      <div
-                        key={mb.monthKey}
-                        className="bg-white border border-slate-200 hover:border-indigo-300 rounded-xl p-3 shadow-2xs hover:shadow-xs transition-all space-y-2 group"
-                      >
-                        <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
-                          <span className="text-xs font-bold font-sans text-slate-800">
-                            {mb.label}
-                          </span>
-                          <span className={`text-[10px] font-black font-mono px-1.5 py-0.5 rounded ${
-                            isSuperavit ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60' : 'bg-rose-50 text-rose-700 border border-rose-200/60'
-                          }`}>
-                            {isSuperavit ? 'Superávit' : 'Déficit'}
+                  ) : (
+                    <>
+                      {/* BARRA SUPERIOR DAS RECEITAS DO MÊS */}
+                      <div className="bg-slate-50/90 border border-slate-200/80 rounded-xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-800 font-sans">
+                              Discriminação de Receitas de {activeRevenueMonthData?.label}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              + {formatBRL(activeRevenueMonthData?.totalValue || 0)}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
+                            {dailyRevenueBreakdown.length} {dailyRevenueBreakdown.length === 1 ? 'dia com recebimento' : 'dias com recebimento'} • {activeRevenueMonthData?.items.length || 0} parcelas calculadas pelos dias combinados
                           </span>
                         </div>
 
-                        <div className="space-y-1 text-xs font-mono">
-                          <div className="flex items-center justify-between text-slate-600">
-                            <span className="flex items-center gap-1 text-[11px]">
-                              <TrendingUp className="h-3 w-3 text-emerald-600" />
-                              Receitas:
-                            </span>
-                            <span className="font-bold text-emerald-700">
-                              + {formatBRL(mb.revTotal)}
-                            </span>
-                          </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {/* Atalho para Filtro por Dia/Período Autônomo */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleSetRangeForMonth(activeRevenueMonthKey);
+                              setSubView('period_filter');
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                            title="Abrir no Filtro por Dia/Período"
+                          >
+                            <SlidersHorizontal className="h-3.5 w-3.5 text-indigo-600" />
+                            <span>Filtro por Dia/Período</span>
+                          </button>
 
-                          <div className="flex items-center justify-between text-slate-600">
-                            <span className="flex items-center gap-1 text-[11px]">
-                              <TrendingDown className="h-3 w-3 text-rose-500" />
-                              Despesas:
-                            </span>
-                            <span className="font-bold text-rose-700">
-                              - {formatBRL(mb.expTotal)}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between pt-1 border-t border-slate-100">
-                            <span className="font-sans font-bold text-slate-800 text-[11px]">
-                              Saldo:
-                            </span>
-                            <span className={`font-black ${isSuperavit ? 'text-emerald-800' : 'text-rose-700'}`}>
-                              {isSuperavit ? '+ ' : ''}{formatBRL(mb.balance)}
-                            </span>
+                          {/* Toggle Mode: Cards vs Table */}
+                          <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 text-[11px] font-medium font-sans shadow-2xs">
+                            <button
+                              type="button"
+                              onClick={() => setRevenueBreakdownMode('cards')}
+                              className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                                revenueBreakdownMode === 'cards'
+                                  ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs'
+                                  : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              <LayoutList className="h-3 w-3" />
+                              <span>Por Dia</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setRevenueBreakdownMode('table')}
+                              className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                                revenueBreakdownMode === 'table'
+                                  ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs'
+                                  : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              <Table className="h-3 w-3" />
+                              <span>Tabela</span>
+                            </button>
                           </div>
                         </div>
-
-                        <button
-                          type="button"
-                          onClick={() => handleSetRangeForMonth(mb.monthKey)}
-                          className="w-full mt-1 py-1 text-[10px] font-semibold text-indigo-700 hover:text-indigo-900 bg-indigo-50/70 hover:bg-indigo-100 rounded-lg transition-colors cursor-pointer text-center"
-                        >
-                          Focar somente neste mês
-                        </button>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
-            {/* FILTROS ESPECÍFICOS: INTERVALO LIVRE COMPLEXO & DIAS EXATOS */}
-            <div className="bg-slate-50/90 border border-slate-200/80 rounded-xl p-3 sm:p-3.5 space-y-2.5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="p-1.5 rounded-lg bg-indigo-100 text-indigo-800 shrink-0">
-                    <Filter className="h-4 w-4" />
-                  </span>
-                  <div>
-                    <span className="text-xs font-bold text-slate-900 block font-sans">
-                      Filtro por Intervalo Livre Complexo & Dias
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-mono">
-                      Selecione qualquer período inicial e final (inclusive entre meses) para apuração imediata
-                    </span>
-                  </div>
-                </div>
+                      {/* Display Mode 1: Daily Group Cards with item breakdown */}
+                      {revenueBreakdownMode === 'cards' && (
+                        <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1 scrollbar-thin">
+                          {dailyRevenueBreakdown.length === 0 ? (
+                            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 text-center text-xs text-slate-500 font-sans">
+                              Nenhuma receita prevista para este mês.
+                            </div>
+                          ) : (
+                            dailyRevenueBreakdown.map((group) => (
+                              <div 
+                                key={group.dateStr}
+                                className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden transition-all hover:border-emerald-200"
+                              >
+                                {/* Daily Group Header with exact total */}
+                                <div className="bg-slate-50/90 px-3 py-2 sm:px-3.5 sm:py-2.5 border-b border-slate-200/80 flex items-center justify-between gap-2 flex-wrap">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="flex flex-col items-center justify-center bg-white border border-slate-200/90 rounded-lg px-2 py-0.5 shadow-2xs text-center shrink-0 min-w-[46px]">
+                                      <span className="text-[8px] uppercase font-bold text-slate-400 font-sans leading-none">
+                                        {group.shortDayName}
+                                      </span>
+                                      <span className="text-sm font-black font-mono text-slate-900 leading-tight">
+                                        {String(group.dayNumber).padStart(2, '0')}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-xs font-bold text-slate-900 font-sans">
+                                          {group.fullFormattedDate}
+                                        </span>
+                                        <span className="text-[11px] text-slate-500 font-medium font-sans">
+                                          • {group.dayName}
+                                        </span>
+                                      </div>
+                                      <span className="text-[10px] text-slate-400 font-mono block leading-tight">
+                                        {group.items.length} {group.items.length === 1 ? 'recebimento previsto' : 'recebimentos previstos'}
+                                      </span>
+                                    </div>
+                                  </div>
 
-                {/* View Mode: Lado a Lado vs Cronológico */}
-                <div className="flex items-center self-start sm:self-center bg-white border border-slate-200 rounded-lg p-0.5 text-[11px] font-medium font-sans shadow-2xs">
-                  <button
-                    type="button"
-                    onClick={() => setResultViewMode('split')}
-                    className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
-                      resultViewMode === 'split'
-                        ? 'bg-indigo-50 text-indigo-800 font-bold shadow-2xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    <LayoutList className="h-3 w-3" />
-                    <span>Lado a Lado (Rec. x Desp.)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setResultViewMode('timeline')}
-                    className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
-                      resultViewMode === 'timeline'
-                        ? 'bg-indigo-50 text-indigo-800 font-bold shadow-2xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    <Table className="h-3 w-3" />
-                    <span>Extrato Diário</span>
-                  </button>
-                </div>
-              </div>
+                                  {/* Total value for this day */}
+                                  <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-lg">
+                                    <span className="text-[10px] font-bold text-emerald-800 uppercase font-sans">
+                                      Total do Dia:
+                                    </span>
+                                    <span className="font-mono text-xs sm:text-sm font-black text-emerald-800">
+                                      + {formatBRL(group.totalValue)}
+                                    </span>
+                                  </div>
+                                </div>
 
-              {/* Controles de Intervalo Livre */}
-              <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between gap-3 flex-wrap bg-white p-3 rounded-xl border border-slate-200 shadow-2xs font-sans">
-                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <SlidersHorizontal className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
-                    Intervalo Livre:
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-slate-500 font-medium">De</span>
-                    <input
-                      type="date"
-                      value={resultStartDate}
-                      onChange={(e) => {
-                        if (e.target.value) setResultStartDate(e.target.value);
-                      }}
-                      className="px-2.5 py-1 border border-slate-200 rounded-lg font-mono text-xs font-bold text-slate-900 bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 focus:outline-hidden"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-slate-500 font-medium">Até</span>
-                    <input
-                      type="date"
-                      value={resultEndDate}
-                      onChange={(e) => {
-                        if (e.target.value) setResultEndDate(e.target.value);
-                      }}
-                      className="px-2.5 py-1 border border-slate-200 rounded-lg font-mono text-xs font-bold text-slate-900 bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 focus:outline-hidden"
-                    />
-                  </div>
-                  <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-md border ${
-                    resultSelectionMeta.isCrossMonth 
-                      ? 'bg-indigo-50 text-indigo-800 border-indigo-200/80 font-black' 
-                      : 'bg-slate-100 text-slate-700 border-slate-200'
-                  }`}>
-                    {resultSelectionMeta.daysCount} {resultSelectionMeta.daysCount === 1 ? 'dia' : 'dias'}
-                    {resultSelectionMeta.isCrossMonth && ' • Entre Meses'}
-                  </span>
-                </div>
-
-                {resultSelectionMeta.isFiltered && (
-                  <button
-                    type="button"
-                    onClick={handleResetResultToDefault}
-                    className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:text-indigo-800 hover:bg-indigo-50 border border-slate-200 transition-all flex items-center gap-1 cursor-pointer"
-                    title="Redefinir para o mês inicial padrão"
-                  >
-                    <RotateCcw className="h-3 w-3 text-indigo-600" />
-                    <span>Redefinir Filtro</span>
-                  </button>
-                )}
-              </div>
-
-              {/* Chips dos Dias com Pagamento Previsto ou Despesas */}
-              {allActiveResultDays.length > 0 && (
-                <div className="pt-1.5 border-t border-slate-200/60">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5 font-sans">
-                    Dias com Atividade Financeira Prevista (Clique para focar no dia):
-                  </span>
-                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
-                    {allActiveResultDays.map((d) => {
-                      const isExactSingleDay = resultStartDate === d.dateStr && resultEndDate === d.dateStr;
-                      const isInActiveSet = resultSelectionMeta.selectedDateSet.has(d.dateStr);
-
-                      return (
-                        <button
-                          key={d.dateStr}
-                          type="button"
-                          onClick={() => handleSelectResultSingleDay(d.dateStr)}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-mono transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
-                            isExactSingleDay
-                              ? 'bg-indigo-700 text-white font-bold shadow-xs ring-2 ring-indigo-300'
-                              : isInActiveSet
-                                ? 'bg-indigo-50 text-indigo-900 border border-indigo-300 font-bold'
-                                : 'bg-white text-slate-600 hover:bg-indigo-50/50 border border-slate-200 opacity-70'
-                          }`}
-                          title={`${d.formattedDate} (${d.dayName}) - Rec: ${formatBRL(d.revTotal)} | Desp: ${formatBRL(d.expTotal)}`}
-                        >
-                          <span className="font-bold">
-                            {d.shortFormattedDate} ({d.shortDayName})
-                          </span>
-                          {d.revTotal > 0 && (
-                            <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800">
-                              +{formatBRL(d.revTotal)}
-                            </span>
+                                {/* Items on this day */}
+                                <div className="divide-y divide-slate-100 p-1 sm:p-1.5 bg-white">
+                                  {group.items.map((item) => (
+                                    <div 
+                                      key={item.id}
+                                      className="flex flex-col xs:flex-row xs:items-center justify-between p-2 hover:bg-slate-50/80 rounded-lg transition-colors text-xs gap-2"
+                                    >
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <span className="font-bold text-slate-800 truncate">
+                                            {item.title}
+                                          </span>
+                                          <span className="px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                            {item.category}
+                                          </span>
+                                          {item.vehiclePlate && (
+                                            <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-slate-200 text-slate-700">
+                                              {item.vehiclePlate} {item.vehicleModel ? `• ${item.vehicleModel}` : ''}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                                          {item.description || item.installmentLabel}
+                                        </p>
+                                      </div>
+                                      <div className="shrink-0 font-mono font-bold text-emerald-700 self-end xs:self-center pl-2 text-xs sm:text-sm">
+                                        + {formatBRL(item.value)}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))
                           )}
-                          {d.expTotal > 0 && (
-                            <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-rose-100 text-rose-700">
-                              -{formatBRL(d.expTotal)}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
+                        </div>
+                      )}
+
+                      {/* Display Mode 2: Compact Summary Table */}
+                      {revenueBreakdownMode === 'table' && (
+                        <div className="border border-slate-200/90 rounded-xl overflow-hidden shadow-2xs max-h-[420px] overflow-y-auto scrollbar-thin bg-white">
+                          <table className="w-full text-left border-collapse text-xs font-sans">
+                            <thead className="bg-slate-100/90 text-slate-700 font-bold border-b border-slate-200 sticky top-0 z-10">
+                              <tr>
+                                <th className="p-2.5">Dia / Data</th>
+                                <th className="p-2.5 hidden sm:table-cell">Dia da Semana</th>
+                                <th className="p-2.5">Recebimentos Previstos</th>
+                                <th className="p-2.5 text-right">Valor Total do Dia</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {dailyRevenueBreakdown.length === 0 ? (
+                                <tr>
+                                  <td colSpan={4} className="p-4 text-center text-slate-500">
+                                    Nenhuma receita prevista para este mês.
+                                  </td>
+                                </tr>
+                              ) : (
+                                dailyRevenueBreakdown.map((group) => (
+                                  <tr key={group.dateStr} className="hover:bg-slate-50 transition-colors">
+                                    <td className="p-2.5 font-mono font-bold text-slate-900 whitespace-nowrap">
+                                      <span className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 mr-1.5 font-black text-emerald-800">
+                                        Dia {String(group.dayNumber).padStart(2, '0')}
+                                      </span>
+                                      {group.formattedDate}
+                                    </td>
+                                    <td className="p-2.5 text-slate-600 hidden sm:table-cell font-medium">
+                                      {group.dayName}
+                                    </td>
+                                    <td className="p-2.5 text-slate-700">
+                                      <div className="space-y-0.5">
+                                        <div className="font-semibold text-slate-800">
+                                          {group.items.length} {group.items.length === 1 ? 'recebimento' : 'recebimentos'}
+                                        </div>
+                                        <div className="text-[11px] text-slate-500 line-clamp-1">
+                                          {group.items.map(it => it.title).join(', ')}
+                                        </div>
+                                      </div>
+                                    </td>
+                                    <td className="p-2.5 text-right font-mono font-black text-emerald-700 whitespace-nowrap text-xs sm:text-sm">
+                                      + {formatBRL(group.totalValue)}
+                                    </td>
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                            <tfoot className="bg-slate-50 border-t border-slate-200 font-bold">
+                              <tr>
+                                <td colSpan={2} className="p-2.5 text-slate-700 font-sans hidden sm:table-cell">
+                                  Total Consolidado ({dailyRevenueBreakdown.length} dias de recebimento)
+                                </td>
+                                <td className="p-2.5 text-slate-700 font-sans sm:hidden">
+                                  Total ({dailyRevenueBreakdown.length} dias)
+                                </td>
+                                <td className="p-2.5 text-slate-500 text-[11px] font-mono sm:table-cell hidden">
+                                  {activeRevenueMonthData?.items.length || 0} recebimentos
+                                </td>
+                                <td className="p-2.5 text-right font-mono font-black text-emerald-800 text-sm">
+                                  + {formatBRL(activeRevenueMonthData?.totalValue || 0)}
+                                </td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               )}
             </div>
-
-            {/* Detalhamento dos Lançamentos do Recorte: Lado a Lado ou Diário */}
-            {resultViewMode === 'split' ? (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {/* Coluna 1: Receitas do Recorte */}
-                <div className="bg-white border border-emerald-200 rounded-xl overflow-hidden shadow-2xs">
-                  <div className="bg-emerald-50/90 px-3.5 py-2.5 border-b border-emerald-200 flex items-center justify-between">
-                    <span className="text-xs font-bold text-emerald-900 flex items-center gap-1.5 font-sans">
-                      <TrendingUp className="h-4 w-4 text-emerald-700" />
-                      Receitas do Recorte ({autonomousFinancialResult.revenuesItems.length})
-                    </span>
-                    <span className="font-mono text-sm font-black text-emerald-800">
-                      + {formatBRL(autonomousFinancialResult.revenuesTotal)}
-                    </span>
-                  </div>
-                  <div className="p-2 space-y-1.5 max-h-[360px] overflow-y-auto scrollbar-thin">
-                    {autonomousFinancialResult.revenuesItems.length === 0 ? (
-                      <div className="p-4 text-center text-xs text-slate-400 font-sans">
-                        Nenhum recebimento previsto para as datas selecionadas.
-                      </div>
-                    ) : (
-                      autonomousFinancialResult.revenuesItems.map((item) => (
-                        <div key={item.id} className="p-2 rounded-lg bg-emerald-50/40 border border-emerald-100 hover:bg-emerald-50 flex items-center justify-between text-xs">
-                          <div className="min-w-0 flex-1 pr-2">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-bold text-slate-800 truncate">{item.title}</span>
-                              <span className="font-mono text-[10px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.2 rounded">
-                                {item.dueDate ? `${item.dueDate.split('-')[2]}/${item.dueDate.split('-')[1]}` : ''}
-                              </span>
-                              {item.vehiclePlate && (
-                                <span className="text-[9px] font-mono bg-slate-200 text-slate-700 px-1 py-0.2 rounded">
-                                  {item.vehiclePlate}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                              {item.description || item.installmentLabel}
-                            </p>
-                          </div>
-                          <div className="shrink-0 font-mono font-bold text-emerald-700">
-                            + {formatBRL(item.value)}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                {/* Coluna 2: Despesas do Recorte */}
-                <div className="bg-white border border-rose-200 rounded-xl overflow-hidden shadow-2xs">
-                  <div className="bg-rose-50/90 px-3.5 py-2.5 border-b border-rose-200 flex items-center justify-between">
-                    <span className="text-xs font-bold text-rose-900 flex items-center gap-1.5 font-sans">
-                      <TrendingDown className="h-4 w-4 text-rose-700" />
-                      Despesas do Recorte ({autonomousFinancialResult.expensesItems.length})
-                    </span>
-                    <span className="font-mono text-sm font-black text-rose-700">
-                      - {formatBRL(autonomousFinancialResult.expensesTotal)}
-                    </span>
-                  </div>
-                  <div className="p-2 space-y-1.5 max-h-[360px] overflow-y-auto scrollbar-thin">
-                    {autonomousFinancialResult.expensesItems.length === 0 ? (
-                      <div className="p-4 text-center text-xs text-slate-400 font-sans">
-                        Nenhuma despesa prevista para as datas selecionadas.
-                      </div>
-                    ) : (
-                      autonomousFinancialResult.expensesItems.map((item) => (
-                        <div key={item.id} className="p-2 rounded-lg bg-rose-50/40 border border-rose-100 hover:bg-rose-50 flex items-center justify-between text-xs">
-                          <div className="min-w-0 flex-1 pr-2">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-bold text-slate-800 truncate">{item.title}</span>
-                              <span className="font-mono text-[10px] font-bold text-rose-800 bg-rose-100 px-1.5 py-0.2 rounded">
-                                {item.dueDate ? `${item.dueDate.split('-')[2]}/${item.dueDate.split('-')[1]}` : ''}
-                              </span>
-                              <span className="text-[9px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 px-1 py-0.2 rounded">
-                                {item.category}
-                              </span>
-                              {item.vehiclePlate && (
-                                <span className="text-[9px] font-mono bg-slate-200 text-slate-700 px-1 py-0.2 rounded">
-                                  {item.vehiclePlate}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                              {item.description || item.installmentLabel}
-                            </p>
-                          </div>
-                          <div className="shrink-0 font-mono font-bold text-rose-600">
-                            - {formatBRL(item.value)}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              /* Extrato Diário Consolidado */
-              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs max-h-[380px] overflow-y-auto scrollbar-thin bg-white">
-                <table className="w-full text-left border-collapse text-xs font-sans">
-                  <thead className="bg-slate-100/90 text-slate-700 font-bold border-b border-slate-200 sticky top-0 z-10">
-                    <tr>
-                      <th className="p-2.5">Dia / Data</th>
-                      <th className="p-2.5">Dia da Semana</th>
-                      <th className="p-2.5 text-right">Receitas</th>
-                      <th className="p-2.5 text-right">Despesas</th>
-                      <th className="p-2.5 text-right">Saldo do Dia</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {allActiveResultDays.filter(d => resultSelectionMeta.selectedDateSet.has(d.dateStr)).length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="p-4 text-center text-slate-400">
-                          Nenhum lançamento para o recorte selecionado.
-                        </td>
-                      </tr>
-                    ) : (
-                      allActiveResultDays
-                        .filter(d => resultSelectionMeta.selectedDateSet.has(d.dateStr))
-                        .map((d) => (
-                          <tr key={d.dateStr} className="hover:bg-slate-50 transition-colors">
-                            <td className="p-2.5 font-mono font-bold text-slate-900 whitespace-nowrap">
-                              <span className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 mr-1.5 font-black text-indigo-900">
-                                Dia {String(d.dayNumber).padStart(2, '0')}
-                              </span>
-                              {d.formattedDate}
-                            </td>
-                            <td className="p-2.5 text-slate-600 font-medium">
-                              {d.dayName}
-                            </td>
-                            <td className="p-2.5 text-right font-mono font-bold text-emerald-700">
-                              {d.revTotal > 0 ? `+ ${formatBRL(d.revTotal)}` : '—'}
-                            </td>
-                            <td className="p-2.5 text-right font-mono font-bold text-rose-600">
-                              {d.expTotal > 0 ? `- ${formatBRL(d.expTotal)}` : '—'}
-                            </td>
-                            <td className={`p-2.5 text-right font-mono font-black text-xs sm:text-sm ${
-                              d.balance >= 0 ? 'text-emerald-800' : 'text-rose-700'
-                            }`}>
-                              {d.balance >= 0 ? '+ ' : ''}{formatBRL(d.balance)}
-                            </td>
-                          </tr>
-                        ))
-                    )}
-                  </tbody>
-                  <tfoot className="bg-slate-50 border-t border-slate-200 font-bold">
-                    <tr>
-                      <td colSpan={2} className="p-2.5 text-slate-800 font-sans">
-                        Total do Recorte Selecionado
-                      </td>
-                      <td className="p-2.5 text-right font-mono font-black text-emerald-800 text-xs sm:text-sm">
-                        + {formatBRL(autonomousFinancialResult.revenuesTotal)}
-                      </td>
-                      <td className="p-2.5 text-right font-mono font-black text-rose-700 text-xs sm:text-sm">
-                        - {formatBRL(autonomousFinancialResult.expensesTotal)}
-                      </td>
-                      <td className={`p-2.5 text-right font-mono font-black text-sm ${
-                        autonomousFinancialResult.balance >= 0 ? 'text-emerald-800' : 'text-rose-700'
-                      }`}>
-                        {autonomousFinancialResult.balance >= 0 ? '+ ' : ''}{formatBRL(autonomousFinancialResult.balance)}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            )}
           </div>
         )}
 
-        {/* 1. EXPECTATIVA DE DESPESAS (VISUAL REFINADO, CLARO E ALTO CONTRASTE) */}
+        {/* 2. EXPECTATIVA DE DESPESAS (VISUAL REFINADO, CLARO E ALTO CONTRASTE) */}
         {(forecastViewTab === 'both' || forecastViewTab === 'despesas') && (
           <div 
             id="financial-future-expenses-box"
@@ -2004,20 +2133,14 @@ export function FinancialsTab({
                             className={`w-full rounded-xs transition-all duration-200 ${
                               isSelected
                                 ? 'bg-rose-600 shadow-xs'
-                                : isNext 
-                                  ? 'bg-rose-400' 
-                                  : hasVal 
-                                    ? 'bg-slate-400 group-hover/bar:bg-rose-400' 
-                                    : 'bg-slate-300'
+                                : (hasVal ? 'bg-slate-300 group-hover/bar:bg-rose-400' : 'bg-slate-200')
                             }`}
                           />
                         </div>
                         <span className={`text-[9px] sm:text-[10px] font-mono leading-none ${
                           isSelected 
                             ? 'text-rose-800 font-black underline' 
-                            : isNext 
-                              ? 'text-rose-600 font-bold' 
-                              : 'text-slate-600 font-semibold'
+                            : 'text-slate-500 font-semibold group-hover/bar:text-slate-800'
                         }`}>
                           {m.shortLabel.split('/')[0]}
                         </span>
@@ -2088,18 +2211,19 @@ export function FinancialsTab({
                           </div>
 
                         <div className="flex items-center gap-2 flex-wrap self-start sm:self-center">
-                          {/* Atalho para Resultado Financeiro Autônomo */}
+                          {/* Atalho para Filtro por Dia/Período Autônomo */}
                           <button
                             type="button"
                             onClick={() => {
                               handleSetRangeForMonth(activeExpenseMonthKey);
-                              setForecastViewTab('resultado');
+                              setSubView('period_filter');
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
                             }}
                             className="px-2.5 py-1 rounded-lg text-xs font-semibold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                            title="Ir para a aba autônoma de Resultado Financeiro"
+                            title="Abrir no Filtro por Dia/Período"
                           >
-                            <Calculator className="h-3.5 w-3.5 text-indigo-600" />
-                            <span>Analisar Resultado Financeiro</span>
+                            <SlidersHorizontal className="h-3.5 w-3.5 text-indigo-600" />
+                            <span>Filtro por Dia/Período</span>
                           </button>
 
                           {/* Mode Toggle: Cards vs Table */}
@@ -2334,441 +2458,6 @@ export function FinancialsTab({
           </div>
         )}
 
-        {/* 2. EXPECTATIVA DE RECEITAS (LOCALIZADA ABAIXO, VISUAL CLARO E ALTO CONTRASTE) */}
-        {(forecastViewTab === 'both' || forecastViewTab === 'receitas') && (
-          <div 
-            id="financial-future-revenues-box"
-            className="bg-white border border-emerald-200/90 rounded-2xl p-4 sm:p-6 shadow-premium transition-all duration-200 overflow-hidden"
-          >
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 sm:gap-6">
-              {/* Left side: Mês Selecionado */}
-              <div className="space-y-2.5 sm:space-y-3">
-                <div className="flex items-center gap-1.5 sm:gap-2 flex-nowrap max-w-full overflow-hidden">
-                  <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold font-sans bg-emerald-50 text-emerald-800 border border-emerald-200/80 shadow-2xs shrink-0 whitespace-nowrap">
-                    <TrendingUp className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-emerald-600 shrink-0" />
-                    <span className="hidden sm:inline">{activeRevenueMonthData?.isNextMonth ? 'Expectativa de Receitas • Próximo Mês' : 'Expectativa de Receitas'}</span>
-                    <span className="sm:hidden">{activeRevenueMonthData?.isNextMonth ? 'Receitas • Próx. Mês' : 'Expectativa Receitas'}</span>
-                  </span>
-                  <span className="shrink-0 text-[10px] sm:text-xs text-slate-900 font-mono font-black px-1.5 sm:px-2 py-0.5 bg-slate-100 rounded-md border border-slate-200 whitespace-nowrap">
-                    {activeRevenueMonthData?.label}
-                  </span>
-                </div>
-
-                <div>
-                  <div className="font-mono text-2xl xs:text-3xl sm:text-4xl lg:text-5xl font-black text-emerald-700 tracking-tight">
-                    <span>{formatBRL(activeRevenueMonthData?.totalValue || 0)}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right side: 12-Month Horizon Pill */}
-              <div className="flex flex-row lg:flex-col items-center lg:items-end justify-between gap-3 shrink-0 pt-3 lg:pt-0 border-t border-slate-100 lg:border-t-0">
-                <div className="text-left lg:text-right">
-                  <span className="text-[10px] uppercase font-mono font-bold tracking-wider text-slate-500 block">
-                    Total Previsto (12 Meses)
-                  </span>
-                  <span className="font-mono text-lg sm:text-xl lg:text-2xl font-black text-slate-900 block">
-                    {formatBRL(total12MonthsFutureRevenues)}
-                  </span>
-                  <span className="block text-[11px] sm:text-xs text-slate-500 font-mono">
-                    Média de {formatBRL(averageMonthlyFutureRevenues)} / mês
-                  </span>
-                </div>
-
-                <div className="text-[10px] sm:text-[11px] text-slate-400 font-medium text-right lg:text-right hidden xs:block">
-                  Clique no mês abaixo para trocar
-                </div>
-              </div>
-            </div>
-
-            {/* 12 Months Interactive Sparkline Timeline */}
-            <div className="mt-4 sm:mt-5 pt-3 sm:pt-4 border-t border-slate-100 bg-slate-50/80 p-2.5 sm:p-3.5 rounded-xl border border-slate-200/80">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-slate-600 font-mono mb-2 sm:mb-2.5 gap-1">
-                <span className="font-bold text-slate-700 flex items-center gap-1.5">
-                  <span>Cronograma Interativo (Mês a Mês):</span>
-                  <span className="text-slate-400 font-normal hidden sm:inline">clique para selecionar</span>
-                </span>
-                <span className="text-emerald-800 font-bold truncate">
-                  Selecionado: {activeRevenueMonthData?.shortLabel} ({formatBRL(activeRevenueMonthData?.totalValue || 0)})
-                </span>
-              </div>
-
-              <div className="overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
-                <div className="flex items-end justify-between gap-1 sm:gap-2 min-w-[320px] sm:min-w-0">
-                  {next12MonthsRevenueProjection.map((m) => {
-                    const isSelected = m.monthKey === activeRevenueMonthKey;
-                    const isNext = m.isNextMonth;
-                    const heightPercent = maxMonthRevenueProjectionValue > 0 
-                      ? Math.max((m.totalValue / maxMonthRevenueProjectionValue) * 100, 12) 
-                      : 12;
-                    const hasVal = m.totalValue > 0;
-
-                    return (
-                      <button
-                        key={m.monthKey} 
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedRevenueMonthKey(m.monthKey);
-                        }}
-                        className={`flex-1 flex flex-col items-center gap-1 p-0.5 sm:p-1 rounded-lg transition-all cursor-pointer group/bar focus:outline-none min-w-[22px] ${
-                          isSelected 
-                            ? 'bg-emerald-100/90 ring-2 ring-emerald-500 shadow-xs' 
-                            : 'hover:bg-slate-200/60'
-                        }`}
-                        title={`${m.label}: ${formatBRL(m.totalValue)} (Clique para exibir no painel)`}
-                      >
-                        <div className="w-full h-10 sm:h-12 bg-slate-200/70 rounded-xs flex flex-col justify-end p-0.5 overflow-hidden">
-                          <div
-                            style={{ height: `${heightPercent}%` }}
-                            className={`w-full rounded-xs transition-all duration-200 ${
-                              isSelected
-                                ? 'bg-emerald-600 shadow-xs'
-                                : isNext 
-                                  ? 'bg-emerald-500' 
-                                  : hasVal 
-                                    ? 'bg-emerald-400/80 group-hover/bar:bg-emerald-500' 
-                                    : 'bg-slate-300'
-                            }`}
-                          />
-                        </div>
-                        <span className={`text-[9px] sm:text-[10px] font-mono leading-none ${
-                          isSelected 
-                            ? 'text-emerald-900 font-black underline' 
-                            : isNext 
-                              ? 'text-emerald-800 font-bold' 
-                              : 'text-slate-600 font-semibold'
-                        }`}>
-                          {m.shortLabel.split('/')[0]}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* In-Panel Itemized Breakdown for Selected Month (Hidden by default, toggled via arrow) */}
-            <div className="mt-3 sm:mt-4 pt-3 border-t border-slate-100">
-              <button
-                type="button"
-                id="toggle-revenue-breakdown-btn"
-                onClick={() => setShowRevenueItems(prev => !prev)}
-                className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 border border-slate-200/80 transition-all text-left group/revToggle cursor-pointer bg-white shadow-2xs"
-                aria-expanded={showRevenueItems}
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 shrink-0">
-                    <FileText className="h-3.5 w-3.5" />
-                  </div>
-                  <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-                    <span className="text-xs md:text-base font-bold text-slate-800 whitespace-nowrap">
-                      Receitas do Mês
-                    </span>
-                    <span className="px-1.5 py-0.5 rounded-md text-[10px] md:text-xs font-mono font-semibold bg-slate-100 text-slate-600 border border-slate-200/60 shrink-0">
-                      {activeRevenueMonthData?.items.length || 0} {activeRevenueMonthData?.items.length === 1 ? 'item' : 'itens'}
-                    </span>
-                    {dailyRevenueBreakdown.length > 0 && (
-                      <span className="hidden xs:inline-block px-1.5 py-0.5 rounded-md text-[10px] md:text-xs font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/80 shrink-0">
-                        {dailyRevenueBreakdown.length} {dailyRevenueBreakdown.length === 1 ? 'dia' : 'dias'}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold font-sans transition-colors shrink-0 ml-2 bg-emerald-50/80 text-emerald-700 group-hover/revToggle:bg-emerald-100">
-                  <span>{showRevenueItems ? 'Ocultar' : 'Ver'}</span>
-                  <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${showRevenueItems ? 'rotate-180' : ''}`} />
-                </div>
-              </button>
-
-              {showRevenueItems && (
-                <div className="mt-3 space-y-3 animate-fade-in">
-                  {activeRevenueMonthData?.items.length === 0 ? (
-                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 text-center text-xs text-slate-500 font-sans">
-                      Nenhuma receita estimada para este mês.
-                    </div>
-                  ) : (
-                    <>
-                      {/* BARRA SUPERIOR DAS RECEITAS DO MÊS */}
-                      <div className="bg-slate-50/90 border border-slate-200/80 rounded-xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-slate-800 font-sans">
-                              Discriminação de Receitas de {activeRevenueMonthData?.label}
-                            </span>
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                              + {formatBRL(activeRevenueMonthData?.totalValue || 0)}
-                            </span>
-                          </div>
-                          <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
-                            {dailyRevenueBreakdown.length} {dailyRevenueBreakdown.length === 1 ? 'dia com recebimento' : 'dias com recebimento'} • {activeRevenueMonthData?.items.length || 0} parcelas calculadas pelos dias combinados
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {/* Atalho para Resultado Financeiro Autônomo */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              handleSetRangeForMonth(activeRevenueMonthKey);
-                              setForecastViewTab('resultado');
-                            }}
-                            className="px-2.5 py-1 rounded-lg text-xs font-semibold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                            title="Ir para a aba autônoma de Resultado Financeiro"
-                          >
-                            <Calculator className="h-3.5 w-3.5 text-indigo-600" />
-                            <span>Analisar Resultado Financeiro</span>
-                          </button>
-
-                          {/* Toggle Mode: Cards vs Table */}
-                          <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 text-[11px] font-medium font-sans shadow-2xs">
-                            <button
-                              type="button"
-                              onClick={() => setRevenueBreakdownMode('cards')}
-                              className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
-                                revenueBreakdownMode === 'cards'
-                                  ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs'
-                                  : 'text-slate-600 hover:text-slate-900'
-                              }`}
-                            >
-                              <LayoutList className="h-3 w-3" />
-                              <span>Por Dia</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setRevenueBreakdownMode('table')}
-                              className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
-                                revenueBreakdownMode === 'table'
-                                  ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs'
-                                  : 'text-slate-600 hover:text-slate-900'
-                              }`}
-                            >
-                              <Table className="h-3 w-3" />
-                              <span>Tabela</span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Display Mode 1: Daily Group Cards with item breakdown */}
-                      {revenueBreakdownMode === 'cards' && (
-                        <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1 scrollbar-thin">
-                          {dailyRevenueBreakdown.length === 0 ? (
-                            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 text-center text-xs text-slate-500 font-sans">
-                              Nenhuma receita prevista para este mês.
-                            </div>
-                          ) : (
-                            dailyRevenueBreakdown.map((group) => (
-                              <div 
-                                key={group.dateStr}
-                                className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden transition-all hover:border-emerald-200"
-                              >
-                                {/* Daily Group Header with exact total */}
-                                <div className="bg-slate-50/90 px-3 py-2 sm:px-3.5 sm:py-2.5 border-b border-slate-200/80 flex items-center justify-between gap-2 flex-wrap">
-                                  <div className="flex items-center gap-2.5">
-                                    <div className="flex flex-col items-center justify-center bg-white border border-slate-200/90 rounded-lg px-2 py-0.5 shadow-2xs text-center shrink-0 min-w-[46px]">
-                                      <span className="text-[8px] uppercase font-bold text-slate-400 font-sans leading-none">
-                                        {group.shortDayName}
-                                      </span>
-                                      <span className="text-sm font-black font-mono text-slate-900 leading-tight">
-                                        {String(group.dayNumber).padStart(2, '0')}
-                                      </span>
-                                    </div>
-                                    <div>
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="text-xs font-bold text-slate-900 font-sans">
-                                          {group.fullFormattedDate}
-                                        </span>
-                                        <span className="text-[11px] text-slate-500 font-medium font-sans">
-                                          • {group.dayName}
-                                        </span>
-                                      </div>
-                                      <span className="text-[10px] text-slate-400 font-mono block leading-tight">
-                                        {group.items.length} {group.items.length === 1 ? 'recebimento previsto' : 'recebimentos previstos'}
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  {/* Total value for this day */}
-                                  <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-lg">
-                                    <span className="text-[10px] font-bold text-emerald-800 uppercase font-sans">
-                                      Total do Dia:
-                                    </span>
-                                    <span className="font-mono text-xs sm:text-sm font-black text-emerald-800">
-                                      + {formatBRL(group.totalValue)}
-                                    </span>
-                                  </div>
-                                </div>
-
-                                {/* Items on this day */}
-                                <div className="divide-y divide-slate-100 p-1 sm:p-1.5 bg-white">
-                                  {group.items.map((item) => (
-                                    <div 
-                                      key={item.id}
-                                      className="flex flex-col xs:flex-row xs:items-center justify-between p-2 hover:bg-slate-50/80 rounded-lg transition-colors text-xs gap-2"
-                                    >
-                                      <div className="min-w-0 flex-1">
-                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                          <span className="font-bold text-slate-800 truncate">
-                                            {item.title}
-                                          </span>
-                                          <span className="px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                            {item.category}
-                                          </span>
-                                          {item.vehiclePlate && (
-                                            <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-slate-200 text-slate-700">
-                                              {item.vehiclePlate} {item.vehicleModel ? `• ${item.vehicleModel}` : ''}
-                                            </span>
-                                          )}
-                                        </div>
-                                        <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                                          {item.description || item.installmentLabel}
-                                        </p>
-                                      </div>
-                                      <div className="shrink-0 font-mono font-bold text-emerald-700 self-end xs:self-center pl-2 text-xs sm:text-sm">
-                                        + {formatBRL(item.value)}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      )}
-
-                      {/* Display Mode 2: Compact Summary Table */}
-                      {revenueBreakdownMode === 'table' && (
-                        <div className="border border-slate-200/90 rounded-xl overflow-hidden shadow-2xs max-h-[420px] overflow-y-auto scrollbar-thin bg-white">
-                          <table className="w-full text-left border-collapse text-xs font-sans">
-                            <thead className="bg-slate-100/90 text-slate-700 font-bold border-b border-slate-200 sticky top-0 z-10">
-                              <tr>
-                                <th className="p-2.5">Dia / Data</th>
-                                <th className="p-2.5 hidden sm:table-cell">Dia da Semana</th>
-                                <th className="p-2.5">Recebimentos Previstos</th>
-                                <th className="p-2.5 text-right">Valor Total do Dia</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                              {dailyRevenueBreakdown.length === 0 ? (
-                                <tr>
-                                  <td colSpan={4} className="p-4 text-center text-slate-500">
-                                    Nenhuma receita prevista para este mês.
-                                  </td>
-                                </tr>
-                              ) : (
-                                dailyRevenueBreakdown.map((group) => (
-                                  <tr key={group.dateStr} className="hover:bg-slate-50 transition-colors">
-                                    <td className="p-2.5 font-mono font-bold text-slate-900 whitespace-nowrap">
-                                      <span className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 mr-1.5 font-black text-emerald-800">
-                                        Dia {String(group.dayNumber).padStart(2, '0')}
-                                      </span>
-                                      {group.formattedDate}
-                                    </td>
-                                    <td className="p-2.5 text-slate-600 hidden sm:table-cell font-medium">
-                                      {group.dayName}
-                                    </td>
-                                    <td className="p-2.5 text-slate-700">
-                                      <div className="space-y-0.5">
-                                        <div className="font-semibold text-slate-800">
-                                          {group.items.length} {group.items.length === 1 ? 'recebimento' : 'recebimentos'}
-                                        </div>
-                                        <div className="text-[11px] text-slate-500 line-clamp-1">
-                                          {group.items.map(it => it.title).join(', ')}
-                                        </div>
-                                      </div>
-                                    </td>
-                                    <td className="p-2.5 text-right font-mono font-black text-emerald-700 whitespace-nowrap text-xs sm:text-sm">
-                                      + {formatBRL(group.totalValue)}
-                                    </td>
-                                  </tr>
-                                ))
-                              )}
-                            </tbody>
-                            <tfoot className="bg-slate-50 border-t border-slate-200 font-bold">
-                              <tr>
-                                <td colSpan={2} className="p-2.5 text-slate-700 font-sans hidden sm:table-cell">
-                                  Total Consolidado ({dailyRevenueBreakdown.length} dias de recebimento)
-                                </td>
-                                <td className="p-2.5 text-slate-700 font-sans sm:hidden">
-                                  Total ({dailyRevenueBreakdown.length} dias)
-                                </td>
-                                <td className="p-2.5 text-slate-500 text-[11px] font-mono sm:table-cell hidden">
-                                  {activeRevenueMonthData?.items.length || 0} recebimentos
-                                </td>
-                                <td className="p-2.5 text-right font-mono font-black text-emerald-800 text-sm">
-                                  + {formatBRL(activeRevenueMonthData?.totalValue || 0)}
-                                </td>
-                              </tr>
-                            </tfoot>
-                          </table>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* 3. BALANÇO OPERACIONAL PROJETADO (DRE SÍNTESE DO MÊS SELECIONADO) */}
-        {forecastViewTab === 'both' && (
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs overflow-hidden">
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-              <span className="font-bold text-slate-700 w-full sm:w-auto">
-                {activeExpenseMonthKey === activeRevenueMonthKey
-                  ? `Previsão Líquida (${activeExpenseMonthData?.label}):`
-                  : `Previsão Comparada (Rec: ${activeRevenueMonthData?.shortLabel} vs Desp: ${activeExpenseMonthData?.shortLabel}):`}
-              </span>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-emerald-700 font-mono font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 text-[11px] sm:text-xs" title={`Receitas de ${activeRevenueMonthData?.label}`}>
-                  +{formatBRL(activeRevenueMonthData?.totalValue || 0)}
-                  {activeExpenseMonthKey !== activeRevenueMonthKey && (
-                    <span className="text-[9px] font-sans font-normal text-emerald-800 ml-1">({activeRevenueMonthData?.shortLabel})</span>
-                  )}
-                </span>
-                <span className="text-slate-400 font-mono">−</span>
-                <span className="text-rose-600 font-mono font-bold bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 text-[11px] sm:text-xs" title={`Despesas de ${activeExpenseMonthData?.label}`}>
-                  {formatBRL(activeExpenseMonthData?.totalValue || 0)}
-                  {activeExpenseMonthKey !== activeRevenueMonthKey && (
-                    <span className="text-[9px] font-sans font-normal text-rose-700 ml-1">({activeExpenseMonthData?.shortLabel})</span>
-                  )}
-                </span>
-                <span className="text-slate-400 font-mono">=</span>
-                <span className={`font-mono font-black px-1.5 py-0.5 rounded text-[11px] sm:text-xs ${
-                  ((activeRevenueMonthData?.totalValue || 0) - (activeExpenseMonthData?.totalValue || 0)) >= 0
-                    ? 'bg-emerald-100 text-emerald-800'
-                    : 'bg-rose-100 text-rose-800'
-                }`}>
-                  {((activeRevenueMonthData?.totalValue || 0) - (activeExpenseMonthData?.totalValue || 0)) >= 0 ? '+' : ''}
-                  {formatBRL((activeRevenueMonthData?.totalValue || 0) - (activeExpenseMonthData?.totalValue || 0))}
-                </span>
-              </div>
-
-              {activeExpenseMonthKey !== activeRevenueMonthKey && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedRevenueMonthKey(activeExpenseMonthKey)}
-                  className="text-[11px] text-indigo-600 hover:text-indigo-800 underline font-semibold ml-1 cursor-pointer"
-                  title="Alinhar receitas com o mês selecionado nas despesas"
-                >
-                  Sincronizar receitas
-                </button>
-              )}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => openForecastReportPage('comparativo')}
-              className="text-xs font-bold text-indigo-700 hover:text-indigo-900 underline flex items-center gap-1 self-start sm:self-auto cursor-pointer shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200 w-full sm:w-auto justify-end sm:justify-start"
-            >
-              <span>Ver DRE Comparativo (12 Meses)</span>
-              <ArrowRight className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        )}
       </div>
 
       {/* SECTION 2: ASSETS AND LIABILITIES BREAKDOWN */}

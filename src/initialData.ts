@@ -90,6 +90,15 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
     description: 'Caução recebido - Leandro (Dolphin Mini)'
   },
   {
+    id: 't_d_r0',
+    date: '2026-03-25',
+    type: 'receita',
+    value: 1300,
+    vehicleId: 'v_dolphin',
+    category: 'Aluguel Semanal',
+    description: 'Semana de Início (Março) - LEANDRO'
+  },
+  {
     id: 't_d_r1',
     date: '2026-04-01',
     type: 'receita',

@@ -80,6 +80,15 @@
   ],
   "transactions": [
     {
+      "id": "t_dolph_r0_mar",
+      "date": "2026-03-25",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_dolphin",
+      "category": "Aluguel Semanal",
+      "description": "Semana de Início (Março) - LEANDRO"
+    },
+    {
       "id": "t_dolph_c1",
       "date": "2026-03-25",
       "type": "caucao_recebido",
