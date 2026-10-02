@@ -1224,6 +1224,7 @@ export function FinancialsTab({
         formatBRL={formatBRL}
         initialStartDate={resultStartDate}
         initialEndDate={resultEndDate}
+        cashBalance={cashBalance}
       />
     );
   }
@@ -1263,7 +1264,7 @@ export function FinancialsTab({
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
             className="group relative w-full sm:w-auto inline-flex items-center justify-between gap-4 px-5 py-3 rounded-2xl bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-900 hover:from-indigo-950 hover:via-indigo-900 hover:to-slate-900 text-white shadow-xl shadow-indigo-950/20 hover:shadow-indigo-900/30 border border-indigo-500/35 hover:border-indigo-400/60 active:scale-[0.98] transition-all duration-300 cursor-pointer overflow-hidden"
-            title="Acessar tela autônoma para filtrar e analisar qualquer dia ou período personalizado"
+            title="Acessar filtro avançado para analisar qualquer dia ou período personalizado"
           >
             {/* Shimmer light sweep animation */}
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out pointer-events-none" />
@@ -1273,7 +1274,7 @@ export function FinancialsTab({
                 <SlidersHorizontal className="h-4.5 w-4.5 group-hover:rotate-12 transition-transform duration-300" />
               </div>
               <span className="text-xs sm:text-sm font-extrabold tracking-tight text-white font-sans">
-                Filtro por Dia/Período
+                FILTRO AVANÇADO
               </span>
             </div>
 

@@ -17,7 +17,9 @@ import {
   Car, 
   Check, 
   Filter,
-  DollarSign
+  DollarSign,
+  Coins,
+  Scale
 } from 'lucide-react';
 import { Vehicle, FutureExpense, Transaction, Rental } from '../types';
 import { getBrasiliaDateStr } from '../utils/dateUtils';
@@ -33,6 +35,7 @@ interface PeriodFilterAutonomousViewProps {
   formatBRL: (val: number) => string;
   initialStartDate?: string;
   initialEndDate?: string;
+  cashBalance?: number;
 }
 
 export const PeriodFilterAutonomousView: React.FC<PeriodFilterAutonomousViewProps> = ({
@@ -43,7 +46,8 @@ export const PeriodFilterAutonomousView: React.FC<PeriodFilterAutonomousViewProp
   rentals,
   formatBRL,
   initialStartDate,
-  initialEndDate
+  initialEndDate,
+  cashBalance
 }) => {
   const todayStr = getBrasiliaDateStr();
   const [currentYear, currentMonth] = todayStr.split('-').map(Number);
@@ -432,6 +436,89 @@ export const PeriodFilterAutonomousView: React.FC<PeriodFilterAutonomousViewProp
     };
   }, [selectionMeta, vehicles, rentals, futureExpenses, transactions]);
 
+  // 3.5. CASH EXPECTATION & PROJECTION CALCULATIONS
+  // Reconciled cash balance as of today
+  const currentCashBalance = useMemo(() => {
+    if (typeof cashBalance === 'number') return cashBalance;
+    const effectiveTransactions = transactions.filter(t => t.date <= todayStr);
+    const rev = effectiveTransactions.filter(t => t.type === 'receita').reduce((s, t) => s + t.value, 0);
+    const exp = effectiveTransactions.filter(t => t.type === 'despesa').reduce((s, t) => s + t.value, 0);
+    const cr = effectiveTransactions.filter(t => t.type === 'caucao_recebido').reduce((s, t) => s + t.value, 0);
+    const cd = effectiveTransactions.filter(t => t.type === 'caucao_devolvido').reduce((s, t) => s + t.value, 0);
+    const ret = effectiveTransactions.filter(t => t.type === 'receita' && (t.category === 'Retenção de Caução' || t.category?.includes('Retenção'))).reduce((s, t) => s + t.value, 0);
+    const netC = Math.max(0, cr - cd - ret);
+    return rev + netC - exp;
+  }, [transactions, todayStr, cashBalance]);
+
+  // Cash balance at the start of the selected period
+  const cashAtPeriodStart = useMemo(() => {
+    const sDate = selectionMeta.startDate;
+    
+    // If period starts on or before today:
+    // It's the reconciled cash balance strictly before sDate
+    if (sDate <= todayStr) {
+      const priorTx = transactions.filter(t => t.date && t.date < sDate);
+      const rev = priorTx.filter(t => t.type === 'receita').reduce((s, t) => s + t.value, 0);
+      const exp = priorTx.filter(t => t.type === 'despesa').reduce((s, t) => s + t.value, 0);
+      const cr = priorTx.filter(t => t.type === 'caucao_recebido').reduce((s, t) => s + t.value, 0);
+      const cd = priorTx.filter(t => t.type === 'caucao_devolvido').reduce((s, t) => s + t.value, 0);
+      const ret = priorTx.filter(t => t.type === 'receita' && (t.category === 'Retenção de Caução' || t.category?.includes('Retenção'))).reduce((s, t) => s + t.value, 0);
+      const netC = Math.max(0, cr - cd - ret);
+      return rev + netC - exp;
+    }
+
+    // If period starts strictly after today (future period):
+    // Compute current cash balance + intermediate projected net from tomorrow until day before sDate
+    const tomorrowDt = new Date(todayStr + 'T12:00:00Z');
+    tomorrowDt.setUTCDate(tomorrowDt.getUTCDate() + 1);
+    const tomorrowStr = tomorrowDt.toISOString().split('T')[0];
+
+    const dayBeforeStartDt = new Date(sDate + 'T12:00:00Z');
+    dayBeforeStartDt.setUTCDate(dayBeforeStartDt.getUTCDate() - 1);
+    const dayBeforeStartStr = dayBeforeStartDt.toISOString().split('T')[0];
+
+    let intermediateNet = 0;
+    if (tomorrowStr <= dayBeforeStartStr) {
+      const vehiclesMap = new Map<string, Vehicle>(vehicles.map(v => [v.id, v]));
+      (rentals || []).filter(r => !r.isDeleted).forEach(r => {
+        const veh = vehiclesMap.get(r.vehicleId);
+        const weeklyRate = r.weeklyRate || veh?.weeklyRate || 0;
+        if (weeklyRate <= 0) return;
+        const targetWeekday = getEffectiveRentalPaymentWeekday(r);
+        const c = new Date(tomorrowStr + 'T12:00:00Z');
+        const e = new Date(dayBeforeStartStr + 'T12:00:00Z');
+        while (c <= e) {
+          if (c.getUTCDay() === targetWeekday) {
+            const dStr = c.toISOString().split('T')[0];
+            const afterStart = !r.startDate || dStr >= r.startDate;
+            const beforeEnd = !r.endDate || dStr <= r.endDate || r.status === 'active';
+            if (afterStart && beforeEnd) {
+              intermediateNet += weeklyRate;
+            }
+          }
+          c.setUTCDate(c.getUTCDate() + 1);
+        }
+      });
+
+      futureExpenses.forEach(fe => {
+        (fe.installments || []).forEach(inst => {
+          if ((inst.status === 'pending' || !inst.status) && inst.dueDate) {
+            if (inst.dueDate >= tomorrowStr && inst.dueDate <= dayBeforeStartStr) {
+              intermediateNet -= fe.value;
+            }
+          }
+        });
+      });
+    }
+
+    return currentCashBalance + intermediateNet;
+  }, [selectionMeta.startDate, todayStr, transactions, vehicles, rentals, futureExpenses, currentCashBalance]);
+
+  // Expected Cash Balance at the end of the filtered period (Prognóstico: Saldo de partida + Receitas - Despesas do período)
+  const expectedCashBalanceAtEnd = useMemo(() => {
+    return cashAtPeriodStart + resultData.revenuesTotal - resultData.expensesTotal;
+  }, [cashAtPeriodStart, resultData.revenuesTotal, resultData.expensesTotal]);
+
   // 4. Breakdown by Month in Range (Evolução Consolidada Mês a Mês)
   const crossMonthBreakdown = useMemo(() => {
     if (!selectionMeta.isCrossMonth) return [];
@@ -609,7 +696,8 @@ export const PeriodFilterAutonomousView: React.FC<PeriodFilterAutonomousViewProp
     csv += `Período Analisado;${selectionMeta.formattedStart} a ${selectionMeta.formattedEnd} (${selectionMeta.daysCount} dias)\n`;
     csv += `Total de Receitas;${formatBRL(resultData.revenuesTotal)}\n`;
     csv += `Total de Despesas;${formatBRL(resultData.expensesTotal)}\n`;
-    csv += `Saldo Líquido;${formatBRL(resultData.balance)}\n\n`;
+    csv += `Saldo Líquido do Período;${formatBRL(resultData.balance)}\n`;
+    csv += `Expectativa de Saldo em Caixa;${formatBRL(expectedCashBalanceAtEnd)}\n\n`;
 
     csv += `Data;Tipo;Origem;Título;Categoria;Placa;Motorista / Destino;Valor (R$)\n`;
 
@@ -892,7 +980,7 @@ export const PeriodFilterAutonomousView: React.FC<PeriodFilterAutonomousViewProp
           </div>
         </div>
 
-        <div className="relative z-10 grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3.5">
+        <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-3.5">
           {/* Receitas */}
           <div className="bg-slate-800/90 rounded-xl p-3.5 border border-emerald-500/30 shadow-inner">
             <div className="flex items-center justify-between text-xs text-emerald-400 font-semibold mb-1">
@@ -931,31 +1019,195 @@ export const PeriodFilterAutonomousView: React.FC<PeriodFilterAutonomousViewProp
             </p>
           </div>
 
-          {/* Saldo Líquido */}
+          {/* Saldo Líquido do Período */}
           <div className={`rounded-xl p-3.5 border shadow-inner ${
             resultData.balance >= 0
-              ? 'bg-emerald-950/80 border-emerald-500/60'
+              ? 'bg-slate-800/90 border-indigo-500/40'
               : 'bg-rose-950/80 border-rose-500/60'
           }`}>
             <div className="flex items-center justify-between text-xs font-semibold mb-1">
-              <span className={resultData.balance >= 0 ? 'text-emerald-300' : 'text-rose-300'}>
+              <span className={resultData.balance >= 0 ? 'text-indigo-300' : 'text-rose-300'}>
                 Saldo Líquido Apurado
               </span>
               <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono font-bold ${
-                resultData.balance >= 0 ? 'bg-emerald-500/30 text-emerald-200' : 'bg-rose-500/30 text-rose-200'
+                resultData.balance >= 0 ? 'bg-indigo-500/30 text-indigo-200' : 'bg-rose-500/30 text-rose-200'
               }`}>
                 {resultData.balance >= 0 ? 'Superávit' : 'Déficit'}
               </span>
             </div>
             <div className={`text-2xl font-black font-mono tracking-tight ${
-              resultData.balance >= 0 ? 'text-emerald-300' : 'text-rose-300'
+              resultData.balance >= 0 ? 'text-indigo-200' : 'text-rose-300'
             }`}>
               {resultData.balance >= 0 ? '+ ' : ''}
               {formatBRL(resultData.balance)}
             </div>
             <p className="text-[11px] text-slate-300 mt-1 font-sans">
-              {resultData.balance >= 0 ? 'Resultado operacional positivo no recorte' : 'Necessidade de aporte ou cobertura de caixa'}
+              {resultData.balance >= 0 ? 'Resultado operacional positivo no recorte' : 'Necessidade de cobertura no período'}
             </p>
+          </div>
+
+          {/* Expectativa de Saldo em Caixa */}
+          <div className={`rounded-xl p-3.5 border shadow-inner ${
+            expectedCashBalanceAtEnd >= 0
+              ? 'bg-emerald-950/80 border-emerald-500/60'
+              : 'bg-rose-950/80 border-rose-500/60'
+          }`}>
+            <div className="flex items-center justify-between text-xs font-semibold mb-1">
+              <span className={expectedCashBalanceAtEnd >= 0 ? 'text-emerald-300' : 'text-rose-300'}>
+                Expectativa em Caixa
+              </span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono font-bold ${
+                expectedCashBalanceAtEnd >= 0 ? 'bg-emerald-500/30 text-emerald-200' : 'bg-rose-500/30 text-rose-200'
+              }`}>
+                {expectedCashBalanceAtEnd >= 0 ? 'Positivo' : 'Alerta'}
+              </span>
+            </div>
+            <div className={`text-2xl font-black font-mono tracking-tight ${
+              expectedCashBalanceAtEnd >= 0 ? 'text-emerald-300' : 'text-rose-300'
+            }`}>
+              {formatBRL(expectedCashBalanceAtEnd)}
+            </div>
+            <p className="text-[11px] text-slate-300 mt-1 font-sans truncate">
+              Posição prevista em {selectionMeta.formattedEnd}
+            </p>
+          </div>
+        </div>
+
+        {/* HERO EXECUTIVE STANDALONE BOX: EXPECTATIVA DE SALDO EM CAIXA */}
+        <div 
+          id="box-expectativa-saldo-caixa"
+          className="relative z-10 mt-4 rounded-2xl bg-gradient-to-r from-slate-950 via-indigo-950/90 to-slate-900 border-2 border-indigo-400/50 p-4 sm:p-6 shadow-2xl overflow-hidden group"
+        >
+          {/* Ambient glow effect */}
+          <div className="absolute -right-8 -bottom-8 w-48 h-48 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none group-hover:scale-125 transition-transform duration-700" />
+          <div className="absolute left-1/3 -top-12 w-40 h-40 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-indigo-500/30 pb-4">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="p-1.5 rounded-lg bg-indigo-500/30 text-indigo-300 border border-indigo-400/40 shrink-0">
+                  <Coins className="h-4 w-4" />
+                </span>
+                <span className="text-[10px] font-mono font-black uppercase tracking-widest text-indigo-300 bg-indigo-900/60 px-2.5 py-0.5 rounded-full border border-indigo-500/40">
+                  PROJEÇÃO DE CAIXA • RESULTADO DO PERÍODO
+                </span>
+                <span className={`text-[10px] font-mono font-black px-2.5 py-0.5 rounded-full border ${
+                  expectedCashBalanceAtEnd >= 0
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                    : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                }`}>
+                  {expectedCashBalanceAtEnd >= 0 ? '✓ Saldo Projetado Positivo' : '⚠ Atenção: Projeção de Caixa Descoberto'}
+                </span>
+              </div>
+              <h3 className="text-base sm:text-lg font-black font-display text-white tracking-tight flex items-center gap-2">
+                <span>EXPECTATIVA DE SALDO EM CAIXA</span>
+              </h3>
+              <p className="text-xs text-indigo-200/90 font-sans max-w-2xl leading-relaxed">
+                Projeção de que, seguindo o prognóstico entre receitas contratadas e despesas programadas, quanto haverá em caixa acumulado ao término do período filtrado (<strong className="text-white font-mono">{selectionMeta.formattedEnd}</strong>).
+              </p>
+            </div>
+
+            {/* BIG PROMINENT VALUE DISPLAY */}
+            <div className="text-left lg:text-right shrink-0 bg-white/5 lg:bg-transparent p-3.5 lg:p-0 rounded-xl border border-white/10 lg:border-none">
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-indigo-300 block mb-0.5">
+                Saldo Projetado em Caixa:
+              </span>
+              <div className={`font-mono text-2xl xs:text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight select-all ${
+                expectedCashBalanceAtEnd >= 0
+                  ? 'text-emerald-400 drop-shadow-[0_2px_10px_rgba(52,211,153,0.35)]'
+                  : 'text-rose-400 drop-shadow-[0_2px_10px_rgba(244,63,94,0.35)]'
+              }`}>
+                {formatBRL(expectedCashBalanceAtEnd)}
+              </div>
+              <span className="text-[11px] text-slate-300 font-medium">
+                Conciliação prevista para {selectionMeta.formattedEnd}
+              </span>
+            </div>
+          </div>
+
+          {/* DETAILED FORMULA & FINANCIAL BRIDGING BREAKDOWN */}
+          <div className="relative z-10 pt-4">
+            <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-300 mb-2 flex items-center gap-1.5">
+              <Scale className="h-3.5 w-3.5 text-indigo-400" />
+              <span>Memória de Cálculo do Prognóstico (Conciliação de Caixa):</span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+              {/* 1. Saldo de Abertura */}
+              <div className="bg-slate-900/90 rounded-xl p-2.5 border border-slate-700/80">
+                <span className="text-[10px] font-mono text-slate-400 uppercase block truncate">
+                  1. Saldo de Partida ({selectionMeta.formattedStart})
+                </span>
+                <span className="font-mono text-xs sm:text-sm font-bold text-slate-200 block mt-0.5">
+                  {formatBRL(cashAtPeriodStart)}
+                </span>
+                <span className="text-[9px] text-slate-400 block truncate mt-0.5">
+                  Posição inicial da base
+                </span>
+              </div>
+
+              {/* 2. (+) Receitas */}
+              <div className="bg-slate-900/90 rounded-xl p-2.5 border border-emerald-500/30">
+                <span className="text-[10px] font-mono text-emerald-400 uppercase block truncate">
+                  2. (+) Receitas no Período
+                </span>
+                <span className="font-mono text-xs sm:text-sm font-bold text-emerald-300 block mt-0.5">
+                  + {formatBRL(resultData.revenuesTotal)}
+                </span>
+                <span className="text-[9px] text-slate-400 block truncate mt-0.5">
+                  {resultData.revenuesItems.length} entradas previstas
+                </span>
+              </div>
+
+              {/* 3. (-) Despesas */}
+              <div className="bg-slate-900/90 rounded-xl p-2.5 border border-rose-500/30">
+                <span className="text-[10px] font-mono text-rose-400 uppercase block truncate">
+                  3. (-) Despesas no Período
+                </span>
+                <span className="font-mono text-xs sm:text-sm font-bold text-rose-300 block mt-0.5">
+                  - {formatBRL(resultData.expensesTotal)}
+                </span>
+                <span className="text-[9px] text-slate-400 block truncate mt-0.5">
+                  {resultData.expensesItems.length} saídas programadas
+                </span>
+              </div>
+
+              {/* 4. (=) Resultado Líquido do Período */}
+              <div className="bg-slate-900/90 rounded-xl p-2.5 border border-indigo-500/40">
+                <span className="text-[10px] font-mono text-indigo-300 uppercase block truncate">
+                  4. (=) Variação Líquida
+                </span>
+                <span className={`font-mono text-xs sm:text-sm font-bold block mt-0.5 ${
+                  resultData.balance >= 0 ? 'text-indigo-200' : 'text-rose-300'
+                }`}>
+                  {resultData.balance >= 0 ? '+ ' : ''}{formatBRL(resultData.balance)}
+                </span>
+                <span className="text-[9px] text-slate-400 block truncate mt-0.5">
+                  {resultData.balance >= 0 ? 'Superávit no período' : 'Déficit no período'}
+                </span>
+              </div>
+
+              {/* 5. (=) Expectativa Final em Caixa */}
+              <div className={`col-span-2 sm:col-span-1 rounded-xl p-2.5 border shadow-inner ${
+                expectedCashBalanceAtEnd >= 0
+                  ? 'bg-emerald-950/70 border-emerald-500/60'
+                  : 'bg-rose-950/70 border-rose-500/60'
+              }`}>
+                <span className={`text-[10px] font-mono font-black uppercase block truncate ${
+                  expectedCashBalanceAtEnd >= 0 ? 'text-emerald-300' : 'text-rose-300'
+                }`}>
+                  5. (=) Saldo Projetado
+                </span>
+                <span className={`font-mono text-xs sm:text-sm font-black block mt-0.5 ${
+                  expectedCashBalanceAtEnd >= 0 ? 'text-emerald-300' : 'text-rose-300'
+                }`}>
+                  {formatBRL(expectedCashBalanceAtEnd)}
+                </span>
+                <span className="text-[9px] text-slate-300 block truncate mt-0.5">
+                  Expectativa em caixa
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
