@@ -1,0 +1,6 @@
+{
+  "summary": "Plano de implementação para corrigir a comunicação com o Gestor IA (Skywalker) no ambiente de produção na Vercel, criando a função serverless api/gestor-ia/chat.ts e garantindo suporte a GEMINI_API_KEY e API_KEY.",
+  "updatedAt": "2026-10-12T17:59:35.929841458Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

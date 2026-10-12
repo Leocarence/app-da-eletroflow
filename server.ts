@@ -165,10 +165,11 @@ async function startServer() {
         return res.status(400).json({ error: "Mensagem é obrigatória." });
       }
 
-      const apiKey = process.env.GEMINI_API_KEY;
+      const rawApiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || process.env.VITE_GEMINI_API_KEY || "";
+      const apiKey = typeof rawApiKey === "string" ? rawApiKey.trim() : "";
       if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
         return res.json({
-          reply: "Chave da API do Gemini não detectada no ambiente. Adicione sua GEMINI_API_KEY no painel de Secrets para ativar o Skywalker plenamente!",
+          reply: "Chave da API do Gemini não detectada no ambiente. Adicione sua GEMINI_API_KEY no painel de Secrets ou de variáveis de ambiente para ativar o Skywalker plenamente!",
           functionCalls: []
         });
       }
@@ -463,9 +464,9 @@ ${dataSnapshot}
 
       // Multi-model resilience: try fast and reliable models in order of stability
       const candidateModels = [
-        "gemini-3.5-flash-lite",
+        "gemini-3.8-flash",
         "gemini-3.1-flash-lite",
-        "gemini-3.8-flash"
+        "gemini-2.5-flash"
       ];
 
       let response: any = null;

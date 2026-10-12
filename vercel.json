@@ -2,6 +2,9 @@
   "version": 2,
   "cleanUrls": true,
   "functions": {
+    "api/*.ts": {
+      "includeFiles": "db_backup.json"
+    },
     "api/**/*.ts": {
       "includeFiles": "db_backup.json"
     }
