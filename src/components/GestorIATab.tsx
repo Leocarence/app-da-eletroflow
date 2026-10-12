@@ -406,7 +406,12 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
       });
 
       if (!res.ok) {
-        throw new Error(`Erro ${res.status} ao comunicar com Skywalker.`);
+        let serverErrorText = '';
+        try {
+          const errData = await res.json();
+          serverErrorText = errData.error || errData.details || '';
+        } catch (_) {}
+        throw new Error(serverErrorText || `Erro HTTP ${res.status} ao comunicar com o servidor.`);
       }
 
       const data = await res.json();
@@ -430,14 +435,17 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
       setMessages(prev => [...prev, modelMsg]);
     } catch (err: any) {
       console.error("Skywalker chat error:", err);
+      const isCustomServerMsg = err?.message && !err.message.startsWith('Erro HTTP') && !err.message.includes('fetch');
       const errorMsg: ChatMessage = {
         id: 'msg_' + Date.now(),
         role: 'model',
-        text: 'Não consegui me comunicar com o servidor no momento. Verifique a conexão ou a chave GEMINI_API_KEY no painel de configurações.',
+        text: isCustomServerMsg
+          ? err.message
+          : 'Não consegui me comunicar com o servidor no momento. Por favor, verifique sua conexão ou tente novamente em instantes.',
         timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
       };
       setMessages(prev => [...prev, errorMsg]);
-      showNotification('Erro na comunicação com Skywalker.', 'error');
+      showNotification(isCustomServerMsg ? err.message : 'Erro na comunicação com Skywalker.', 'error');
     } finally {
       setIsLoading(false);
       setTimeout(() => inputRef.current?.focus(), 100);

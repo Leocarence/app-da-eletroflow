@@ -461,28 +461,36 @@ ${dataSnapshot}
         parts: [{ text: message }]
       });
 
+      // Multi-model resilience: try fast and reliable models in order of stability
+      const candidateModels = [
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-3.8-flash"
+      ];
+
       let response: any = null;
-      try {
-        response = await ai.models.generateContent({
-          model: "gemini-3.5-flash-lite",
-          contents,
-          config: {
-            systemInstruction,
-            tools: [{ functionDeclarations }],
-            temperature: 0.3,
-          }
-        });
-      } catch (primaryErr: any) {
-        console.warn("[Gestor IA] Primary model busy, trying gemini-3.8-flash fallback:", primaryErr?.message || primaryErr);
-        response = await ai.models.generateContent({
-          model: "gemini-3.8-flash",
-          contents,
-          config: {
-            systemInstruction,
-            tools: [{ functionDeclarations }],
-            temperature: 0.3,
-          }
-        });
+      let lastCallError: any = null;
+
+      for (const modelName of candidateModels) {
+        try {
+          response = await ai.models.generateContent({
+            model: modelName,
+            contents,
+            config: {
+              systemInstruction,
+              tools: [{ functionDeclarations }],
+              temperature: 0.3,
+            }
+          });
+          if (response) break;
+        } catch (modelErr: any) {
+          lastCallError = modelErr;
+          console.warn(`[Gestor IA] Model ${modelName} returned error:`, modelErr?.message || modelErr);
+        }
+      }
+
+      if (!response) {
+        throw lastCallError || new Error("Nenhum modelo do Gemini respondeu no momento.");
       }
 
       const functionCalls = response.functionCalls || [];
@@ -494,8 +502,13 @@ ${dataSnapshot}
       });
     } catch (err: any) {
       console.error("[Gestor IA Error]:", err);
+      const isCapacityError = err?.message?.includes("503") || err?.message?.includes("high demand") || err?.status === 503;
+      const errorMessage = isCapacityError
+        ? "Os servidores de inteligência artificial estão com alta demanda temporária. Por favor, aguarde alguns segundos e tente novamente."
+        : (err?.message || "Falha na comunicação com o Gestor IA.");
+
       return res.status(500).json({
-        error: "Falha ao processar solicitação com o Gestor IA.",
+        error: errorMessage,
         details: err?.message || String(err)
       });
     }
