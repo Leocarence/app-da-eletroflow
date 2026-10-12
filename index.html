@@ -4,6 +4,32 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Eletroflow | Gestão de Locação & Recarga</title>
+    <script>
+      // Gracefully silence Vite dev HMR/WebSocket transport errors in preview iframe
+      window.addEventListener('error', function(event) {
+        if (
+          event.message &&
+          (event.message.includes('WebSocket') ||
+           event.message.includes('vite') ||
+           event.message.includes('ModuleRunnerTransport'))
+        ) {
+          event.stopImmediatePropagation();
+          event.preventDefault();
+        }
+      }, true);
+      window.addEventListener('unhandledrejection', function(event) {
+        var msg = event.reason && (event.reason.message || String(event.reason));
+        if (
+          msg &&
+          (msg.includes('WebSocket') ||
+           msg.includes('vite') ||
+           msg.includes('ModuleRunnerTransport'))
+        ) {
+          event.stopImmediatePropagation();
+          event.preventDefault();
+        }
+      }, true);
+    </script>
     
     <!-- Meta tags especificas para iOS e Android -->
     <meta name="apple-mobile-web-app-capable" content="yes" />

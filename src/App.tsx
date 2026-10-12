@@ -13,6 +13,7 @@ import TransactionsTab from './components/TransactionsTab';
 import { FinancialsTab } from './components/FinancialsTab';
 import { LoginScreen } from './components/LoginScreen';
 import { UsersTab } from './components/UsersTab';
+import { GestorIATab } from './components/GestorIATab';
 import { EletroflowLogo } from './components/EletroflowLogo';
 import { AppUser, AccessLog } from './types';
 import {
@@ -45,7 +46,9 @@ import {
   Users,
   LogOut,
   Database,
-  ArrowDown
+  ArrowDown,
+  Bot,
+  Sparkles
 } from 'lucide-react';
 
 const INITIAL_USERS: AppUser[] = [
@@ -67,7 +70,7 @@ const INITIAL_USERS: AppUser[] = [
 
 export default function App() {
   // Navigation
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'financials' | 'transactions' | 'vehicles' | 'rentals' | 'users'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'financials' | 'transactions' | 'vehicles' | 'rentals' | 'users' | 'ai-manager'>('dashboard');
 
   // Sync state for Cash Flow Chart Tooltip / Sidebox
   const [hoveredPointData, setHoveredPointData] = useState<{
@@ -1897,6 +1900,17 @@ export default function App() {
                   <span>Usuários</span>
                 </button>
               )}
+              <button
+                onClick={() => setActiveTab('ai-manager')}
+                className={`flex items-center gap-1.5 px-2.5 xl:px-3 py-2 rounded-lg lg:text-[11px] xl:text-xs font-bold transition-all hover:scale-105 active:scale-95 duration-200 cursor-pointer shrink-0 ${
+                  activeTab === 'ai-manager'
+                    ? 'bg-gradient-to-r from-cyan-500 to-brand-500 text-white shadow-inner font-semibold ring-2 ring-cyan-400/50'
+                    : 'text-cyan-200 bg-brand-600/50 hover:bg-brand-600 hover:text-white border border-cyan-400/30'
+                }`}
+              >
+                <Sparkles className="h-3.5 w-3.5 shrink-0 text-cyan-300 animate-pulse" />
+                <span>Gestor IA</span>
+              </button>
             </nav>
             
             {/* Database controls, backup drop and calendar indication */}
@@ -2048,6 +2062,20 @@ export default function App() {
 
               {/* Controls Wrapper */}
               <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('ai-manager')}
+                  className={`px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer select-none ${
+                    activeTab === 'ai-manager'
+                      ? 'bg-gradient-to-r from-cyan-500 to-brand-500 text-white ring-1 ring-cyan-400'
+                      : 'bg-slate-800/80 hover:bg-slate-700 text-cyan-300 border border-cyan-500/40 hover:border-cyan-400'
+                  }`}
+                  title="Gestor IA Skywalker"
+                >
+                  <Sparkles className="h-3 w-3 text-cyan-400 animate-pulse" />
+                  <span>Gestor IA</span>
+                </button>
+
                 {dbStatus && currentUser?.email === 'leojoex@hotmail.com' && (
                   <button
                     type="button"
@@ -2146,7 +2174,7 @@ export default function App() {
             </div>
 
             {/* Snug responsive columns: perfectly even tab allocation */}
-            <nav className={`grid ${currentUser?.role === 'admin' || currentUser?.role === 'socio' ? 'grid-cols-6' : 'grid-cols-5'} gap-0.5`}>
+            <nav className={`grid ${currentUser?.role === 'admin' || currentUser?.role === 'socio' ? 'grid-cols-7' : 'grid-cols-6'} gap-0.5`}>
               <button
                 onClick={() => setActiveTab('dashboard')}
                 className={`py-2 px-1 rounded-lg text-[10px] font-bold text-center flex flex-col items-center justify-center gap-1 transition-all ${
@@ -2201,6 +2229,17 @@ export default function App() {
               >
                 <Key className="h-4 w-4" />
                 <span className="truncate max-w-full">Contratos</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('ai-manager')}
+                className={`py-2 px-1 rounded-lg text-[10px] font-bold text-center flex flex-col items-center justify-center gap-1 transition-all ${
+                  activeTab === 'ai-manager'
+                    ? 'bg-gradient-to-r from-cyan-500 to-brand-500 text-white shadow-sm'
+                    : 'text-cyan-200 bg-brand-600/35 hover:bg-brand-600 hover:text-white'
+                }`}
+              >
+                <Bot className="h-4 w-4" />
+                <span className="truncate max-w-full">Gestor IA</span>
               </button>
               {(currentUser?.role === 'admin' || currentUser?.role === 'socio') && (
                 <button
@@ -2811,6 +2850,38 @@ export default function App() {
               onChangePasswordClick={() => setShowChangePasswordModal(true)}
               accessLogs={accessLogs}
               onClearAccessLogs={handleClearAccessLogs}
+            />
+          </div>
+        )}
+
+        {activeTab === 'ai-manager' && (
+          <div className="animate-fade-in">
+            <GestorIATab
+              vehicles={vehicles}
+              rentals={rentals}
+              transactions={transactions}
+              futureExpenses={futureExpenses}
+              interestedLeads={interestedLeads}
+              users={users}
+              currentUser={currentUser}
+              financials={{
+                currentCash: financials.currentCash,
+                totalRevenues: financials.totalRevenues,
+                totalExpenses: financials.totalExpenses,
+                activeCaucaoInHand: financials.netCaucaoInCustody
+              }}
+              onAddTransaction={handleAddTransaction}
+              onUpdateVehicleStatus={handleUpdateVehicleStatus}
+              onAddVehicle={handleAddVehicle}
+              onAddFutureExpense={handleAddFutureExpense}
+              onStartRental={handleStartRental}
+              onTerminateRental={handleTerminateRental}
+              onAddInterestedLead={handleAddInterestedLead}
+              onNavigateTab={(tab) => {
+                setActiveTab(tab);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              showNotification={showNotification}
             />
           </div>
         )}
