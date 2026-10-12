@@ -80,6 +80,15 @@
   ],
   "transactions": [
     {
+      "id": "t_dolph_d1",
+      "date": "2026-03-24",
+      "type": "despesa",
+      "value": 399,
+      "vehicleId": "v_dolphin",
+      "category": "Manutenção",
+      "description": "INSULFILME"
+    },
+    {
       "id": "t_dolph_r0_mar",
       "date": "2026-03-25",
       "type": "receita",
@@ -116,6 +125,15 @@
       "description": "Semana 2 (Abril) - LEANDRO"
     },
     {
+      "id": "t_dolph_d2",
+      "date": "2026-04-09",
+      "type": "despesa",
+      "value": 791,
+      "vehicleId": "v_dolphin",
+      "category": "Seguro",
+      "description": "SEGURO (1-10)"
+    },
+    {
       "id": "t_dolph_r3",
       "date": "2026-04-15",
       "type": "receita",
@@ -123,6 +141,24 @@
       "vehicleId": "v_dolphin",
       "category": "Aluguel Semanal",
       "description": "Semana 3 (Abril) - LEANDRO"
+    },
+    {
+      "id": "t_dolph_d3",
+      "date": "2026-04-15",
+      "type": "despesa",
+      "value": 1264.88,
+      "vehicleId": "v_dolphin",
+      "category": "Impostos/Taxas",
+      "description": "IPVA 1ª PARCELA"
+    },
+    {
+      "id": "t_dolph_d4",
+      "date": "2026-04-16",
+      "type": "despesa",
+      "value": 1655.74,
+      "vehicleId": "v_dolphin",
+      "category": "Financiamento",
+      "description": "FINANCIAMENTO (1-36)"
     },
     {
       "id": "t_dolph_r4",
@@ -152,6 +188,15 @@
       "description": "Semana 1 (Maio) - LEANDRO"
     },
     {
+      "id": "t_dolph_d5",
+      "date": "2026-05-08",
+      "type": "despesa",
+      "value": 791,
+      "vehicleId": "v_dolphin",
+      "category": "Seguro",
+      "description": "SEGURO (2-10)"
+    },
+    {
       "id": "t_dolph_r7",
       "date": "2026-05-13",
       "type": "receita",
@@ -159,6 +204,24 @@
       "vehicleId": "v_dolphin",
       "category": "Aluguel Semanal",
       "description": "Semana 2 (Maio) - LEANDRO"
+    },
+    {
+      "id": "t_dolph_d6",
+      "date": "2026-05-15",
+      "type": "despesa",
+      "value": 1264.88,
+      "vehicleId": "v_dolphin",
+      "category": "Impostos/Taxas",
+      "description": "IPVA 2ª PARCELA"
+    },
+    {
+      "id": "t_dolph_d7",
+      "date": "2026-05-16",
+      "type": "despesa",
+      "value": 1655.74,
+      "vehicleId": "v_dolphin",
+      "category": "Financiamento",
+      "description": "FINANCIAMENTO (2-36)"
     },
     {
       "id": "t_dolph_r8",
@@ -188,6 +251,24 @@
       "description": "Semana 1 (Junho) - LEANDRO"
     },
     {
+      "type": "despesa",
+      "value": 2500,
+      "date": "2026-06-03",
+      "vehicleId": "v_wl8jpgood",
+      "category": "FRETE ",
+      "description": "Frete",
+      "id": "t_man_sxaoo1lub"
+    },
+    {
+      "type": "despesa",
+      "value": 1000,
+      "date": "2026-06-03",
+      "vehicleId": "v_wl8jpgood",
+      "category": "EMPLACAMENTO",
+      "description": "Emplacamento",
+      "id": "t_man_4q6k1fb1q"
+    },
+    {
       "id": "t_dolph_r11",
       "date": "2026-06-10",
       "type": "receita",
@@ -195,69 +276,6 @@
       "vehicleId": "v_dolphin",
       "category": "Aluguel Semanal",
       "description": "Semana 2 (Junho) - LEANDRO"
-    },
-    {
-      "id": "t_dolph_d1",
-      "date": "2026-03-24",
-      "type": "despesa",
-      "value": 399,
-      "vehicleId": "v_dolphin",
-      "category": "Manutenção",
-      "description": "INSULFILME"
-    },
-    {
-      "id": "t_dolph_d2",
-      "date": "2026-04-09",
-      "type": "despesa",
-      "value": 791,
-      "vehicleId": "v_dolphin",
-      "category": "Seguro",
-      "description": "SEGURO (1-10)"
-    },
-    {
-      "id": "t_dolph_d3",
-      "date": "2026-04-15",
-      "type": "despesa",
-      "value": 1264.88,
-      "vehicleId": "v_dolphin",
-      "category": "Impostos/Taxas",
-      "description": "IPVA 1ª PARCELA"
-    },
-    {
-      "id": "t_dolph_d4",
-      "date": "2026-04-16",
-      "type": "despesa",
-      "value": 1655.74,
-      "vehicleId": "v_dolphin",
-      "category": "Financiamento",
-      "description": "FINANCIAMENTO (1-36)"
-    },
-    {
-      "id": "t_dolph_d5",
-      "date": "2026-05-08",
-      "type": "despesa",
-      "value": 791,
-      "vehicleId": "v_dolphin",
-      "category": "Seguro",
-      "description": "SEGURO (2-10)"
-    },
-    {
-      "id": "t_dolph_d6",
-      "date": "2026-05-15",
-      "type": "despesa",
-      "value": 1264.88,
-      "vehicleId": "v_dolphin",
-      "category": "Impostos/Taxas",
-      "description": "IPVA 2ª PARCELA"
-    },
-    {
-      "id": "t_dolph_d7",
-      "date": "2026-05-16",
-      "type": "despesa",
-      "value": 1655.74,
-      "vehicleId": "v_dolphin",
-      "category": "Financiamento",
-      "description": "FINANCIAMENTO (2-36)"
     },
     {
       "id": "t_dolph_d8",
@@ -297,24 +315,6 @@
     },
     {
       "type": "despesa",
-      "value": 2500,
-      "date": "2026-06-03",
-      "vehicleId": "v_wl8jpgood",
-      "category": "FRETE ",
-      "description": "Frete",
-      "id": "t_man_sxaoo1lub"
-    },
-    {
-      "type": "despesa",
-      "value": 1000,
-      "date": "2026-06-03",
-      "vehicleId": "v_wl8jpgood",
-      "category": "EMPLACAMENTO",
-      "description": "Emplacamento",
-      "id": "t_man_4q6k1fb1q"
-    },
-    {
-      "type": "despesa",
       "value": 200,
       "date": "2026-06-18",
       "vehicleId": "v_wl8jpgood",
@@ -348,24 +348,6 @@
       "category": "Financiamento",
       "description": "Financiamento - Parc. 1/60 (Efetivada Automaticamente no Vencimento)",
       "vehicleId": "v_wl8jpgood"
-    },
-    {
-      "id": "t_quick_maint_e0f7pjk68",
-      "date": "2026-07-15",
-      "type": "despesa",
-      "value": 59.9,
-      "vehicleId": "v_wl8jpgood",
-      "category": "Manutenção",
-      "description": "Doc4sign (Placa: UJA-4F76)"
-    },
-    {
-      "id": "t_quick_maint_1u72qgwpm",
-      "date": "2026-07-15",
-      "type": "despesa",
-      "value": 9.95,
-      "vehicleId": "v_wl8jpgood",
-      "category": "Manutenção",
-      "description": "Doc4sign crédito  GOV (Placa: UJA-4F76)"
     },
     {
       "id": "t_quick_rent_9yem1grpm",
@@ -441,6 +423,24 @@
       "description": "Pagamento recorrente de Aluguel Semanal - Motorista: PAULO CÉSAR"
     },
     {
+      "id": "t_quick_maint_e0f7pjk68",
+      "date": "2026-07-15",
+      "type": "despesa",
+      "value": 59.9,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Manutenção",
+      "description": "Doc4sign (Placa: UJA-4F76)"
+    },
+    {
+      "id": "t_quick_maint_1u72qgwpm",
+      "date": "2026-07-15",
+      "type": "despesa",
+      "value": 9.95,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Manutenção",
+      "description": "Doc4sign crédito  GOV (Placa: UJA-4F76)"
+    },
+    {
       "id": "t_refund_all_dkxh5mr8f",
       "date": "2026-07-15",
       "type": "caucao_devolvido",
@@ -486,15 +486,6 @@
       "description": "Revisão  BYD CARBIG (Placa: TYU-0E16)"
     },
     {
-      "id": "t_auto_realized_lvs3ssjbj",
-      "date": "2026-07-16",
-      "type": "despesa",
-      "value": 1655.74,
-      "category": "Financiamento",
-      "description": "Financiamento - Parc. 1/32 (Efetivada Automaticamente no Vencimento)",
-      "vehicleId": "v_dolphin"
-    },
-    {
       "type": "despesa",
       "value": 153,
       "date": "2026-07-15",
@@ -503,6 +494,15 @@
       "description": "Tag rastreio MercadoLivre ",
       "status": "pending",
       "id": "t_man_zjr2rfdgl"
+    },
+    {
+      "id": "t_auto_realized_lvs3ssjbj",
+      "date": "2026-07-16",
+      "type": "despesa",
+      "value": 1655.74,
+      "category": "Financiamento",
+      "description": "Financiamento - Parc. 1/32 (Efetivada Automaticamente no Vencimento)",
+      "vehicleId": "v_dolphin"
     },
     {
       "id": "t_quick_maint_0vuv4d7dw",
@@ -530,16 +530,6 @@
       "vehicleId": "v_dolphin",
       "category": "Manutenção",
       "description": "Lava-Jato (Placa: TYU-0E16)"
-    },
-    {
-      "type": "despesa",
-      "value": 180,
-      "date": "2026-08-10",
-      "vehicleId": "v_dolphin",
-      "category": "Alinhamento e Balanceamento",
-      "description": "Alinhamento e balanceamento entre locações.",
-      "status": "pending",
-      "id": "t_man_wha1e6pml"
     },
     {
       "id": "t_quick_maint_zfmkw6kea",
@@ -603,6 +593,16 @@
       "vehicleId": "v_wl8jpgood",
       "category": "Aluguel Semanal",
       "description": "Pagamento recorrente de Aluguel Semanal - Motorista: PAULO CÉSAR"
+    },
+    {
+      "type": "despesa",
+      "value": 180,
+      "date": "2026-08-10",
+      "vehicleId": "v_dolphin",
+      "category": "Alinhamento e Balanceamento",
+      "description": "Alinhamento e balanceamento entre locações.",
+      "status": "pending",
+      "id": "t_man_wha1e6pml"
     },
     {
       "id": "t_auto_realized_pjof8npk8",
@@ -863,6 +863,69 @@
       "vehicleId": "v_dolphin",
       "category": "Aluguel Semanal",
       "description": "Pagamento recorrente de Aluguel Semanal - Motorista: Péricles"
+    },
+    {
+      "id": "t_quick_rent_paulo_20260929",
+      "date": "2026-09-29",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: PAULO CÉSAR"
+    },
+    {
+      "id": "t_quick_rent_pericles_20261001",
+      "date": "2026-10-01",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_dolphin",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: Péricles"
+    },
+    {
+      "id": "t_quick_rent_paulo_20261006",
+      "date": "2026-10-06",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: PAULO CÉSAR"
+    },
+    {
+      "id": "t_quick_rent_pericles_20261008",
+      "date": "2026-10-08",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_dolphin",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: Péricles"
+    },
+    {
+      "id": "t_auto_realized_28iy8znht",
+      "date": "2026-10-10",
+      "type": "despesa",
+      "value": 790,
+      "category": "Seguro",
+      "description": "Seguro - Parc. 4/7 (Efetivada Automaticamente no Vencimento)",
+      "vehicleId": "v_dolphin"
+    },
+    {
+      "id": "t_auto_realized_khkuhskv5",
+      "date": "2026-10-10",
+      "type": "despesa",
+      "value": 1054.5,
+      "category": "Revisão de 40mil",
+      "description": "Revisão de 40mil - Parc. 1/2 (Efetivada Automaticamente no Vencimento)",
+      "vehicleId": "v_dolphin"
+    },
+    {
+      "id": "t_auto_realized_oi4tjvhwv",
+      "date": "2026-10-10",
+      "type": "despesa",
+      "value": 399,
+      "category": "PNEUS - 02",
+      "description": "PNEUS - 02 - Parc. 1/2 (Efetivada Automaticamente no Vencimento)",
+      "vehicleId": "v_dolphin"
     }
   ],
   "futureExpenses": [
@@ -1108,7 +1171,8 @@
           "id": "fei_dskg1qlx0",
           "installmentNumber": 4,
           "dueDate": "2026-10-10",
-          "status": "pending"
+          "status": "realized",
+          "realizedTransactionId": "t_auto_realized_28iy8znht"
         },
         {
           "id": "fei_iln195fji",
@@ -1658,7 +1722,8 @@
           "id": "fei_7b3hwkd7b",
           "installmentNumber": 1,
           "dueDate": "2026-10-10",
-          "status": "pending"
+          "status": "realized",
+          "realizedTransactionId": "t_auto_realized_khkuhskv5"
         },
         {
           "id": "fei_kuddrgi9b",
@@ -1682,7 +1747,8 @@
           "id": "fei_dy6qqlwez",
           "installmentNumber": 1,
           "dueDate": "2026-10-10",
-          "status": "pending"
+          "status": "realized",
+          "realizedTransactionId": "t_auto_realized_oi4tjvhwv"
         },
         {
           "id": "fei_ezpuxet26",
@@ -1731,6 +1797,14 @@
     }
   ],
   "accessLogs": [
+    {
+      "id": "log_1791822878095_006i",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "12/10/2026, 13:34:38",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
     {
       "id": "log_1790471553364_ggco",
       "userName": "Leo",

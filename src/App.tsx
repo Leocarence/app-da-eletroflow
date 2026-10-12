@@ -248,8 +248,11 @@ export default function App() {
 
             setTransactions(prev => {
               if (JSON.stringify(prev) !== JSON.stringify(sTransactions)) {
-                localStorage.setItem('loca_transactions', JSON.stringify(sTransactions));
-                return sTransactions;
+                const sIds = new Set(sTransactions.map((t: any) => t.id));
+                const locallyAdded = prev.filter(t => !sIds.has(t.id));
+                const merged = locallyAdded.length > 0 ? [...sTransactions, ...locallyAdded] : sTransactions;
+                localStorage.setItem('loca_transactions', JSON.stringify(merged));
+                return merged;
               }
               return prev;
             });
@@ -580,6 +583,23 @@ export default function App() {
               parsedAccessLogs = serverBackup.accessLogs || [];
               parsedLeads = serverBackup.interestedLeads || [];
               console.log("Hydrated successfully from server persistent disk backup!");
+
+              // Safety Merge: If localStorage has transactions not yet present in server, preserve them!
+              const storedLocalTx = localStorage.getItem('loca_transactions');
+              if (storedLocalTx) {
+                try {
+                  const localList = JSON.parse(storedLocalTx);
+                  if (Array.isArray(localList) && localList.length > 0) {
+                    const serverTxIds = new Set(parsedTransactions.map(t => t.id));
+                    const unpersisted = localList.filter(t => t && t.id && !serverTxIds.has(t.id));
+                    if (unpersisted.length > 0) {
+                      console.log(`[Safety Merge] Recovered ${unpersisted.length} local transactions not found on server!`);
+                      parsedTransactions = [...parsedTransactions, ...unpersisted];
+                      hasChanges = true;
+                    }
+                  }
+                } catch (e) {}
+              }
             }
           }
         } catch (e) {
