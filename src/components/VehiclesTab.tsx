@@ -275,6 +275,13 @@ export default function VehiclesTab({
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
 
+  const formatDateBR = (dateStr?: string) => {
+    if (!dateStr) return '—';
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return dateStr;
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  };
+
   // Find selected vehicle
   const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
 
@@ -2244,14 +2251,17 @@ export default function VehiclesTab({
       )}
       {/* MODAL: HISTÓRICO DE MANUTENÇÃO DEDICADO DO VEÍCULO */}
       {maintenanceVehicle && (() => {
-        const vehicleMaintenanceList = transactions
-          .filter(t => 
-            (t.vehicleId === maintenanceVehicle.id || (t.description && t.description.includes(maintenanceVehicle.plate))) &&
-            isMaintenanceTransaction(t)
-          )
-          .sort((a, b) => b.date.localeCompare(a.date));
+        const vehicleMaintenanceList = (transactions || [])
+          .filter(t => {
+            if (!t || typeof t !== 'object') return false;
+            const matchesVehicle = 
+              t.vehicleId === maintenanceVehicle.id || 
+              (Boolean(maintenanceVehicle.plate) && Boolean(t.description) && t.description.includes(maintenanceVehicle.plate));
+            return matchesVehicle && isMaintenanceTransaction(t);
+          })
+          .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
-        const totalSpent = vehicleMaintenanceList.reduce((sum, r) => sum + r.value, 0);
+        const totalSpent = vehicleMaintenanceList.reduce((sum, r) => sum + (Number(r.value) || 0), 0);
         const count = vehicleMaintenanceList.length;
         const avg = count > 0 ? totalSpent / count : 0;
         const lastDate = count > 0 ? vehicleMaintenanceList[0].date : null;
@@ -2390,7 +2400,7 @@ export default function VehiclesTab({
                             <button
                               type="button"
                               onClick={() => {
-                                if (window.confirm(`Tem certeza que deseja excluir a despesa de manutenção "${item.description}"?`)) {
+                                if (onDeleteTransaction && window.confirm(`Tem certeza que deseja excluir a despesa de manutenção "${item.description}"?`)) {
                                   onDeleteTransaction(item.id);
                                 }
                               }}
