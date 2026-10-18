@@ -16,6 +16,7 @@ import { UsersTab } from './components/UsersTab';
 import { GestorIATab } from './components/GestorIATab';
 import { EletroflowLogo } from './components/EletroflowLogo';
 import { AppUser, AccessLog } from './types';
+import { deduplicateTransactions, isFinancingTransaction, isMaintenanceTransaction } from './utils/transactions';
 import {
   LayoutDashboard,
   FileSpreadsheet,
@@ -247,12 +248,10 @@ export default function App() {
             });
 
             setTransactions(prev => {
-              if (JSON.stringify(prev) !== JSON.stringify(sTransactions)) {
-                const sIds = new Set(sTransactions.map((t: any) => t.id));
-                const locallyAdded = prev.filter(t => !sIds.has(t.id));
-                const merged = locallyAdded.length > 0 ? [...sTransactions, ...locallyAdded] : sTransactions;
-                localStorage.setItem('loca_transactions', JSON.stringify(merged));
-                return merged;
+              const dedupedServer = deduplicateTransactions(sTransactions);
+              if (JSON.stringify(prev) !== JSON.stringify(dedupedServer)) {
+                localStorage.setItem('loca_transactions', JSON.stringify(dedupedServer));
+                return dedupedServer;
               }
               return prev;
             });
@@ -729,35 +728,69 @@ export default function App() {
           } catch (e) {}
         }
 
-        // Auto-realize future installments if their due date is reached or passed
+        // Auto-realize future installments if their due date is reached or passed (strictly idempotent)
         const todayStr = getBrasiliaDateStr();
         const autoTransactions: Transaction[] = [];
+
+        // Pre-deduplicate incoming parsedTransactions to eliminate any historic duplicate auto-realized or repeated entries
+        parsedTransactions = deduplicateTransactions(parsedTransactions);
 
         const processedFuture = (parsedFuture || []).map(expense => {
           if (!expense) return expense;
           let expenseChanged = false;
           const installments = expense.installments || [];
           const updatedInstallments = installments.map(inst => {
-            if (inst && inst.status === 'pending' && inst.dueDate <= todayStr) {
-              hasChanges = true;
-              expenseChanged = true;
+            if (inst && inst.dueDate <= todayStr) {
+              const deterministicId = `t_auto_fe_${expense.id}_p${inst.installmentNumber}`;
+              const installmentDescSub = `Parc. ${inst.installmentNumber}/${expense.installmentsCount}`;
               
-              const transactionId = 't_auto_realized_' + Math.random().toString(36).substr(2, 9);
-              autoTransactions.push({
-                id: transactionId,
-                date: inst.dueDate,
-                type: 'despesa',
-                value: expense.value,
-                category: expense.category,
-                description: `${expense.category} - Parc. ${inst.installmentNumber}/${expense.installmentsCount} (Efetivada Automaticamente no Vencimento)`,
-                vehicleId: expense.vehicleId
-              });
+              // Check if already realized or if a transaction for this installment already exists
+              const existingTx = parsedTransactions.find(t => 
+                (inst.realizedTransactionId && t.id === inst.realizedTransactionId) ||
+                t.id === deterministicId ||
+                (t.type === 'despesa' && 
+                 Math.abs(t.value - expense.value) < 0.05 && 
+                 (t.date === inst.dueDate || Math.abs(new Date(t.date).getTime() - new Date(inst.dueDate).getTime()) <= 86400000 * 3) &&
+                 t.description && (t.description.includes(installmentDescSub) || t.description.includes(`Parc. ${inst.installmentNumber}/`)))
+              );
 
-              return {
-                ...inst,
-                status: 'realized' as const,
-                realizedTransactionId: transactionId
-              };
+              if (existingTx) {
+                // Already in transactions! Simply ensure installment is marked as realized
+                if (inst.status !== 'realized' || inst.realizedTransactionId !== existingTx.id) {
+                  expenseChanged = true;
+                  hasChanges = true;
+                  return {
+                    ...inst,
+                    status: 'realized' as const,
+                    realizedTransactionId: existingTx.id
+                  };
+                }
+                return inst;
+              }
+
+              // Only create if status was pending and no transaction exists yet
+              if (inst.status === 'pending') {
+                hasChanges = true;
+                expenseChanged = true;
+                
+                const newTx: Transaction = {
+                  id: deterministicId,
+                  date: inst.dueDate,
+                  type: 'despesa',
+                  value: expense.value,
+                  category: expense.category,
+                  description: `${expense.category} - Parc. ${inst.installmentNumber}/${expense.installmentsCount} (Efetivada Automaticamente no Vencimento)`,
+                  vehicleId: expense.vehicleId
+                };
+
+                autoTransactions.push(newTx);
+
+                return {
+                  ...inst,
+                  status: 'realized' as const,
+                  realizedTransactionId: deterministicId
+                };
+              }
             }
             return inst;
           });
@@ -770,10 +803,12 @@ export default function App() {
 
         if (hasChanges) {
           parsedFuture = processedFuture;
-          parsedTransactions = [...parsedTransactions, ...autoTransactions];
-          setTimeout(() => {
-            showNotification(`Foram efetivadas automaticamente ${autoTransactions.length} parcela(s) vencida(s) no caixa principal.`, 'success');
-          }, 1500);
+          parsedTransactions = deduplicateTransactions([...parsedTransactions, ...autoTransactions]);
+          if (autoTransactions.length > 0) {
+            setTimeout(() => {
+              showNotification(`Foram efetivadas automaticamente ${autoTransactions.length} parcela(s) vencida(s) no caixa principal.`, 'success');
+            }, 1500);
+          }
         }
 
         // Proactive migration of legacy transaction records to avoid double counting and visual distortion:
@@ -1187,30 +1222,41 @@ export default function App() {
   // FINANCIAL FORMULA CALCULATORS (only effective non-future transactions)
   const financials = React.useMemo(() => {
     const todayStr = getBrasiliaDateStr();
-    const effectiveTransactions = transactions.filter(t => t.date <= todayStr);
+    const effectiveTransactions = (transactions || []).filter(t => t && typeof t === 'object' && t.date && t.date <= todayStr);
 
     const totalRevenues = effectiveTransactions
       .filter((t) => t.type === 'receita')
-      .reduce((sum, t) => sum + t.value, 0);
+      .reduce((sum, t) => sum + (Number(t.value) || 0), 0);
 
     const totalExpenses = effectiveTransactions
       .filter((t) => t.type === 'despesa')
-      .reduce((sum, t) => sum + t.value, 0);
+      .reduce((sum, t) => sum + (Number(t.value) || 0), 0);
 
     // Caução Retido Activo = Received - Returned - Retained
     const caucoesReceived = effectiveTransactions
       .filter((t) => t.type === 'caucao_recebido')
-      .reduce((sum, t) => sum + t.value, 0);
+      .reduce((sum, t) => sum + (Number(t.value) || 0), 0);
 
     const caucoesReturned = effectiveTransactions
       .filter((t) => t.type === 'caucao_devolvido')
-      .reduce((sum, t) => sum + t.value, 0);
+      .reduce((sum, t) => sum + (Number(t.value) || 0), 0);
 
     const caucoesRetained = effectiveTransactions
-      .filter((t) => t.type === 'receita' && (t.category === 'Retenção de Caução' || t.category.includes('Retenção')))
-      .reduce((sum, t) => sum + t.value, 0);
+      .filter((t) => t.type === 'receita' && t.category && (t.category === 'Retenção de Caução' || t.category.includes('Retenção')))
+      .reduce((sum, t) => sum + (Number(t.value) || 0), 0);
 
     const netCaucaoInCustody = Math.max(0, caucoesReceived - caucoesReturned - caucoesRetained);
+
+    // Despesas estritamente separadas: Financiamento vs Manutenção vs Outras
+    const financingExpenses = effectiveTransactions
+      .filter((t) => isFinancingTransaction(t))
+      .reduce((sum, t) => sum + (Number(t.value) || 0), 0);
+
+    const maintenanceExpenses = effectiveTransactions
+      .filter((t) => isMaintenanceTransaction(t))
+      .reduce((sum, t) => sum + (Number(t.value) || 0), 0);
+
+    const otherExpenses = Math.max(0, totalExpenses - financingExpenses - maintenanceExpenses);
 
     // Grand total: Dinheiro em Caixa = Somatório Receitas + Cauções em custódia - Despesas
     const currentCash = totalRevenues + netCaucaoInCustody - totalExpenses;
@@ -1218,6 +1264,9 @@ export default function App() {
     return {
       totalRevenues,
       totalExpenses,
+      financingExpenses,
+      maintenanceExpenses,
+      otherExpenses,
       netCaucaoInCustody,
       currentCash,
       caucoesReceived,
@@ -1586,9 +1635,31 @@ export default function App() {
     const inst = expense.installments.find(item => item.id === installmentId);
     if (!inst || inst.status === 'realized') return;
 
-    const transactionId = 't_realized_' + Math.random().toString(36).substr(2, 9);
+    const deterministicId = `t_realized_${expenseId}_${inst.id || 'p' + inst.installmentNumber}`;
+    
+    // Check if already in transactions
+    const existing = transactions.find(t => 
+      t.id === deterministicId || 
+      (t.category === expense.category && 
+       Math.abs(t.value - expense.value) < 0.01 && 
+       t.date === (customDate || inst.dueDate) && 
+       t.description.includes(`Parc. ${inst.installmentNumber}/${expense.installmentsCount}`))
+    );
+
+    if (existing) {
+      const updatedInstallments = expense.installments.map(item =>
+        item.id === installmentId ? { ...item, status: 'realized' as const, realizedTransactionId: existing.id } : item
+      );
+      const updatedExpenses = futureExpenses.map(fe =>
+        fe.id === expenseId ? { ...fe, installments: updatedInstallments } : fe
+      );
+      syncAndSetFutureExpenses(updatedExpenses);
+      showNotification(`Parcela ${inst.installmentNumber}/${expense.installmentsCount} já estava vinculada no livro-caixa.`, 'info');
+      return;
+    }
+
     const newTrans: Transaction = {
-      id: transactionId,
+      id: deterministicId,
       date: customDate || inst.dueDate,
       type: 'despesa',
       value: expense.value,
@@ -1598,7 +1669,7 @@ export default function App() {
     };
 
     const updatedInstallments = expense.installments.map(item =>
-      item.id === installmentId ? { ...item, status: 'realized' as const, realizedTransactionId: transactionId } : item
+      item.id === installmentId ? { ...item, status: 'realized' as const, realizedTransactionId: deterministicId } : item
     );
 
     const updatedExpenses = futureExpenses.map(fe =>
@@ -2888,7 +2959,10 @@ export default function App() {
                 currentCash: financials.currentCash,
                 totalRevenues: financials.totalRevenues,
                 totalExpenses: financials.totalExpenses,
-                activeCaucaoInHand: financials.netCaucaoInCustody
+                activeCaucaoInHand: financials.netCaucaoInCustody,
+                financingExpenses: financials.financingExpenses,
+                maintenanceExpenses: financials.maintenanceExpenses,
+                otherExpenses: financials.otherExpenses
               }}
               onAddTransaction={handleAddTransaction}
               onUpdateVehicleStatus={handleUpdateVehicleStatus}

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Transaction, Vehicle, FutureExpense, FutureExpenseInstallment, Rental } from '../types';
 import { getBrasiliaDateStr } from '../utils/dateUtils';
+import { isFinancingTransaction, isMaintenanceTransaction } from '../utils/transactions';
 import { Plus, Search, Calendar, Landmark, ArrowUpCircle, ArrowDownCircle, ChevronDown, Check, X, Filter, Trash2, Edit3, DollarSign, Download, Upload, Pencil, ChevronUp, AlertCircle, Wrench, Shield, CreditCard, HelpCircle, FileText, CalendarDays } from 'lucide-react';
 
 interface TransactionsTabProps {
@@ -280,7 +281,18 @@ export default function TransactionsTab({
       .filter((t) => {
         const matchesSearch = t.description.toLowerCase().includes(search.toLowerCase()) || 
                               t.category.toLowerCase().includes(search.toLowerCase());
-        const matchesType = filterType === 'all' || t.type === filterType;
+        
+        let matchesType = false;
+        if (filterType === 'all') {
+          matchesType = true;
+        } else if (filterType === 'despesa_financiamento') {
+          matchesType = isFinancingTransaction(t);
+        } else if (filterType === 'despesa_manutencao') {
+          matchesType = isMaintenanceTransaction(t);
+        } else {
+          matchesType = t.type === filterType;
+        }
+
         const matchesVehicle = filterVehicle === 'all' || t.vehicleId === filterVehicle;
         const matchesCategory = filterCategory === 'all' || t.category === filterCategory;
         const matchesStartDate = !filterStartDate || t.date >= filterStartDate;
@@ -542,8 +554,10 @@ export default function TransactionsTab({
               className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white text-black font-semibold focus:outline-none focus:ring-1 focus:ring-brand-500"
             >
               <option value="all">Todos os Tipos</option>
-              <option value="receita">Apenas Receitas</option>
-              <option value="despesa">Apenas Despesas</option>
+              <option value="receita">Apenas Receitas (Aluguéis e Outros)</option>
+              <option value="despesa">Todas as Despesas</option>
+              <option value="despesa_financiamento">Despesas de Financiamento</option>
+              <option value="despesa_manutencao">Despesas de Manutenção</option>
               <option value="caucao_recebido">Cauções Recebidos</option>
               <option value="caucao_devolvido">Cauções Devolvidos</option>
             </select>

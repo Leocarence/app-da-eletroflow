@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { Vehicle, FutureExpense, Transaction, Rental } from '../types';
 import { getBrasiliaDateStr } from '../utils/dateUtils';
+import { isFinancingTransaction, isMaintenanceTransaction } from '../utils/transactions';
 import { getEffectiveRentalPaymentWeekday, getWeekdayName } from './RentalsTab';
 import { ProjectedRevenueItem, ProjectedExpenseItem } from './FutureExpensesForecastModal';
 
@@ -425,10 +426,23 @@ export const PeriodFilterAutonomousView: React.FC<PeriodFilterAutonomousViewProp
       ? expenseCategories.join(', ')
       : 'Sem despesas na seleção';
 
+    const expensesFinancingTotal = expensesItems
+      .filter(it => isFinancingTransaction({ type: 'despesa', category: it.category, description: it.title || it.category }))
+      .reduce((sum, it) => sum + it.value, 0);
+
+    const expensesMaintenanceTotal = expensesItems
+      .filter(it => isMaintenanceTransaction({ type: 'despesa', category: it.category, description: it.title || it.category }))
+      .reduce((sum, it) => sum + it.value, 0);
+
+    const expensesOtherTotal = Math.max(0, expensesTotal - expensesFinancingTotal - expensesMaintenanceTotal);
+
     return {
       revenuesTotal,
       revenuesItems,
       expensesTotal,
+      expensesFinancingTotal,
+      expensesMaintenanceTotal,
+      expensesOtherTotal,
       expensesItems,
       balance,
       revenuesDriversSummary,
@@ -440,12 +454,12 @@ export const PeriodFilterAutonomousView: React.FC<PeriodFilterAutonomousViewProp
   // Reconciled cash balance as of today
   const currentCashBalance = useMemo(() => {
     if (typeof cashBalance === 'number') return cashBalance;
-    const effectiveTransactions = transactions.filter(t => t.date <= todayStr);
-    const rev = effectiveTransactions.filter(t => t.type === 'receita').reduce((s, t) => s + t.value, 0);
-    const exp = effectiveTransactions.filter(t => t.type === 'despesa').reduce((s, t) => s + t.value, 0);
-    const cr = effectiveTransactions.filter(t => t.type === 'caucao_recebido').reduce((s, t) => s + t.value, 0);
-    const cd = effectiveTransactions.filter(t => t.type === 'caucao_devolvido').reduce((s, t) => s + t.value, 0);
-    const ret = effectiveTransactions.filter(t => t.type === 'receita' && (t.category === 'Retenção de Caução' || t.category?.includes('Retenção'))).reduce((s, t) => s + t.value, 0);
+    const effectiveTransactions = (transactions || []).filter(t => t && typeof t === 'object' && t.date && t.date <= todayStr);
+    const rev = effectiveTransactions.filter(t => t.type === 'receita').reduce((s, t) => s + (Number(t.value) || 0), 0);
+    const exp = effectiveTransactions.filter(t => t.type === 'despesa').reduce((s, t) => s + (Number(t.value) || 0), 0);
+    const cr = effectiveTransactions.filter(t => t.type === 'caucao_recebido').reduce((s, t) => s + (Number(t.value) || 0), 0);
+    const cd = effectiveTransactions.filter(t => t.type === 'caucao_devolvido').reduce((s, t) => s + (Number(t.value) || 0), 0);
+    const ret = effectiveTransactions.filter(t => t.type === 'receita' && (t.category === 'Retenção de Caução' || t.category?.includes('Retenção'))).reduce((s, t) => s + (Number(t.value) || 0), 0);
     const netC = Math.max(0, cr - cd - ret);
     return rev + netC - exp;
   }, [transactions, todayStr, cashBalance]);
@@ -457,12 +471,12 @@ export const PeriodFilterAutonomousView: React.FC<PeriodFilterAutonomousViewProp
     // If period starts on or before today:
     // It's the reconciled cash balance strictly before sDate
     if (sDate <= todayStr) {
-      const priorTx = transactions.filter(t => t.date && t.date < sDate);
-      const rev = priorTx.filter(t => t.type === 'receita').reduce((s, t) => s + t.value, 0);
-      const exp = priorTx.filter(t => t.type === 'despesa').reduce((s, t) => s + t.value, 0);
-      const cr = priorTx.filter(t => t.type === 'caucao_recebido').reduce((s, t) => s + t.value, 0);
-      const cd = priorTx.filter(t => t.type === 'caucao_devolvido').reduce((s, t) => s + t.value, 0);
-      const ret = priorTx.filter(t => t.type === 'receita' && (t.category === 'Retenção de Caução' || t.category?.includes('Retenção'))).reduce((s, t) => s + t.value, 0);
+      const priorTx = (transactions || []).filter(t => t && typeof t === 'object' && t.date && t.date < sDate);
+      const rev = priorTx.filter(t => t.type === 'receita').reduce((s, t) => s + (Number(t.value) || 0), 0);
+      const exp = priorTx.filter(t => t.type === 'despesa').reduce((s, t) => s + (Number(t.value) || 0), 0);
+      const cr = priorTx.filter(t => t.type === 'caucao_recebido').reduce((s, t) => s + (Number(t.value) || 0), 0);
+      const cd = priorTx.filter(t => t.type === 'caucao_devolvido').reduce((s, t) => s + (Number(t.value) || 0), 0);
+      const ret = priorTx.filter(t => t.type === 'receita' && (t.category === 'Retenção de Caução' || t.category?.includes('Retenção'))).reduce((s, t) => s + (Number(t.value) || 0), 0);
       const netC = Math.max(0, cr - cd - ret);
       return rev + netC - exp;
     }
@@ -1014,7 +1028,20 @@ export const PeriodFilterAutonomousView: React.FC<PeriodFilterAutonomousViewProp
             <div className="text-2xl font-black font-mono text-rose-400 tracking-tight">
               - {formatBRL(resultData.expensesTotal)}
             </div>
-            <p className="text-[11px] text-slate-300 mt-1 truncate font-sans">
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              <span className="text-[10px] font-mono font-bold bg-purple-950/80 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/40">
+                Financ: {formatBRL(resultData.expensesFinancingTotal)}
+              </span>
+              <span className="text-[10px] font-mono font-bold bg-amber-950/80 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/40">
+                Manut: {formatBRL(resultData.expensesMaintenanceTotal)}
+              </span>
+              {resultData.expensesOtherTotal > 0 && (
+                <span className="text-[10px] font-mono text-slate-400 bg-slate-900/80 px-1.5 py-0.5 rounded border border-slate-700">
+                  Outras: {formatBRL(resultData.expensesOtherTotal)}
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-300 mt-1.5 truncate font-sans">
               {resultData.expensesSummary}
             </p>
           </div>

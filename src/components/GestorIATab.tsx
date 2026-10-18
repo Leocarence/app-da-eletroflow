@@ -8,6 +8,7 @@ import {
   AppUser 
 } from '../types';
 import { getBrasiliaDateStr, getBrasiliaUiDateStr } from '../utils/dateUtils';
+import { isFinancingTransaction, isMaintenanceTransaction } from '../utils/transactions';
 import { 
   Sparkles, 
   Send, 
@@ -26,7 +27,10 @@ import {
   Shield,
   Layers,
   Zap,
-  Info
+  Info,
+  Maximize2,
+  Minimize2,
+  Wrench
 } from 'lucide-react';
 
 export interface GestorIATabProps {
@@ -42,6 +46,9 @@ export interface GestorIATabProps {
     totalRevenues: number;
     totalExpenses: number;
     activeCaucaoInHand: number;
+    financingExpenses?: number;
+    maintenanceExpenses?: number;
+    otherExpenses?: number;
   };
   onAddTransaction: (t: Omit<Transaction, 'id'>) => void;
   onUpdateVehicleStatus: (id: string, status: 'available' | 'rented' | 'maintenance') => void;
@@ -115,6 +122,59 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Dynamic Mouse & Touch Drag Resizing
+  const [chatHeight, setChatHeight] = useState<number>(() => {
+    try {
+      const stored = localStorage.getItem('loca_skywalker_chat_height');
+      if (stored) {
+        const val = parseInt(stored, 10);
+        if (!isNaN(val) && val >= 380 && val <= 2400) return val;
+      }
+    } catch (_) {}
+    return 680;
+  });
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const isResizingRef = useRef(false);
+  const startYRef = useRef(0);
+  const startHeightRef = useRef(680);
+
+  const startResizing = (e: React.MouseEvent | React.TouchEvent) => {
+    if (isFullscreen) return;
+    if ('button' in e && e.button !== 0) return; // only left click
+    e.preventDefault();
+    isResizingRef.current = true;
+    setIsResizing(true);
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    startYRef.current = clientY;
+    startHeightRef.current = chatHeight;
+
+    const onMove = (moveEvent: MouseEvent | TouchEvent) => {
+      if (!isResizingRef.current) return;
+      const currentY = 'touches' in moveEvent ? moveEvent.touches[0].clientY : moveEvent.clientY;
+      const deltaY = currentY - startYRef.current;
+      const newHeight = Math.max(380, Math.min(2400, startHeightRef.current + deltaY));
+      setChatHeight(newHeight);
+      try {
+        localStorage.setItem('loca_skywalker_chat_height', String(newHeight));
+      } catch (_) {}
+    };
+
+    const onEnd = () => {
+      isResizingRef.current = false;
+      setIsResizing(false);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onEnd);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onEnd);
+    };
+
+    window.addEventListener('mousemove', onMove, { passive: false });
+    window.addEventListener('mouseup', onEnd);
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('touchend', onEnd);
+  };
 
   // Auto-save chat history locally
   useEffect(() => {
@@ -284,6 +344,34 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
             targetTab: 'rentals'
           });
         }
+        else if (name === 'get_vehicle_maintenance_history') {
+          const v = vehicles.find(item => 
+            item.id === args.plateOrId || 
+            item.plate.toUpperCase().replace('-', '') === String(args.plateOrId).toUpperCase().replace('-', '')
+          );
+          if (v) {
+            const repairs = transactions.filter(t => 
+              (t.vehicleId === v.id || (t.description && t.description.includes(v.plate))) &&
+              t.type === 'despesa' &&
+              (t.category === 'Manutenção' || t.category.includes('Manutenção') || t.category === 'Revisão' || t.category === 'Pneus' || t.category === 'Oficina')
+            );
+            const totalRepairs = repairs.reduce((sum, r) => sum + r.value, 0);
+            onNavigateTab('vehicles');
+            executed.push({
+              type: 'Histórico de Manutenção Consultado',
+              description: `${v.brandModel} (${v.plate}): ${repairs.length} intervenção(ões), Total: R$ ${totalRepairs.toFixed(2)}`,
+              targetTab: 'vehicles'
+            });
+          }
+        }
+        else if (name === 'get_financial_breakdown') {
+          onNavigateTab('financials');
+          executed.push({
+            type: 'Demonstrativo Financeiro Consultado',
+            description: `Apresentando separação entre Financiamentos e Manutenções`,
+            targetTab: 'financials'
+          });
+        }
         else if (name === 'navigate_to_tab') {
           if (args.tab) {
             onNavigateTab(args.tab);
@@ -320,18 +408,43 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
 
     try {
       // Build snapshot context with all accessible data
+      const totalFinancing = transactions
+        .filter(t => isFinancingTransaction(t))
+        .reduce((sum, t) => sum + t.value, 0);
+
+      const totalMaintenanceAll = transactions
+        .filter(t => isMaintenanceTransaction(t))
+        .reduce((sum, t) => sum + t.value, 0);
+
       const contextSnapshot = {
         hoje: getBrasiliaDateStr(),
         financeiro: {
           dinheiroEmCaixa: financials.currentCash,
           receitasTotais: financials.totalRevenues,
           despesasTotais: financials.totalExpenses,
-          caucaoEmMaos: financials.activeCaucaoInHand
+          caucaoEmMaos: financials.activeCaucaoInHand,
+          despesasFinanciamentoTotal: totalFinancing,
+          despesasManutencaoTotal: totalMaintenanceAll,
+          outrasDespesasOperacionais: Math.max(0, financials.totalExpenses - totalFinancing - totalMaintenanceAll)
+        },
+        separacaoFinanceira: {
+          despesasFinanciamentoTotal: totalFinancing,
+          despesasManutencaoTotal: totalMaintenanceAll,
+          outrasDespesasOperacionais: Math.max(0, financials.totalExpenses - totalFinancing - totalMaintenanceAll),
+          financiamentosFuturos: futureExpenses.filter(fe => fe.category === 'Financiamento').map(fe => ({
+            descricao: fe.description,
+            valorParcela: fe.value,
+            totalParcelas: fe.installmentsCount,
+            parcelasPendentes: fe.installments.filter(i => i.status === 'pending').length
+          }))
         },
         frota: vehicles.filter(v => !v.isDeleted).map(v => {
           const currentRental = rentals.find(r => r.vehicleId === v.id && r.status === 'active' && !r.isDeleted);
-          const relatedExpenses = transactions.filter(t => t.vehicleId === v.id && t.type === 'despesa');
-          const totalMaintenance = relatedExpenses.reduce((sum, t) => sum + t.value, 0);
+          const vehicleMaintenanceTxs = transactions.filter(t => 
+            (t.vehicleId === v.id || (t.description && t.description.includes(v.plate))) &&
+            isMaintenanceTransaction(t)
+          );
+          const totalMaintenance = vehicleMaintenanceTxs.reduce((sum, t) => sum + t.value, 0);
           return {
             id: v.id,
             placa: v.plate,
@@ -341,7 +454,14 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
             caucao: v.depositValue,
             kmAtual: v.mileage,
             locatarioAtual: currentRental ? currentRental.tenantName : null,
-            totalGastoManutencao: totalMaintenance
+            totalGastoManutencao: totalMaintenance,
+            quantidadeManutencoes: vehicleMaintenanceTxs.length,
+            historicoManutencoes: vehicleMaintenanceTxs.map(mt => ({
+              data: mt.date,
+              descricao: mt.description,
+              valor: mt.value,
+              categoria: mt.category
+            }))
           };
         }),
         contratos: rentals.filter(r => !r.isDeleted).map(r => {
@@ -411,6 +531,9 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
           const errData = await res.json();
           serverErrorText = errData.error || errData.details || '';
         } catch (_) {}
+        if (serverErrorText.includes('models/') || serverErrorText.includes('404') || serverErrorText.includes('503') || serverErrorText.includes('high demand') || serverErrorText.startsWith('{')) {
+          serverErrorText = 'Os servidores de inteligência artificial estão com alta demanda temporária no momento. Por favor, aguarde alguns segundos e tente novamente.';
+        }
         throw new Error(serverErrorText || `Erro HTTP ${res.status} ao comunicar com o servidor.`);
       }
 
@@ -424,10 +547,15 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
         }
       }
 
+      let replyText = data.reply || 'Operação processada.';
+      if (replyText.startsWith('{') && replyText.includes('"error"')) {
+        replyText = 'Os servidores de inteligência artificial estão com alta demanda temporária. Por favor, aguarde alguns instantes e tente novamente.';
+      }
+
       const modelMsg: ChatMessage = {
         id: 'msg_' + Date.now(),
         role: 'model',
-        text: data.reply || 'Operação processada.',
+        text: replyText,
         timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
         actionsExecuted: actionsExecuted.length > 0 ? actionsExecuted : undefined
       };
@@ -435,7 +563,10 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
       setMessages(prev => [...prev, modelMsg]);
     } catch (err: any) {
       console.error("Skywalker chat error:", err);
-      const displayMsg = err?.message || 'Não consegui me comunicar com o servidor no momento. Por favor, verifique sua conexão ou tente novamente em instantes.';
+      let displayMsg = err?.message || 'Não consegui me comunicar com o servidor no momento. Por favor, verifique sua conexão ou tente novamente em instantes.';
+      if (displayMsg.startsWith('{') && displayMsg.includes('"error"')) {
+        displayMsg = 'Os servidores de inteligência artificial estão com alta demanda temporária. Por favor, tente novamente em alguns segundos.';
+      }
       const errorMsg: ChatMessage = {
         id: 'msg_' + Date.now(),
         role: 'model',
@@ -527,7 +658,10 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-140px)] min-h-[580px] max-h-[860px] bg-slate-900 border border-slate-800 rounded-2xl shadow-premium-2xl overflow-hidden animate-fade-in font-sans">
+    <div 
+      style={{ height: isFullscreen ? 'calc(100vh - 80px)' : `${chatHeight}px` }}
+      className={`flex flex-col bg-slate-900 border border-slate-800 rounded-2xl shadow-premium-2xl overflow-hidden animate-fade-in font-sans transition-[height] duration-150 ${isResizingRef.current ? 'select-none transition-none' : ''}`}
+    >
       
       {/* 1. TOP EXECUTIVE HEADER */}
       <div className="px-5 py-3.5 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-b border-slate-800/80 flex items-center justify-between gap-3 shrink-0">
@@ -566,6 +700,15 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
               Frota: <b className="text-white">{vehicles.filter(v => !v.isDeleted).length} carros</b>
             </span>
           </div>
+
+          <button
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            title={isFullscreen ? "Restaurar tamanho padrão" : "Expandir janela do chat"}
+            className="p-2 text-slate-400 hover:text-white bg-slate-800/50 hover:bg-slate-800 rounded-lg border border-slate-700/60 transition-all cursor-pointer flex items-center gap-1 text-xs"
+          >
+            {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+            <span className="hidden sm:inline text-[11px] font-medium">{isFullscreen ? "Restaurar" : "Expandir"}</span>
+          </button>
 
           <button
             onClick={handleClearChat}
@@ -721,6 +864,36 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
           Skywalker analisa frotas, contratos, receitas e despesas com acesso irrestrito a todos os dados da plataforma.
         </p>
       </div>
+
+      {/* 5. INTERACTIVE MOUSE RESIZE HANDLE BAR & CORNER GRIP */}
+      {!isFullscreen && (
+        <div
+          onMouseDown={startResizing}
+          onTouchStart={startResizing}
+          title="Clique e arraste com o mouse para redimensionar a altura da janela do chat"
+          className={`relative group h-6 bg-slate-950 border-t border-slate-800/80 cursor-ns-resize flex items-center justify-center gap-2 transition-all select-none shrink-0 ${
+            isResizing ? 'bg-cyan-950/70 border-cyan-500/60' : 'hover:bg-cyan-950/40 hover:border-slate-700'
+          }`}
+        >
+          <div className="w-8 h-1 rounded-full bg-slate-700 group-hover:bg-cyan-400 transition-colors" />
+          <span className="text-[9px] text-slate-400 group-hover:text-cyan-300 font-mono tracking-widest uppercase transition-colors flex items-center gap-1.5 font-bold">
+            ↕ Arraste com o mouse para Redimensionar {isResizing && <span className="text-cyan-400 bg-cyan-950 px-1.5 py-0.2 rounded border border-cyan-500/40">({chatHeight}px)</span>}
+          </span>
+          <div className="w-8 h-1 rounded-full bg-slate-700 group-hover:bg-cyan-400 transition-colors" />
+
+          {/* Bottom-right corner grip */}
+          <div
+            onMouseDown={startResizing}
+            onTouchStart={startResizing}
+            title="Arraste para redimensionar"
+            className="absolute right-2 bottom-1 w-4 h-4 cursor-se-resize flex flex-col justify-end items-end gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity"
+          >
+            <div className="w-3 h-0.5 bg-cyan-400/80 rounded-full" />
+            <div className="w-2 h-0.5 bg-cyan-400/80 rounded-full" />
+            <div className="w-1 h-0.5 bg-cyan-400/80 rounded-full" />
+          </div>
+        </div>
+      )}
 
     </div>
   );

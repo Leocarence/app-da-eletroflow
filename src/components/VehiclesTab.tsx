@@ -9,6 +9,7 @@ import {
   Edit3, Download
 } from 'lucide-react';
 import { exportVehicleCSV } from '../utils/exportUtils';
+import { isMaintenanceTransaction } from '../utils/transactions';
 
 interface VehiclesTabProps {
   vehicles: Vehicle[];
@@ -190,6 +191,9 @@ export default function VehiclesTab({
   // Custom interactive delete modal states
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletePurgeChoice, setDeletePurgeChoice] = useState<'preserve' | 'purge'>('preserve');
+
+  // Dedicated Maintenance History modal states
+  const [maintenanceVehicle, setMaintenanceVehicle] = useState<Vehicle | null>(null);
 
   // Add/Edit transaction states for dynamic fleet expense complementation
   const [showAddTxModal, setShowAddTxModal] = useState(false);
@@ -544,8 +548,16 @@ export default function VehiclesTab({
                 <ArrowDownRight className="h-4 w-4" />
               </div>
             </div>
-            <div className="mt-4 text-[11px] text-slate-400">
-              Total gasto com manutenção
+            <div className="mt-3 flex items-center justify-between">
+              <span className="text-[11px] text-slate-400">Total gasto com manutenção</span>
+              <button
+                type="button"
+                onClick={() => setMaintenanceVehicle(selectedVehicle)}
+                className="text-[11px] font-bold text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 px-2.5 py-1 rounded-lg border border-amber-200 transition-colors flex items-center gap-1 cursor-pointer"
+              >
+                <Wrench className="h-3 w-3 text-amber-600" />
+                Histórico
+              </button>
             </div>
           </div>
 
@@ -1680,22 +1692,37 @@ export default function VehiclesTab({
                 </div>
 
                 {/* Actions / Info footer */}
-                <div className="mt-3.5 pt-3 border-t border-slate-100 flex items-center justify-between gap-2 text-xs">
-                  {activeRent ? (
-                    <div className="text-slate-500 truncate flex items-center gap-1.5 font-medium">
-                      <User className="h-3.5 w-3.5 text-blue-500 animate-pulse" />
-                      <span className="truncate text-slate-500">Cliente: <strong className="text-slate-750 font-semibold">{activeRent.tenantName}</strong></span>
-                    </div>
-                  ) : (
-                    <div className="text-slate-500 flex items-center gap-1.5 font-medium">
-                      <ShieldCheck className="h-4 w-4 text-emerald-500" />
-                      <span>Sem aluguel ativo</span>
-                    </div>
-                  )}
+                <div className="mt-3.5 pt-3 border-t border-slate-100 flex flex-col gap-2.5 text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    {activeRent ? (
+                      <div className="text-slate-500 truncate flex items-center gap-1.5 font-medium text-[11px]">
+                        <User className="h-3.5 w-3.5 text-blue-500 animate-pulse" />
+                        <span className="truncate text-slate-500">Cliente: <strong className="text-slate-750 font-semibold">{activeRent.tenantName}</strong></span>
+                      </div>
+                    ) : (
+                      <div className="text-slate-500 flex items-center gap-1.5 font-medium text-[11px]">
+                        <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                        <span>Sem aluguel ativo</span>
+                      </div>
+                    )}
 
-                  <span className="text-slate-500 font-medium group-hover:text-indigo-600 text-[10px] uppercase tracking-wider flex items-center gap-0.5 shrink-0 transition-colors">
-                    Detalhes →
-                  </span>
+                    <span className="text-slate-500 font-medium group-hover:text-indigo-600 text-[10px] uppercase tracking-wider flex items-center gap-0.5 shrink-0 transition-colors">
+                      Detalhes →
+                    </span>
+                  </div>
+
+                  {/* Button: Histórico de Manutenção */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMaintenanceVehicle(v);
+                    }}
+                    className="w-full py-1.5 px-3 rounded-lg bg-amber-50 hover:bg-amber-100 active:bg-amber-200 border border-amber-200/90 text-amber-900 font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-2xs hover:shadow-xs cursor-pointer"
+                  >
+                    <Wrench className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                    <span>Histórico de Manutenção</span>
+                  </button>
                 </div>
               </div>
             );
@@ -2215,6 +2242,214 @@ export default function VehiclesTab({
           </div>
         </div>
       )}
+      {/* MODAL: HISTÓRICO DE MANUTENÇÃO DEDICADO DO VEÍCULO */}
+      {maintenanceVehicle && (() => {
+        const vehicleMaintenanceList = transactions
+          .filter(t => 
+            (t.vehicleId === maintenanceVehicle.id || (t.description && t.description.includes(maintenanceVehicle.plate))) &&
+            isMaintenanceTransaction(t)
+          )
+          .sort((a, b) => b.date.localeCompare(a.date));
+
+        const totalSpent = vehicleMaintenanceList.reduce((sum, r) => sum + r.value, 0);
+        const count = vehicleMaintenanceList.length;
+        const avg = count > 0 ? totalSpent / count : 0;
+        const lastDate = count > 0 ? vehicleMaintenanceList[0].date : null;
+
+        return (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fade-in font-sans">
+            <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-premium-2xl border border-slate-100 overflow-hidden">
+              {/* Header */}
+              <div className="px-6 py-4 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-white border-b border-amber-100 flex items-center justify-between gap-3 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-amber-500 text-white rounded-xl shadow-md shadow-amber-500/20">
+                    <Wrench className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-display font-bold text-slate-850 text-base flex items-center gap-2">
+                      Histórico de Manutenções
+                      <span className="font-mono text-xs bg-amber-100 text-amber-900 px-2 py-0.5 rounded font-bold border border-amber-200">
+                        {maintenanceVehicle.plate}
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      {maintenanceVehicle.brandModel} • KM Estimado: {maintenanceVehicle.mileage ? `${maintenanceVehicle.mileage.toLocaleString('pt-BR')} KM` : 'Não registrado'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedVehicleId(maintenanceVehicle.id);
+                      setEditingTx(null);
+                      setTxType('despesa');
+                      setTxCategory('Manutenção');
+                      setTxDescription('');
+                      setTxValue('');
+                      setTxDate(getBrasiliaDateStr());
+                      setShowAddTxModal(true);
+                      setMaintenanceVehicle(null);
+                    }}
+                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>+ Nova Manutenção</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMaintenanceVehicle(null)}
+                    className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* KPI Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-5 bg-slate-50/60 border-b border-slate-100 shrink-0">
+                <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Gasto</span>
+                  <span className="text-sm font-bold font-mono text-rose-600 block mt-0.5">
+                    {formatCurrency(totalSpent)}
+                  </span>
+                </div>
+                <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Intervenções</span>
+                  <span className="text-sm font-bold font-mono text-slate-800 block mt-0.5">
+                    {count} {count === 1 ? 'registro' : 'registros'}
+                  </span>
+                </div>
+                <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Média por Reparo</span>
+                  <span className="text-sm font-bold font-mono text-amber-700 block mt-0.5">
+                    {formatCurrency(avg)}
+                  </span>
+                </div>
+                <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Última Revisão</span>
+                  <span className="text-xs font-semibold font-mono text-slate-700 block mt-1">
+                    {lastDate ? formatDateBR(lastDate) : 'Nenhuma'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Records List */}
+              <div className="p-5 overflow-y-auto flex-1 divide-y divide-slate-100">
+                {vehicleMaintenanceList.length > 0 ? (
+                  <div className="space-y-2">
+                    {vehicleMaintenanceList.map((item) => (
+                      <div
+                        key={item.id}
+                        className="p-3 bg-white hover:bg-slate-50/80 rounded-xl border border-slate-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 transition-colors"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="p-2 bg-amber-50 text-amber-700 rounded-lg mt-0.5 shrink-0 border border-amber-100">
+                            <Wrench className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-slate-850 text-xs sm:text-sm">
+                                {item.description}
+                              </span>
+                              <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200">
+                                {item.category}
+                              </span>
+                            </div>
+                            <span className="text-[11px] text-slate-400 font-mono mt-0.5 block">
+                              Data: {formatDateBR(item.date)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                          <span className="font-mono font-bold text-xs sm:text-sm text-rose-600">
+                            - {formatCurrency(item.value)}
+                          </span>
+
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedVehicleId(maintenanceVehicle.id);
+                                setEditingTx(item);
+                                setTxType(item.type);
+                                setTxValue(item.value);
+                                setTxCategory(item.category);
+                                setTxDescription(item.description);
+                                setTxDate(item.date);
+                                setShowAddTxModal(true);
+                                setMaintenanceVehicle(null);
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors cursor-pointer"
+                              title="Editar registro de manutenção"
+                            >
+                              <Edit3 className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (window.confirm(`Tem certeza que deseja excluir a despesa de manutenção "${item.description}"?`)) {
+                                  onDeleteTransaction(item.id);
+                                }
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              title="Excluir despesa de manutenção"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-12 flex flex-col items-center justify-center text-center">
+                    <div className="p-3 bg-amber-50 rounded-2xl text-amber-500 mb-3 border border-amber-100">
+                      <Wrench className="h-8 w-8 stroke-[1.5]" />
+                    </div>
+                    <h4 className="font-bold text-slate-800 text-sm">Nenhuma manutenção registrada</h4>
+                    <p className="text-xs text-slate-500 max-w-sm mt-1">
+                      Este veículo ainda não possui despesas mecânicas ou revisões lançadas no livro-caixa.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedVehicleId(maintenanceVehicle.id);
+                        setEditingTx(null);
+                        setTxType('despesa');
+                        setTxCategory('Manutenção');
+                        setTxDescription('');
+                        setTxValue('');
+                        setTxDate(getBrasiliaDateStr());
+                        setShowAddTxModal(true);
+                        setMaintenanceVehicle(null);
+                      }}
+                      className="mt-4 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Lançar Primeira Manutenção
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 shrink-0">
+                <span>Histórico individualizado por veículo • Eletroflow Frota</span>
+                <button
+                  type="button"
+                  onClick={() => setMaintenanceVehicle(null)}
+                  className="px-4 py-2 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold rounded-lg transition-colors cursor-pointer"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

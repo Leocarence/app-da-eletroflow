@@ -203,21 +203,25 @@ DIRETRIZES FUNDAMENTAIS DO SISTEMA:
 3. Organize tabelas e listas em Markdown conciso. Valores monetários devem estar formatados em Reais (R$).
 4. NENHUM DADO DEVE SER OMITIDO da sua consulta. Você tem acesso completo e irrestrito a todas as abas, tabelas e registros:
    - Veículos da frota (placa, modelo, status: disponível, locado ou manutenção, valor semanal, caução, km, gastos de oficina).
+   - Histórico de Manutenção de cada veículo: você tem acesso a todos os reparos, revisões, pneus e intervenções de oficina de cada carro.
+   - Separação Financeira Estrita: despesas de Financiamento (aquisição, parcelas bancárias e consórcios) devem ser tratadas de forma estritamente separada das despesas de Manutenção (oficina, peças e revisões).
    - Contratos de locação (locatários, telefones, veículos vinculados, status, valores semanais, início e fim).
-   - Extrato financeiro (todas as receitas, despesas operacionais e de veículos, cauções em custódia).
+   - Extrato financeiro (todas as receitas de locação, despesas operacionais, parcelas de financiamento, manutenções e cauções).
    - Despesas futuras e parceladas (previsão, valores, parcelas pendentes e pagas, vencimentos).
    - Fila de espera de interessados (nome, telefone, aprovação de documentos).
    - Métricas globais (saldo em caixa real, receitas totais, despesas totais, caução retido).
 5. EXECUÇÃO DE FUNÇÕES / FERRAMENTAS:
    - Você pode usar todas as funções que um usuário desenvolvedor/administrador possui.
    - Quando o usuário solicitar criação, alteração ou navegação, invoque a ferramenta correspondente:
-     * add_transaction: Lança receita, despesa ou caução no extrato.
+     * add_transaction: Lança receita, despesa ou caução no extrato (use categoria 'Financiamento' para parcelas de veículos e 'Manutenção' para reparos).
      * update_vehicle_status: Atualiza status do veículo (available, rented, maintenance).
      * add_vehicle: Cadastra novo carro na frota.
      * add_future_expense: Lança previsão de despesa futura fixa ou parcelada.
      * start_rental: Inicia novo contrato de locação.
      * terminate_rental: Encerra contrato de locação.
      * add_interested_lead: Registra novo motorista na fila de espera.
+     * get_vehicle_maintenance_history: Consulta o histórico de manutenção e gastos de oficina de um veículo.
+     * get_financial_breakdown: Apura demonstrativo com separação entre Financiamentos e Manutenções.
      * navigate_to_tab: Muda para a aba solicitada (dashboard, financials, transactions, vehicles, rentals, users).
 6. Quando uma ferramenta for executada, forneça uma confirmação sucinta com os pontos principais.
 
@@ -228,7 +232,7 @@ ${dataSnapshot}
       const functionDeclarations = [
         {
           name: "add_transaction",
-          description: "Lança uma nova receita, despesa ou caução no extrato financeiro da Eletroflow.",
+          description: "Lança uma nova receita, despesa ou caução no extrato financeiro da Eletroflow. IMPORTANTE: Use categoria 'Financiamento' para parcelas de aquisição e 'Manutenção' para reparos e oficinas.",
           parameters: {
             type: Type.OBJECT,
             properties: {
@@ -242,7 +246,7 @@ ${dataSnapshot}
               },
               category: {
                 type: Type.STRING,
-                description: "Categoria (Aluguel Semanal, Manutenção, Combustível, Seguro, IPVA, Retenção, Outros)"
+                description: "Categoria: 'Aluguel Semanal', 'Financiamento', 'Manutenção', 'Combustível', 'Seguro', 'IPVA', 'Retenção', 'Outros'"
               },
               description: {
                 type: Type.STRING,
@@ -441,6 +445,33 @@ ${dataSnapshot}
             },
             required: ["tab"]
           }
+        },
+        {
+          name: "get_vehicle_maintenance_history",
+          description: "Consulta o histórico detalhado de manutenções, reparos e revisões de um veículo específico na frota.",
+          parameters: {
+            type: Type.OBJECT,
+            properties: {
+              plateOrId: {
+                type: Type.STRING,
+                description: "Placa ou ID do veículo a consultar (ex: 'ABC1D23')"
+              }
+            },
+            required: ["plateOrId"]
+          }
+        },
+        {
+          name: "get_financial_breakdown",
+          description: "Gera o balanço financeiro com separação obrigatória entre despesas de Financiamento e despesas de Manutenção/Oficina.",
+          parameters: {
+            type: Type.OBJECT,
+            properties: {
+              scope: {
+                type: Type.STRING,
+                description: "Escopo da análise: 'geral', 'financiamentos_vs_manutencao' ou 'mensal'"
+              }
+            }
+          }
         }
       ];
 
@@ -462,32 +493,47 @@ ${dataSnapshot}
         parts: [{ text: message }]
       });
 
-      // Multi-model resilience: try fast and reliable models in order of stability
+      // Multi-model resilience: strictly use active, production-ready models from Google
       const candidateModels = [
         "gemini-3.8-flash",
-        "gemini-3.1-flash-lite",
-        "gemini-2.5-flash"
+        "gemini-flash-latest",
+        "gemini-3.1-flash-lite"
       ];
 
       let response: any = null;
       let lastCallError: any = null;
 
       for (const modelName of candidateModels) {
-        try {
-          response = await ai.models.generateContent({
-            model: modelName,
-            contents,
-            config: {
-              systemInstruction,
-              tools: [{ functionDeclarations }],
-              temperature: 0.3,
+        // Try up to 2 attempts per candidate model with backoff
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            response = await ai.models.generateContent({
+              model: modelName,
+              contents,
+              config: {
+                systemInstruction,
+                tools: [{ functionDeclarations }],
+                temperature: 0.3,
+              }
+            });
+            if (response) break;
+          } catch (modelErr: any) {
+            lastCallError = modelErr;
+            console.warn(`[Gestor IA] Model ${modelName} attempt ${attempt + 1} error:`, modelErr?.message || modelErr);
+            const isRetryable =
+              modelErr?.message?.includes("503") ||
+              modelErr?.message?.includes("high demand") ||
+              modelErr?.message?.includes("UNAVAILABLE") ||
+              modelErr?.status === 503 ||
+              modelErr?.status === 429;
+            if (isRetryable && attempt === 0) {
+              await new Promise(r => setTimeout(r, 1200));
+            } else {
+              break; // Proceed to next candidate model
             }
-          });
-          if (response) break;
-        } catch (modelErr: any) {
-          lastCallError = modelErr;
-          console.warn(`[Gestor IA] Model ${modelName} returned error:`, modelErr?.message || modelErr);
+          }
         }
+        if (response) break;
       }
 
       if (!response) {
@@ -503,14 +549,25 @@ ${dataSnapshot}
       });
     } catch (err: any) {
       console.error("[Gestor IA Error]:", err);
-      const isCapacityError = err?.message?.includes("503") || err?.message?.includes("high demand") || err?.status === 503;
-      const errorMessage = isCapacityError
-        ? "Os servidores de inteligência artificial estão com alta demanda temporária. Por favor, aguarde alguns segundos e tente novamente."
-        : (err?.message || "Falha na comunicação com o Gestor IA.");
+      const msg = err?.message || String(err || "");
+      const isCapacityError =
+        msg.includes("503") ||
+        msg.includes("high demand") ||
+        msg.includes("UNAVAILABLE") ||
+        err?.status === 503;
+      const isAuthError = msg.includes("API key not valid") || msg.includes("API_KEY_INVALID") || err?.status === 401 || err?.status === 403;
 
-      return res.status(500).json({
-        error: errorMessage,
-        details: err?.message || String(err)
+      let errorMessage = "O Skywalker encontrou uma instabilidade temporária ao conectar aos servidores de IA. Por favor, tente novamente em alguns segundos.";
+      if (isCapacityError) {
+        errorMessage = "Os servidores de inteligência artificial estão processando uma alta demanda momentânea. Por favor, tente novamente em instantes.";
+      } else if (isAuthError) {
+        errorMessage = "Chave da API do Gemini inválida ou não configurada na variável GEMINI_API_KEY.";
+      }
+
+      return res.json({
+        reply: errorMessage,
+        functionCalls: [],
+        errorNotice: true
       });
     }
   });

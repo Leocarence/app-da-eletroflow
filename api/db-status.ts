@@ -19,6 +19,7 @@ async function connectToDatabase() {
     }
     await mongoose.connect(uri, {
       serverSelectionTimeoutMS: 5000,
+      dbName: 'eletroflow',
     });
     isConnected = true;
     lastError = null;

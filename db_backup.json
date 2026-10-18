@@ -926,6 +926,113 @@
       "category": "PNEUS - 02",
       "description": "PNEUS - 02 - Parc. 1/2 (Efetivada Automaticamente no Vencimento)",
       "vehicleId": "v_dolphin"
+    },
+    {
+      "type": "despesa",
+      "value": 1250,
+      "date": "2026-10-12",
+      "category": "Ajuste de Caixa",
+      "description": "SGDB sobrescreveu dados indevidamente.",
+      "status": "pending",
+      "id": "t_man_k1lj0jouy"
+    },
+    {
+      "id": "t_quick_rent_xz3q2vp8p",
+      "date": "2026-10-13",
+      "type": "receita",
+      "value": 1300,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: PAULO CÉSAR"
+    },
+    {
+      "type": "despesa",
+      "value": 149.99,
+      "date": "2026-11-10",
+      "vehicleId": "v_dolphin",
+      "category": "Manutenção",
+      "description": "Compra da Barra Axial de Articulação",
+      "status": "pending",
+      "id": "t_man_ifwwohv6i"
+    },
+    {
+      "id": "t_auto_realized_6mvy6axq2",
+      "date": "2026-10-16",
+      "type": "despesa",
+      "value": 1655.74,
+      "category": "Financiamento",
+      "description": "Financiamento - Parc. 4/32 (Efetivada Automaticamente no Vencimento)",
+      "vehicleId": "v_dolphin"
+    },
+    {
+      "id": "t_auto_realized_y15fzry6t",
+      "date": "2026-10-15",
+      "type": "despesa",
+      "value": 158.8,
+      "category": "Financiamento",
+      "description": "Financiamento - Parc. 2/10 (Efetivada Automaticamente no Vencimento)"
+    },
+    {
+      "id": "t_auto_realized_osbvxn3lb",
+      "date": "2026-10-15",
+      "type": "despesa",
+      "value": 85.37,
+      "category": "Financiamento",
+      "description": "Financiamento - Parc. 2/9 (Efetivada Automaticamente no Vencimento)"
+    },
+    {
+      "id": "t_quick_rent_c4thgrm9u",
+      "date": "2026-10-15",
+      "type": "receita",
+      "value": 928.55,
+      "vehicleId": "v_dolphin",
+      "category": "Aluguel Semanal",
+      "description": "Pagamento recorrente de Aluguel Semanal - Motorista: Péricles"
+    },
+    {
+      "type": "despesa",
+      "value": 1769,
+      "date": "2026-11-10",
+      "category": "consórcio - aquisição",
+      "description": "",
+      "status": "pending",
+      "id": "t_man_xh2dz8gqm"
+    },
+    {
+      "type": "despesa",
+      "value": 1692.13,
+      "date": "2026-11-10",
+      "category": "Manutenção",
+      "description": "",
+      "status": "pending",
+      "id": "t_man_0ldl2iqhv"
+    },
+    {
+      "id": "t_quick_maint_0q9j5x227",
+      "date": "2026-10-15",
+      "type": "despesa",
+      "value": 610.47,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Manutenção",
+      "description": "Revisão 20mil (Placa: UJA-4F76)"
+    },
+    {
+      "id": "t_quick_maint_hh4op87hq",
+      "date": "2026-10-15",
+      "type": "despesa",
+      "value": 291,
+      "vehicleId": "v_wl8jpgood",
+      "category": "Manutenção",
+      "description": "Seguro (Placa: UJA-4F76)"
+    },
+    {
+      "id": "t_quick_maint_0jgwmyms0",
+      "date": "2026-10-17",
+      "type": "despesa",
+      "value": 370,
+      "vehicleId": "v_dolphin",
+      "category": "Manutenção",
+      "description": "Troca da Barra Estabilizadora / Alinhamento / montagem de 2 pneus novos / rodízio dos demais Pneus (Placa: TYU-0E16)"
     }
   ],
   "futureExpenses": [
@@ -964,7 +1071,8 @@
           "id": "fei_nbu9ps50u",
           "installmentNumber": 4,
           "dueDate": "2026-10-16",
-          "status": "pending"
+          "status": "realized",
+          "realizedTransactionId": "t_auto_realized_6mvy6axq2"
         },
         {
           "id": "fei_d4ytw5sbi",
@@ -1590,7 +1698,8 @@
           "id": "fei_v5xkgbi2y",
           "installmentNumber": 2,
           "dueDate": "2026-10-15",
-          "status": "pending"
+          "status": "realized",
+          "realizedTransactionId": "t_auto_realized_y15fzry6t"
         },
         {
           "id": "fei_e0t27pibs",
@@ -1662,7 +1771,8 @@
           "id": "fei_1d8jroqmd",
           "installmentNumber": 2,
           "dueDate": "2026-10-15",
-          "status": "pending"
+          "status": "realized",
+          "realizedTransactionId": "t_auto_realized_osbvxn3lb"
         },
         {
           "id": "fei_s0agot1dm",
@@ -1797,6 +1907,22 @@
     }
   ],
   "accessLogs": [
+    {
+      "id": "log_1792287891290_7yot",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "17/10/2026, 22:44:51",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
+    {
+      "id": "log_1792287870442_gh89",
+      "userName": "Leo",
+      "userEmail": "leojoex@hotmail.com",
+      "userRole": "Desenvolvedor",
+      "timestamp": "17/10/2026, 22:44:30",
+      "deviceInfo": "Windows OS (Computador) (Sessão Ativa)"
+    },
     {
       "id": "log_1791822878095_006i",
       "userName": "Leo",

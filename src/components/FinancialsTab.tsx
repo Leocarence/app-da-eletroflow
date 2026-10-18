@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { Vehicle, FutureExpense, Transaction, Rental } from '../types';
 import { getBrasiliaDateStr } from '../utils/dateUtils';
+import { isFinancingTransaction, isMaintenanceTransaction } from '../utils/transactions';
 import { 
   getEffectiveRentalPaymentWeekday, 
   getWeekdayName, 
@@ -1085,6 +1086,9 @@ export function FinancialsTab({
       caucaoDevolvidoSum: number;
       caucaoRetainedSum: number;
       expensesSum: number;
+      financingExpensesSum: number;
+      maintenanceExpensesSum: number;
+      otherExpensesSum: number;
       installmentRentalCount: number;
       installmentRentalSum: number;
       expenseTransactionsCount: number;
@@ -1110,6 +1114,9 @@ export function FinancialsTab({
           caucaoDevolvidoSum: 0,
           caucaoRetainedSum: 0,
           expensesSum: 0,
+          financingExpensesSum: 0,
+          maintenanceExpensesSum: 0,
+          otherExpensesSum: 0,
           installmentRentalCount: 0,
           installmentRentalSum: 0,
           expenseTransactionsCount: 0
@@ -1130,6 +1137,13 @@ export function FinancialsTab({
       } else if (t.type === 'despesa') {
         mData.expensesSum += t.value;
         mData.expenseTransactionsCount += 1;
+        if (isFinancingTransaction(t)) {
+          mData.financingExpensesSum += t.value;
+        } else if (isMaintenanceTransaction(t)) {
+          mData.maintenanceExpensesSum += t.value;
+        } else {
+          mData.otherExpensesSum += t.value;
+        }
       } else if (t.type === 'caucao_recebido') {
         mData.caucaoReceivedSum += t.value;
       } else if (t.type === 'caucao_devolvido') {
@@ -1161,33 +1175,46 @@ export function FinancialsTab({
   // 6 & 7. GENERAL BILLING & GENERAL EXPENSES Sum
   const generalTotals = useMemo(() => {
     const todayStr = getBrasiliaDateStr();
-    const effectiveTransactions = transactions.filter(t => t.date <= todayStr);
+    const effectiveTransactions = (transactions || []).filter(t => t && typeof t === 'object' && t.date && t.date <= todayStr);
 
     const revenueSum = effectiveTransactions
       .filter(t => t.type === 'receita')
-      .reduce((sum, t) => sum + t.value, 0);
+      .reduce((sum, t) => sum + (Number(t.value) || 0), 0);
 
     const expenseSum = effectiveTransactions
       .filter(t => t.type === 'despesa')
-      .reduce((sum, t) => sum + t.value, 0);
+      .reduce((sum, t) => sum + (Number(t.value) || 0), 0);
+
+    const financingSum = effectiveTransactions
+      .filter(t => isFinancingTransaction(t))
+      .reduce((sum, t) => sum + (Number(t.value) || 0), 0);
+
+    const maintenanceSum = effectiveTransactions
+      .filter(t => isMaintenanceTransaction(t))
+      .reduce((sum, t) => sum + (Number(t.value) || 0), 0);
+
+    const otherExpenseSum = Math.max(0, expenseSum - financingSum - maintenanceSum);
 
     const caucoesReceived = effectiveTransactions
       .filter((t) => t.type === 'caucao_recebido')
-      .reduce((sum, t) => sum + t.value, 0);
+      .reduce((sum, t) => sum + (Number(t.value) || 0), 0);
 
     const caucoesReturned = effectiveTransactions
       .filter((t) => t.type === 'caucao_devolvido')
-      .reduce((sum, t) => sum + t.value, 0);
+      .reduce((sum, t) => sum + (Number(t.value) || 0), 0);
 
     const caucoesRetained = effectiveTransactions
-      .filter((t) => t.type === 'receita' && (t.category === 'Retenção de Caução' || t.category.includes('Retenção')))
-      .reduce((sum, t) => sum + t.value, 0);
+      .filter((t) => t.type === 'receita' && t.category && (t.category === 'Retenção de Caução' || t.category.includes('Retenção')))
+      .reduce((sum, t) => sum + (Number(t.value) || 0), 0);
 
     const netCaucao = Math.max(0, caucoesReceived - caucoesReturned - caucoesRetained);
 
     return {
       revenueSum,
       expenseSum,
+      financingSum,
+      maintenanceSum,
+      otherExpenseSum,
       netCaucao
     };
   }, [transactions]);
@@ -1425,6 +1452,63 @@ export function FinancialsTab({
               </div>
             );
           })()}
+
+          {/* SEPARATED EXPENSES HIGHLIGHT ROW */}
+          <div className="col-span-full grid grid-cols-1 md:grid-cols-3 gap-3 p-3.5 bg-slate-50/90 rounded-2xl border border-slate-200/80 shadow-2xs">
+            {/* FINANCING CARD */}
+            <div className="p-3.5 bg-white rounded-xl border border-purple-200/80 shadow-2xs flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-mono uppercase font-black text-purple-700 tracking-wider block">
+                  Financiamentos Pagos
+                </span>
+                <span className="text-base sm:text-lg font-black font-mono text-purple-900 block mt-0.5">
+                  {formatBRL(generalTotals.financingSum)}
+                </span>
+                <span className="text-[10px] text-slate-500 block mt-0.5 font-medium">
+                  {generalTotals.expenseSum > 0 ? `${((generalTotals.financingSum / generalTotals.expenseSum) * 100).toFixed(1)}% do total` : '0%'} • Parcelas de veículos e consórcios
+                </span>
+              </div>
+              <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl shrink-0">
+                <Car className="h-5 w-5" />
+              </div>
+            </div>
+
+            {/* MAINTENANCE CARD */}
+            <div className="p-3.5 bg-white rounded-xl border border-amber-200/80 shadow-2xs flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-mono uppercase font-black text-amber-800 tracking-wider block">
+                  Manutenção da Frota
+                </span>
+                <span className="text-base sm:text-lg font-black font-mono text-amber-900 block mt-0.5">
+                  {formatBRL(generalTotals.maintenanceSum)}
+                </span>
+                <span className="text-[10px] text-slate-500 block mt-0.5 font-medium">
+                  {generalTotals.expenseSum > 0 ? `${((generalTotals.maintenanceSum / generalTotals.expenseSum) * 100).toFixed(1)}% do total` : '0%'} • Oficinas, revisões, pneus e peças
+                </span>
+              </div>
+              <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl shrink-0">
+                <Wrench className="h-5 w-5" />
+              </div>
+            </div>
+
+            {/* OTHER EXPENSES CARD */}
+            <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-mono uppercase font-black text-slate-700 tracking-wider block">
+                  Outras Despesas
+                </span>
+                <span className="text-base sm:text-lg font-black font-mono text-slate-850 block mt-0.5">
+                  {formatBRL(generalTotals.otherExpenseSum)}
+                </span>
+                <span className="text-[10px] text-slate-500 block mt-0.5 font-medium">
+                  {generalTotals.expenseSum > 0 ? `${((generalTotals.otherExpenseSum / generalTotals.expenseSum) * 100).toFixed(1)}% do total` : '0%'} • Seguros, impostos e taxas
+                </span>
+              </div>
+              <div className="p-2.5 bg-slate-100 text-slate-600 rounded-xl shrink-0">
+                <Coins className="h-5 w-5" />
+              </div>
+            </div>
+          </div>
 
         </div>
  
@@ -2667,15 +2751,18 @@ export function FinancialsTab({
               <span>← Deslize lateralmente para ver todas as colunas →</span>
             </div>
             <div className="overflow-x-auto w-full pb-2 scrollbar-thin">
-              <table className="w-full text-left border-collapse min-w-[700px]">
+              <table className="w-full text-left border-collapse min-w-[850px]">
                 <thead>
                   <tr className="border-b border-slate-100 text-[10px] uppercase font-mono tracking-widest text-slate-400">
                     <th className="py-3 px-3 font-extrabold whitespace-nowrap">Mês de Referência</th>
-                    <th className="py-3 px-3 font-extrabold text-center whitespace-nowrap">Semanas Comerciais</th>
-                    <th className="py-3 px-3 font-extrabold text-right whitespace-nowrap">Faturamento de Aluguéis (Qtd / Total)</th>
-                    <th className="py-3 px-3 font-extrabold text-right whitespace-nowrap">Outras Receitas e Cauções Lqd.</th>
-                    <th className="py-3 px-3 font-extrabold text-right whitespace-nowrap">Operações de Despesa / Saídas</th>
-                    <th className="py-3 px-3 font-extrabold text-right whitespace-nowrap">Fórmula de Resultado Mensal</th>
+                    <th className="py-3 px-3 font-extrabold text-center whitespace-nowrap">Semanas</th>
+                    <th className="py-3 px-3 font-extrabold text-right whitespace-nowrap">Aluguéis (Qtd / Total)</th>
+                    <th className="py-3 px-3 font-extrabold text-right whitespace-nowrap">Outras Rec. & Cauções</th>
+                    <th className="py-3 px-3 font-extrabold text-right whitespace-nowrap text-purple-700">Financiamentos</th>
+                    <th className="py-3 px-3 font-extrabold text-right whitespace-nowrap text-amber-800">Manutenções</th>
+                    <th className="py-3 px-3 font-extrabold text-right whitespace-nowrap text-slate-500">Outras Saídas</th>
+                    <th className="py-3 px-3 font-extrabold text-right whitespace-nowrap text-rose-700">Total Despesas</th>
+                    <th className="py-3 px-3 font-extrabold text-right whitespace-nowrap">Resultado Líquido</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2703,33 +2790,64 @@ export function FinancialsTab({
                         </td>
                         
                         <td className="py-3.5 px-3 text-center text-slate-500 font-mono whitespace-nowrap">
-                          {weeksCount} semanas
+                          {weeksCount} sem
                         </td>
                         
                         <td className="py-3.5 px-3 text-right whitespace-nowrap">
-                          <div className="font-mono">
+                          <div className="font-mono font-bold text-slate-800">
                             {formatBRL(result.installmentRentalSum)}
                           </div>
                           <div className="text-[10px] text-slate-400 font-mono">
-                            {result.installmentRentalCount} faturamentos realizados
+                            {result.installmentRentalCount} fat.
                           </div>
                         </td>
 
                         <td className="py-3.5 px-3 text-right whitespace-nowrap">
-                          <div className="font-mono">
+                          <div className="font-mono text-slate-700">
                             {formatBRL(otherRevenues + netCaucaoMonthly)}
                           </div>
                           <div className="text-[9px] text-slate-400 font-mono leading-none">
-                            Cauções líq: {formatBRL(netCaucaoMonthly)} | Outros: {formatBRL(otherRevenues)}
+                            Caução: {formatBRL(netCaucaoMonthly)}
                           </div>
                         </td>
 
+                        {/* FINANCIAMENTOS */}
+                        <td className="py-3.5 px-3 text-right whitespace-nowrap bg-purple-50/20">
+                          <div className="font-mono font-bold text-purple-700">
+                            -{formatBRL(result.financingExpensesSum || 0)}
+                          </div>
+                          <div className="text-[9px] text-purple-400 font-mono">
+                            Parcelas
+                          </div>
+                        </td>
+
+                        {/* MANUTENÇÃO */}
+                        <td className="py-3.5 px-3 text-right whitespace-nowrap bg-amber-50/20">
+                          <div className="font-mono font-bold text-amber-800">
+                            -{formatBRL(result.maintenanceExpensesSum || 0)}
+                          </div>
+                          <div className="text-[9px] text-amber-500 font-mono">
+                            Oficina/Peças
+                          </div>
+                        </td>
+
+                        {/* OUTRAS DESPESAS */}
                         <td className="py-3.5 px-3 text-right whitespace-nowrap">
-                          <div className="font-mono text-rose-600">
+                          <div className="font-mono text-slate-500">
+                            -{formatBRL(result.otherExpensesSum || 0)}
+                          </div>
+                          <div className="text-[9px] text-slate-400 font-mono">
+                            Seguro/Taxas
+                          </div>
+                        </td>
+
+                        {/* TOTAL DESPESAS */}
+                        <td className="py-3.5 px-3 text-right whitespace-nowrap">
+                          <div className="font-mono font-black text-rose-700">
                             -{formatBRL(result.expensesSum)}
                           </div>
                           <div className="text-[10px] text-slate-400 font-mono">
-                            {result.expenseTransactionsCount} saídas registradas
+                            {result.expenseTransactionsCount} saídas
                           </div>
                         </td>
 
