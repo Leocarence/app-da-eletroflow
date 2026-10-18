@@ -25,7 +25,8 @@ import {
   Layers,
   Filter,
   Coins,
-  Scale
+  Scale,
+  Wrench
 } from 'lucide-react';
 import { Vehicle, FutureExpense, Transaction, Rental } from '../types';
 import { getBrasiliaDateStr } from '../utils/dateUtils';
