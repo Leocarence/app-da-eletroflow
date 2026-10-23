@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { 
   ArrowLeft, 
   Calendar, 
@@ -244,6 +244,19 @@ export const PeriodFilterAutonomousView: React.FC<PeriodFilterAutonomousViewProp
     };
   }, [startDate, endDate, defaultStart, defaultEnd]);
 
+  // Helper: Check if a revenue transaction is already recorded within ±3 days for this vehicle
+  const hasTxNearDate = useCallback((vehicleId: string, dateStr: string) => {
+    const targetTime = new Date(dateStr + 'T12:00:00Z').getTime();
+    return (transactions || []).some(t => {
+      if (t && t.type === 'receita' && t.vehicleId === vehicleId && t.date) {
+        const tTime = new Date(t.date + 'T12:00:00Z').getTime();
+        const diffDays = Math.abs(targetTime - tTime) / (1000 * 60 * 60 * 24);
+        return diffDays < 4;
+      }
+      return false;
+    });
+  }, [transactions]);
+
   // 3. Autonomous Financial Result (Revenues & Expenses in [startDate, endDate])
   const resultData = useMemo(() => {
     const { startDate: s, endDate: e } = selectionMeta;
@@ -292,18 +305,6 @@ export const PeriodFilterAutonomousView: React.FC<PeriodFilterAutonomousViewProp
       }
     });
 
-    // Helper: Check if transaction recorded within ±3 days
-    const hasTxNearDate = (vehicleId: string, dateStr: string) => {
-      const dates = txDatesByVehicle.get(vehicleId);
-      if (!dates) return false;
-      const targetTime = new Date(dateStr + 'T12:00:00Z').getTime();
-      return dates.some(d => {
-        const tTime = new Date(d + 'T12:00:00Z').getTime();
-        const diffDays = Math.abs(targetTime - tTime) / (1000 * 60 * 60 * 24);
-        return diffDays < 4;
-      });
-    };
-
     // 2. Contracts (covering scheduled weeks in period without a duplicate transaction)
     (rentals || []).filter(r => !r.isDeleted).forEach(r => {
       const veh = vehiclesMap.get(r.vehicleId);
@@ -323,7 +324,9 @@ export const PeriodFilterAutonomousView: React.FC<PeriodFilterAutonomousViewProp
           const beforeEnd = !r.endDate || dateStr <= r.endDate || r.status === 'active';
 
           if (afterStart && beforeEnd) {
-            if (!hasTxNearDate(r.vehicleId, dateStr)) {
+            // CRITICAL: Somente projeta recebimentos contratuais FUTUROS (> todayStr).
+            // Para datas passadas, lançamentos reais registrados em 'transactions' são a fonte soberana da verdade contábil.
+            if (dateStr > todayStr && !hasTxNearDate(r.vehicleId, dateStr)) {
               const [yr, mo, da] = dateStr.split('-');
               revenuesItems.push({
                 id: `rev_${r.id}_${dateStr}`,
@@ -350,21 +353,13 @@ export const PeriodFilterAutonomousView: React.FC<PeriodFilterAutonomousViewProp
     const revenuesTotal = revenuesItems.reduce((sum, it) => sum + it.value, 0);
 
     // B. Expenses
-    const realizedTxIds = new Set<string>();
-    futureExpenses.forEach(fe => {
-      (fe.installments || []).forEach(inst => {
-        if (inst.realizedTransactionId) {
-          realizedTxIds.add(inst.realizedTransactionId);
-        }
-      });
-    });
-
     const expensesItems: ProjectedExpenseItem[] = [];
 
-    // From futureExpenses installments
+    // From futureExpenses installments (only pending/future installments not yet realized as transactions)
     futureExpenses.forEach(exp => {
       (exp.installments || []).forEach(inst => {
         if (inst.status === 'pending' || !inst.status) {
+          if (inst.realizedTransactionId) return;
           if (inst.dueDate && inst.dueDate >= s && inst.dueDate <= e) {
             const veh = exp.vehicleId ? vehiclesMap.get(exp.vehicleId) : undefined;
             expensesItems.push({
@@ -387,27 +382,25 @@ export const PeriodFilterAutonomousView: React.FC<PeriodFilterAutonomousViewProp
       });
     });
 
-    // From direct expense transactions
+    // From direct expense transactions (all recorded and paid expense transactions in period)
     transactions.forEach(t => {
       if (t.type === 'despesa' && t.date && t.date >= s && t.date <= e) {
-        if (!realizedTxIds.has(t.id)) {
-          const veh = t.vehicleId ? vehiclesMap.get(t.vehicleId) : undefined;
-          expensesItems.push({
-            id: `tx_${t.id}`,
-            source: 'programada',
-            title: t.category,
-            description: t.description || 'Lançamento de despesa',
-            category: t.category,
-            dueDate: t.date,
-            installmentNumber: 1,
-            installmentsCount: 1,
-            installmentLabel: 'Fixa/Avulsa',
-            value: t.value,
-            vehicleId: t.vehicleId,
-            vehiclePlate: veh?.plate,
-            vehicleModel: veh?.brandModel
-          });
-        }
+        const veh = t.vehicleId ? vehiclesMap.get(t.vehicleId) : undefined;
+        expensesItems.push({
+          id: `tx_${t.id}`,
+          source: 'programada',
+          title: t.category,
+          description: t.description || 'Lançamento de despesa',
+          category: t.category,
+          dueDate: t.date,
+          installmentNumber: 1,
+          installmentsCount: 1,
+          installmentLabel: 'Fixa/Avulsa',
+          value: t.value,
+          vehicleId: t.vehicleId,
+          vehiclePlate: veh?.plate,
+          vehicleModel: veh?.brandModel
+        });
       }
     });
 
@@ -494,7 +487,9 @@ export const PeriodFilterAutonomousView: React.FC<PeriodFilterAutonomousViewProp
     let intermediateNet = 0;
     if (tomorrowStr <= dayBeforeStartStr) {
       const vehiclesMap = new Map<string, Vehicle>(vehicles.map(v => [v.id, v]));
-      (rentals || []).filter(r => !r.isDeleted).forEach(r => {
+
+      // 1. Contract revenues scheduled in intermediate interval
+      (rentals || []).filter(r => !r.isDeleted && r.status === 'active').forEach(r => {
         const veh = vehiclesMap.get(r.vehicleId);
         const weeklyRate = r.weeklyRate || veh?.weeklyRate || 0;
         if (weeklyRate <= 0) return;
@@ -507,21 +502,38 @@ export const PeriodFilterAutonomousView: React.FC<PeriodFilterAutonomousViewProp
             const afterStart = !r.startDate || dStr >= r.startDate;
             const beforeEnd = !r.endDate || dStr <= r.endDate || r.status === 'active';
             if (afterStart && beforeEnd) {
-              intermediateNet += weeklyRate;
+              if (!hasTxNearDate(r.vehicleId, dStr)) {
+                intermediateNet += weeklyRate;
+              }
             }
           }
           c.setUTCDate(c.getUTCDate() + 1);
         }
       });
 
+      // 2. Direct scheduled revenue transactions in intermediate interval
+      (transactions || []).forEach(t => {
+        if (t.type === 'receita' && t.date && t.date >= tomorrowStr && t.date <= dayBeforeStartStr) {
+          intermediateNet += Number(t.value || 0);
+        }
+      });
+
+      // 3. Pending future expense installments in intermediate interval
       futureExpenses.forEach(fe => {
         (fe.installments || []).forEach(inst => {
-          if ((inst.status === 'pending' || !inst.status) && inst.dueDate) {
+          if ((inst.status === 'pending' || !inst.status) && !inst.realizedTransactionId && inst.dueDate) {
             if (inst.dueDate >= tomorrowStr && inst.dueDate <= dayBeforeStartStr) {
               intermediateNet -= fe.value;
             }
           }
         });
+      });
+
+      // 4. Direct scheduled expense transactions in intermediate interval
+      (transactions || []).forEach(t => {
+        if (t.type === 'despesa' && t.date && t.date >= tomorrowStr && t.date <= dayBeforeStartStr) {
+          intermediateNet -= Number(t.value || 0);
+        }
       });
     }
 
@@ -1086,7 +1098,7 @@ export const PeriodFilterAutonomousView: React.FC<PeriodFilterAutonomousViewProp
               <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono font-bold ${
                 expectedCashBalanceAtEnd >= 0 ? 'bg-emerald-500/30 text-emerald-200' : 'bg-rose-500/30 text-rose-200'
               }`}>
-                {expectedCashBalanceAtEnd >= 0 ? 'Positivo' : 'Alerta'}
+                {expectedCashBalanceAtEnd >= 0 ? 'Conciliado' : 'Alerta'}
               </span>
             </div>
             <div className={`text-2xl font-black font-mono tracking-tight ${
@@ -1094,9 +1106,14 @@ export const PeriodFilterAutonomousView: React.FC<PeriodFilterAutonomousViewProp
             }`}>
               {formatBRL(expectedCashBalanceAtEnd)}
             </div>
-            <p className="text-[11px] text-slate-300 mt-1 font-sans truncate">
-              Posição prevista em {selectionMeta.formattedEnd}
-            </p>
+            <div className="mt-1 flex flex-col gap-0.5 text-[11px] font-sans">
+              <p className="text-slate-300 truncate">
+                Posição prevista em {selectionMeta.formattedEnd}
+              </p>
+              <p className="text-[10px] font-mono text-emerald-400/90 truncate">
+                Partida {formatBRL(cashAtPeriodStart)} {resultData.balance >= 0 ? '+' : '−'} {formatBRL(Math.abs(resultData.balance))} líq.
+              </p>
+            </div>
           </div>
         </div>
 

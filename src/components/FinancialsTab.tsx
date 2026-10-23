@@ -206,16 +206,6 @@ export function FinancialsTab({
     const todayStr = getBrasiliaDateStr();
     const [currentYear, currentMonth] = todayStr.split('-').map(Number);
 
-    // Track transaction IDs that were already converted from realized installments to avoid duplicates
-    const realizedTxIds = new Set<string>();
-    futureExpenses.forEach(fe => {
-      (fe.installments || []).forEach(inst => {
-        if (inst.realizedTransactionId) {
-          realizedTxIds.add(inst.realizedTransactionId);
-        }
-      });
-    });
-
     const vehiclesMap = new Map(vehicles.map(v => [v.id, v]));
     const result: MonthProjectionData[] = [];
 
@@ -235,10 +225,10 @@ export function FinancialsTab({
 
       const items: ProjectedExpenseItem[] = [];
 
-      // 1. Pending installments from registered future expenses
+      // 1. Pending installments from registered future expenses (not yet realized as transactions)
       futureExpenses.forEach(exp => {
         (exp.installments || []).forEach(inst => {
-          if (inst.status === 'pending' || !inst.status) {
+          if ((inst.status === 'pending' || !inst.status) && !inst.realizedTransactionId) {
             if (inst.dueDate && inst.dueDate.startsWith(monthKey)) {
               const veh = exp.vehicleId ? vehiclesMap.get(exp.vehicleId) : undefined;
               items.push({
@@ -264,22 +254,20 @@ export function FinancialsTab({
       // 2. Direct future scheduled transactions in cash flow
       transactions.forEach(t => {
         if (t.type === 'despesa' && t.date && t.date.startsWith(monthKey) && t.date > todayStr) {
-          if (!realizedTxIds.has(t.id)) {
-            const veh = t.vehicleId ? vehiclesMap.get(t.vehicleId) : undefined;
-            items.push({
-              id: `tx_${t.id}`,
-              source: 'programada',
-              title: t.category,
-              description: t.description || '',
-              category: t.category,
-              dueDate: t.date,
-              installmentLabel: 'Despesa Programada Direta',
-              value: t.value,
-              vehicleId: t.vehicleId,
-              vehiclePlate: veh?.plate,
-              vehicleModel: veh?.brandModel
-            });
-          }
+          const veh = t.vehicleId ? vehiclesMap.get(t.vehicleId) : undefined;
+          items.push({
+            id: `tx_${t.id}`,
+            source: 'programada',
+            title: t.category,
+            description: t.description || '',
+            category: t.category,
+            dueDate: t.date,
+            installmentLabel: 'Despesa Programada Direta',
+            value: t.value,
+            vehicleId: t.vehicleId,
+            vehiclePlate: veh?.plate,
+            vehicleModel: veh?.brandModel
+          });
         }
       });
 
@@ -319,6 +307,26 @@ export function FinancialsTab({
     const todayStr = getBrasiliaDateStr();
     const [currentYear, currentMonth] = todayStr.split('-').map(Number);
     const vehiclesMap = new Map(vehicles.map(v => [v.id, v]));
+
+    // Index existing revenue transactions by vehicle to avoid double counting
+    const txDatesByVehicle = new Map<string, string[]>();
+    transactions.forEach(t => {
+      if (t.type === 'receita' && t.vehicleId && t.date) {
+        if (!txDatesByVehicle.has(t.vehicleId)) txDatesByVehicle.set(t.vehicleId, []);
+        txDatesByVehicle.get(t.vehicleId)!.push(t.date);
+      }
+    });
+
+    const hasTxNearDate = (vehicleId: string, dateStr: string) => {
+      const dates = txDatesByVehicle.get(vehicleId);
+      if (!dates) return false;
+      const targetTime = new Date(dateStr + 'T12:00:00Z').getTime();
+      return dates.some(d => {
+        const tTime = new Date(d + 'T12:00:00Z').getTime();
+        const diffDays = Math.abs(targetTime - tTime) / (1000 * 60 * 60 * 24);
+        return diffDays < 4;
+      });
+    };
 
     // Filter active rentals
     const activeRentals = (rentals || []).filter(r => !r.isDeleted && r.status === 'active');
@@ -367,9 +375,11 @@ export function FinancialsTab({
           }
         }
 
-        // Only include payment dates on or after rental startDate
+        // Only include payment dates on or after rental startDate and before endDate (unless still active), not already booked as tx
         const validDates = paymentDatesInMonth.filter(dateStr => {
           if (r.startDate && dateStr < r.startDate) return false;
+          if (r.endDate && dateStr > r.endDate && r.status !== 'active') return false;
+          if (hasTxNearDate(r.vehicleId, dateStr)) return false;
           return true;
         });
 
@@ -515,6 +525,103 @@ export function FinancialsTab({
     const pct = ((netSelectedValue / netSelectedRevenueVal) * 100).toFixed(1);
     return `${pct}%`;
   }, [netSelectedRevenueVal, netSelectedValue]);
+
+  // Cumulative projected cash balance month-by-month for the 12-month horizon
+  const next12MonthsCashBalanceProjection = useMemo(() => {
+    const todayStr = getBrasiliaDateStr();
+    const [cy, cm] = todayStr.split('-').map(Number);
+    const daysInCurMonth = new Date(cy, cm, 0).getDate();
+    const curMonthEndStr = `${cy}-${String(cm).padStart(2, '0')}-${String(daysInCurMonth).padStart(2, '0')}`;
+    const tomorrowDt = new Date(todayStr + 'T12:00:00Z');
+    tomorrowDt.setUTCDate(tomorrowDt.getUTCDate() + 1);
+    const tomorrowStr = tomorrowDt.toISOString().split('T')[0];
+
+    let remainingCurrentMonthNet = 0;
+    if (tomorrowStr <= curMonthEndStr) {
+      const vehiclesMap = new Map<string, Vehicle>(vehicles.map(v => [v.id, v]));
+
+      // 1. Contract revenues from active rentals in remaining current month
+      const txDatesByVehicle = new Map<string, string[]>();
+      transactions.forEach(t => {
+        if (t.type === 'receita' && t.vehicleId && t.date) {
+          if (!txDatesByVehicle.has(t.vehicleId)) txDatesByVehicle.set(t.vehicleId, []);
+          txDatesByVehicle.get(t.vehicleId)!.push(t.date);
+        }
+      });
+
+      const hasTxNearDate = (vehicleId: string, dateStr: string) => {
+        const dates = txDatesByVehicle.get(vehicleId);
+        if (!dates) return false;
+        const targetTime = new Date(dateStr + 'T12:00:00Z').getTime();
+        return dates.some(d => {
+          const tTime = new Date(d + 'T12:00:00Z').getTime();
+          return Math.abs(targetTime - tTime) / (1000 * 60 * 60 * 24) < 4;
+        });
+      };
+
+      (rentals || []).filter(r => !r.isDeleted && r.status === 'active').forEach(r => {
+        const veh = vehiclesMap.get(r.vehicleId);
+        const weeklyRate = r.weeklyRate || veh?.weeklyRate || 0;
+        if (weeklyRate <= 0) return;
+        const targetWeekday = getEffectiveRentalPaymentWeekday(r);
+        let curr = new Date(tomorrowStr + 'T12:00:00Z');
+        const end = new Date(curMonthEndStr + 'T12:00:00Z');
+        while (curr <= end) {
+          if (curr.getUTCDay() === targetWeekday) {
+            const dateStr = curr.toISOString().split('T')[0];
+            const afterStart = !r.startDate || dateStr >= r.startDate;
+            const beforeEnd = !r.endDate || dateStr <= r.endDate || r.status === 'active';
+            if (afterStart && beforeEnd && !hasTxNearDate(r.vehicleId, dateStr)) {
+              remainingCurrentMonthNet += weeklyRate;
+            }
+          }
+          curr.setUTCDate(curr.getUTCDate() + 1);
+        }
+      });
+
+      // 2. Direct scheduled revenue transactions in remaining current month
+      transactions.forEach(t => {
+        if (t.type === 'receita' && t.date && t.date >= tomorrowStr && t.date <= curMonthEndStr) {
+          remainingCurrentMonthNet += Number(t.value || 0);
+        }
+      });
+
+      // 3. Pending future expense installments in remaining current month
+      futureExpenses.forEach(fe => {
+        (fe.installments || []).forEach(inst => {
+          if ((inst.status === 'pending' || !inst.status) && !inst.realizedTransactionId && inst.dueDate) {
+            if (inst.dueDate >= tomorrowStr && inst.dueDate <= curMonthEndStr) {
+              remainingCurrentMonthNet -= fe.value;
+            }
+          }
+        });
+      });
+
+      // 4. Direct scheduled expense transactions in remaining current month
+      transactions.forEach(t => {
+        if (t.type === 'despesa' && t.date && t.date >= tomorrowStr && t.date <= curMonthEndStr) {
+          remainingCurrentMonthNet -= Number(t.value || 0);
+        }
+      });
+    }
+
+    // Cash projected at the start of the first forecast month
+    let runningCash = cashBalance + remainingCurrentMonthNet;
+    const map = new Map<string, number>();
+    next12MonthsNetProjection.forEach((m) => {
+      runningCash += m.netValue;
+      map.set(m.monthKey, runningCash);
+    });
+    return map;
+  }, [cashBalance, next12MonthsNetProjection, vehicles, rentals, transactions, futureExpenses]);
+
+  // Matching expenses & net for the active revenue month selection
+  const activeRevenueMonthMatchingExpense = useMemo(() => {
+    return next12MonthsProjection.find(m => m.monthKey === activeRevenueMonthKey) || { totalValue: 0, items: [] };
+  }, [next12MonthsProjection, activeRevenueMonthKey]);
+
+  const activeRevenueMonthNet = (activeRevenueMonthData?.totalValue || 0) - (activeRevenueMonthMatchingExpense.totalValue || 0);
+  const activeRevenueMonthProjectedCashAtEnd = next12MonthsCashBalanceProjection.get(activeRevenueMonthKey) ?? (cashBalance + activeRevenueMonthNet);
 
   // Daily breakdown states for Expectativa de Despesas
   const [selectedExpenseDay, setSelectedExpenseDay] = useState<string>('all');
@@ -825,21 +932,12 @@ export function FinancialsTab({
     const revenuesTotal = revenuesItems.reduce((sum, it) => sum + it.value, 0);
 
     // 2. Calculate expenses in [startDate, endDate]
-    const realizedTxIds = new Set<string>();
-    futureExpenses.forEach(fe => {
-      (fe.installments || []).forEach(inst => {
-        if (inst.realizedTransactionId) {
-          realizedTxIds.add(inst.realizedTransactionId);
-        }
-      });
-    });
-
     const expensesItems: ProjectedExpenseItem[] = [];
 
-    // From futureExpenses installments
+    // From futureExpenses installments (only pending and un-realized)
     futureExpenses.forEach(exp => {
       (exp.installments || []).forEach(inst => {
-        if (inst.status === 'pending' || !inst.status) {
+        if ((inst.status === 'pending' || !inst.status) && !inst.realizedTransactionId) {
           if (inst.dueDate && inst.dueDate >= startDate && inst.dueDate <= endDate) {
             const veh = exp.vehicleId ? vehiclesMap.get(exp.vehicleId) : undefined;
             expensesItems.push({
@@ -862,27 +960,25 @@ export function FinancialsTab({
       });
     });
 
-    // From direct transactions scheduled in future in range
+    // From direct transactions scheduled or realized in range
     transactions.forEach(t => {
       if (t.type === 'despesa' && t.date && t.date >= startDate && t.date <= endDate) {
-        if (!realizedTxIds.has(t.id)) {
-          const veh = t.vehicleId ? vehiclesMap.get(t.vehicleId) : undefined;
-          expensesItems.push({
-            id: `tx_${t.id}`,
-            source: 'programada',
-            title: t.category,
-            description: t.description || 'Lançamento agendado',
-            category: t.category,
-            dueDate: t.date,
-            installmentNumber: 1,
-            installmentsCount: 1,
-            installmentLabel: 'Fixa/Avulsa',
-            value: t.value,
-            vehicleId: t.vehicleId,
-            vehiclePlate: veh?.plate,
-            vehicleModel: veh?.brandModel
-          });
-        }
+        const veh = t.vehicleId ? vehiclesMap.get(t.vehicleId) : undefined;
+        expensesItems.push({
+          id: `tx_${t.id}`,
+          source: 'programada',
+          title: t.category,
+          description: t.description || 'Lançamento de despesa',
+          category: t.category,
+          dueDate: t.date,
+          installmentNumber: 1,
+          installmentsCount: 1,
+          installmentLabel: 'Fixa/Avulsa',
+          value: t.value,
+          vehicleId: t.vehicleId,
+          vehiclePlate: veh?.plate,
+          vehicleModel: veh?.brandModel
+        });
       }
     });
 
@@ -1776,8 +1872,48 @@ export function FinancialsTab({
                 </div>
 
                 <div>
-                  <div className="font-mono text-2xl xs:text-3xl sm:text-4xl lg:text-5xl font-black text-emerald-700 tracking-tight">
-                    <span>{formatBRL(activeRevenueMonthData?.totalValue || 0)}</span>
+                  <div className="flex items-baseline gap-3 flex-wrap">
+                    <div className="font-mono text-2xl xs:text-3xl sm:text-4xl lg:text-5xl font-black text-emerald-700 tracking-tight">
+                      <span>{formatBRL(activeRevenueMonthData?.totalValue || 0)}</span>
+                    </div>
+                    <span className="text-xs font-sans text-slate-500 font-medium">
+                      (receita bruta prevista)
+                    </span>
+                  </div>
+
+                  {/* Confronto Operacional e Saldo Líquido do Mês Selecionado */}
+                  <div className="mt-2.5 flex items-center gap-2 flex-wrap text-xs font-mono font-semibold">
+                    <span className="inline-flex items-center gap-1 text-emerald-800 bg-emerald-50/80 px-2 py-0.5 rounded border border-emerald-200">
+                      <span className="text-slate-500 font-sans text-[11px]">Receita Bruta:</span>
+                      <strong className="font-black">+{formatBRL(activeRevenueMonthData?.totalValue || 0)}</strong>
+                    </span>
+                    <span className="text-slate-400 font-bold">−</span>
+                    <span className="inline-flex items-center gap-1 text-rose-800 bg-rose-50/80 px-2 py-0.5 rounded border border-rose-200">
+                      <span className="text-slate-500 font-sans text-[11px]">Despesas Comprometidas:</span>
+                      <strong className="font-black">-{formatBRL(activeRevenueMonthMatchingExpense.totalValue || 0)}</strong>
+                    </span>
+                    <span className="text-slate-400 font-bold">=</span>
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded border font-mono font-bold text-xs ${
+                      activeRevenueMonthNet >= 0 
+                        ? 'bg-indigo-50 text-indigo-900 border-indigo-300' 
+                        : 'bg-rose-50 text-rose-900 border-rose-300'
+                    }`}>
+                      <span className="font-sans font-medium text-[11px]">Saldo Líquido:</span>
+                      <strong className="font-black">{activeRevenueMonthNet >= 0 ? '+' : ''}{formatBRL(activeRevenueMonthNet)}</strong>
+                    </span>
+                  </div>
+
+                  {/* Posição Prevista em Caixa ao Final do Mês */}
+                  <div className="mt-2 flex items-center gap-2 flex-wrap text-xs">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 text-white font-mono text-xs border border-slate-700 shadow-xs">
+                      <span className="text-slate-400 font-sans text-[11px]">Expectativa em Caixa ao Fim do Mês:</span>
+                      <strong className={`font-black ${activeRevenueMonthProjectedCashAtEnd >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {formatBRL(activeRevenueMonthProjectedCashAtEnd)}
+                      </strong>
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-sans italic">
+                      ✓ Projeção dinâmica reajustada a cada lançamento
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1824,6 +1960,9 @@ export function FinancialsTab({
                       : 12;
                     const hasVal = m.totalValue > 0;
 
+                    const matchingExp = next12MonthsProjection.find(x => x.monthKey === m.monthKey)?.totalValue || 0;
+                    const matchingNet = m.totalValue - matchingExp;
+
                     return (
                       <button
                         key={m.monthKey} 
@@ -1837,7 +1976,7 @@ export function FinancialsTab({
                             ? 'bg-emerald-100/90 ring-2 ring-emerald-500 shadow-xs' 
                             : 'hover:bg-slate-200/60'
                         }`}
-                        title={`${m.label}: ${formatBRL(m.totalValue)} (Clique para exibir no painel)`}
+                        title={`${m.label}: Receitas ${formatBRL(m.totalValue)} − Despesas ${formatBRL(matchingExp)} = Líquido ${matchingNet >= 0 ? '+' : ''}${formatBRL(matchingNet)}`}
                       >
                         <div className="w-full h-10 sm:h-12 bg-slate-200/70 rounded-xs flex flex-col justify-end p-0.5 overflow-hidden">
                           <div
