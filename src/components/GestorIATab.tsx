@@ -121,7 +121,7 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Dynamic Mouse & Touch Drag Resizing
   const [chatHeight, setChatHeight] = useState<number>(() => {
@@ -581,80 +581,159 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
     }
   };
 
-  // Render markdown-like simple formatting (bold, tables, lists, currency badges)
+  // Financial numbers & markdown formatting: Green for positive/revenues, Red for negative/expenses
+  const highlightFormatting = (str: string, contextHint: string = '') => {
+    if (!str) return '';
+
+    // Check if context has strong expense indicators
+    const expenseRegex = /(despesa|despesas|gasto|gastos|oficina|manutenç|parcela|parcelas|financiamento|financiamentos|saída|saida|saídas|saidas|prejuízo|prejuizo|déficit|deficit|dívida|divida|custo|custos|débito|debito|pneu|pneus|seguro|ipva|revis|reparo|reparos|conserto|consertos|pendente|pagar|pago|pagamento)/i;
+    const revenueRegex = /(receita|receitas|entrada|entradas|aluguel|aluguéis|alugueis|locaç|lucro|lucros|superávit|superavit|faturamento|ganho|ganhos|saldo\s+positivo|receber|recebido)/i;
+
+    const combinedContext = (str + ' ' + contextHint).toLowerCase();
+    const isContextExpense = expenseRegex.test(combinedContext);
+    const isContextRevenue = revenueRegex.test(combinedContext);
+
+    // Bold **text**
+    let formatted = str.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-white">$1</strong>');
+
+    // Monetary amounts pattern:
+    // Examples: +R$ 1.300,00 | -R$ 790,00 | R$ -790,00 | R$ +1.300,00 | (R$ 500,00) | R$ 1.250,00 | + 1.300,00 | - 790,00
+    const moneyRegex = /([+\-−]?\s*R\$\s*[+\-−]?\s*[\d.,]+|\(\s*R\$\s*[\d.,]+\s*\)|[+\-−]\s*[\d.,]+(?:\s*reais)?)/gi;
+
+    formatted = formatted.replace(moneyRegex, (match) => {
+      const isExplicitNegative = match.includes('-') || match.includes('−') || (match.startsWith('(') && match.endsWith(')'));
+      const isExplicitPositive = match.includes('+');
+
+      if (isExplicitNegative || (!isExplicitPositive && isContextExpense && !isContextRevenue)) {
+        return `<span class="inline-flex items-center font-mono font-bold text-rose-400 bg-rose-950/60 px-1.5 py-0.5 rounded border border-rose-500/40 whitespace-nowrap shadow-xs">${match}</span>`;
+      } else {
+        return `<span class="inline-flex items-center font-mono font-bold text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-500/40 whitespace-nowrap shadow-xs">${match}</span>`;
+      }
+    });
+
+    return formatted;
+  };
+
+  // Render markdown-like formatting with full block support (tables, lists, paragraphs, currency badges)
   const renderFormattedText = (rawText: string) => {
-    // If the text has a Markdown table
-    if (rawText.includes('|') && rawText.includes('\n')) {
-      const lines = rawText.split('\n');
-      const tableLines = lines.filter(l => l.trim().startsWith('|') && l.trim().endsWith('|'));
-      if (tableLines.length >= 2) {
-        return (
-          <div className="space-y-2">
-            <div className="overflow-x-auto my-2 rounded-xl border border-slate-700/60 bg-slate-900/60 shadow-inner">
-              <table className="w-full text-left text-xs border-collapse">
-                <tbody>
-                  {lines.map((line, idx) => {
-                    const trimmed = line.trim();
-                    if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
-                      // separator line
-                      if (trimmed.includes('---')) return null;
-                      const cells = trimmed.split('|').slice(1, -1);
-                      const isHeader = idx === 0 || lines[idx + 1]?.includes('---');
-                      return (
-                        <tr key={idx} className={isHeader ? "bg-slate-800/90 font-bold text-cyan-300 border-b border-slate-700" : "hover:bg-slate-800/40 border-b border-slate-800 text-slate-200"}>
-                          {cells.map((cell, cIdx) => (
-                            <td key={cIdx} className="px-3 py-2 text-xs font-mono">
-                              {cell.trim()}
-                            </td>
-                          ))}
-                        </tr>
-                      );
-                    }
-                    if (trimmed) {
-                      return <p key={idx} className="text-slate-200 text-xs py-0.5">{trimmed}</p>;
-                    }
-                    return null;
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        );
+    if (!rawText) return null;
+
+    // Parse blocks: separates markdown tables from regular text/list blocks
+    const lines = rawText.split('\n');
+    interface ContentBlock {
+      type: 'table' | 'text';
+      lines: string[];
+    }
+    const blocks: ContentBlock[] = [];
+    let currentTable: string[] = [];
+    let currentText: string[] = [];
+
+    const flushText = () => {
+      if (currentText.length > 0) {
+        blocks.push({ type: 'text', lines: [...currentText] });
+        currentText = [];
+      }
+    };
+
+    const flushTable = () => {
+      if (currentTable.length > 0) {
+        // If table has at least 2 lines (header + data/separator), treat as table; otherwise fallback to text
+        if (currentTable.length >= 2) {
+          blocks.push({ type: 'table', lines: [...currentTable] });
+        } else {
+          currentText.push(...currentTable);
+        }
+        currentTable = [];
+      }
+    };
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+        flushText();
+        currentTable.push(trimmed);
+      } else {
+        flushTable();
+        currentText.push(line);
       }
     }
+    flushText();
+    flushTable();
 
-    // Default line-by-line render with bold highlights
-    const paragraphs = rawText.split('\n');
     return (
-      <div className="space-y-1.5 text-xs sm:text-[13px] leading-relaxed">
-        {paragraphs.map((p, pIdx) => {
-          if (!p.trim()) return <div key={pIdx} className="h-1" />;
-          
-          // Bullet point
-          if (p.trim().startsWith('- ') || p.trim().startsWith('* ')) {
-            const content = p.trim().substring(2);
+      <div className="space-y-3 text-xs sm:text-[13px] leading-relaxed">
+        {blocks.map((block, bIdx) => {
+          if (block.type === 'table') {
+            const tableRows = block.lines;
+            const headerLine = tableRows[0];
+            const headerCells = headerLine.split('|').slice(1, -1).map(c => c.trim());
+            const dataRows = tableRows.slice(1).filter(r => !r.includes('---'));
+
             return (
-              <div key={pIdx} className="flex items-start gap-2 pl-1">
-                <span className="text-cyan-400 font-bold shrink-0 mt-0.5">•</span>
-                <span dangerouslySetInnerHTML={{ __html: highlightFormatting(content) }} />
+              <div key={bIdx} className="overflow-x-auto my-2.5 rounded-xl border border-slate-700/80 bg-slate-950/70 shadow-md">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-800/95 border-b border-slate-700 text-cyan-300 font-mono font-bold">
+                      {headerCells.map((hCell, hIdx) => (
+                        <th key={hIdx} className="px-3.5 py-2.5 text-[11px] uppercase tracking-wider whitespace-nowrap">
+                          {hCell}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dataRows.map((rowLine, rIdx) => {
+                      const cells = rowLine.split('|').slice(1, -1).map(c => c.trim());
+                      const rowContext = rowLine;
+                      return (
+                        <tr 
+                          key={rIdx} 
+                          className="hover:bg-slate-800/50 border-b border-slate-800/70 text-slate-200 transition-colors last:border-b-0"
+                        >
+                          {cells.map((cell, cIdx) => {
+                            const columnHeader = headerCells[cIdx] || '';
+                            const combinedContext = `${columnHeader} ${rowContext}`;
+                            return (
+                              <td key={cIdx} className="px-3.5 py-2 text-xs font-mono">
+                                <span dangerouslySetInnerHTML={{ __html: highlightFormatting(cell, combinedContext) }} />
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             );
           }
 
+          // Text block
           return (
-            <p key={pIdx} dangerouslySetInnerHTML={{ __html: highlightFormatting(p) }} />
+            <div key={bIdx} className="space-y-1.5">
+              {block.lines.map((p, pIdx) => {
+                if (!p.trim()) return <div key={pIdx} className="h-1" />;
+
+                // Bullet point
+                if (p.trim().startsWith('- ') || p.trim().startsWith('* ')) {
+                  const content = p.trim().substring(2);
+                  return (
+                    <div key={pIdx} className="flex items-start gap-2 pl-1">
+                      <span className="text-cyan-400 font-bold shrink-0 mt-0.5">•</span>
+                      <span dangerouslySetInnerHTML={{ __html: highlightFormatting(content) }} />
+                    </div>
+                  );
+                }
+
+                return (
+                  <p key={pIdx} dangerouslySetInnerHTML={{ __html: highlightFormatting(p) }} />
+                );
+              })}
+            </div>
           );
         })}
       </div>
     );
-  };
-
-  const highlightFormatting = (str: string) => {
-    // Bold **text**
-    let formatted = str.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-white">$1</strong>');
-    // Currency R$ XX,XX highlight
-    formatted = formatted.replace(/(R\$\s?[\d.,]+)/g, '<span class="font-mono font-bold text-emerald-400 bg-emerald-950/40 px-1 py-0.2 rounded border border-emerald-500/20">$1</span>');
-    return formatted;
   };
 
   return (
@@ -840,29 +919,38 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
             e.preventDefault();
             handleSendMessage();
           }}
-          className="relative flex items-center gap-2"
+          className="relative flex flex-col gap-1.5"
         >
-          <input
-            ref={inputRef}
-            type="text"
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            disabled={isLoading}
-            placeholder="Pergunte ao Skywalker ou peça uma ação executiva (ex: lance uma despesa, consulte faturamento, etc.)..."
-            className="w-full px-4 py-3 pr-12 rounded-xl bg-slate-900 border border-slate-700/80 text-white placeholder-slate-500 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-all font-sans"
-          />
-          <button
-            type="submit"
-            disabled={!inputMessage.trim() || isLoading}
-            className="absolute right-2 p-2 bg-gradient-to-r from-cyan-500 to-brand-500 hover:from-cyan-400 hover:to-brand-400 disabled:opacity-40 disabled:hover:from-cyan-500 text-white rounded-lg transition-all cursor-pointer shadow-md disabled:cursor-not-allowed"
-            title="Enviar mensagem para Skywalker"
-          >
-            <Send className="h-4 w-4" />
-          </button>
+          <div className="relative w-full">
+            <textarea
+              ref={inputRef}
+              rows={4}
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendMessage();
+                }
+              }}
+              disabled={isLoading}
+              placeholder="Pergunte ao Skywalker ou peça uma ação executiva (ex: lance uma despesa, consulte faturamento, analise contratos, etc.)..."
+              className="w-full min-h-[96px] sm:min-h-[108px] max-h-56 px-4 py-3 pr-14 rounded-xl bg-slate-900 border border-slate-700/80 text-white placeholder-slate-500 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-all font-sans resize-y leading-relaxed scrollbar-thin shadow-inner"
+            />
+            <button
+              type="submit"
+              disabled={!inputMessage.trim() || isLoading}
+              className="absolute right-2.5 bottom-3 p-2.5 bg-gradient-to-r from-cyan-500 to-brand-500 hover:from-cyan-400 hover:to-brand-400 disabled:opacity-40 disabled:hover:from-cyan-500 text-white rounded-xl transition-all cursor-pointer shadow-md disabled:cursor-not-allowed flex items-center justify-center"
+              title="Enviar mensagem para Skywalker (Enter)"
+            >
+              <Send className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="flex items-center justify-between text-[10px] text-slate-500 px-1 font-mono">
+            <span>Pressione <strong className="text-slate-400 font-bold">Enter</strong> para enviar • <strong className="text-slate-400 font-bold">Shift + Enter</strong> para nova linha</span>
+            <span className="hidden sm:inline">Skywalker com acesso irrestrito a todos os dados</span>
+          </div>
         </form>
-        <p className="text-[10px] text-slate-500 text-center mt-2 font-mono">
-          Skywalker analisa frotas, contratos, receitas e despesas com acesso irrestrito a todos os dados da plataforma.
-        </p>
       </div>
 
       {/* 5. INTERACTIVE MOUSE RESIZE HANDLE BAR & CORNER GRIP */}
