@@ -215,6 +215,12 @@ export default function VehiclesTab({
   const [editVehMileageDate, setEditVehMileageDate] = useState('');
   const [editVehAcquisitionDate, setEditVehAcquisitionDate] = useState('');
 
+  // Local draft states for monthly KM aferição and monthly notes (prevents firing save on every keystroke)
+  const [monthlyKmDrafts, setMonthlyKmDrafts] = useState<Record<string, string>>({});
+  const [monthlyNoteDrafts, setMonthlyNoteDrafts] = useState<Record<string, string>>({});
+  const [quickKmInput, setQuickKmInput] = useState<string>('');
+  const [quickKmDate, setQuickKmDate] = useState<string>(getBrasiliaDateStr());
+
   const openEditVehicleModal = (v: Vehicle) => {
     setEditVehId(v.id);
     setEditVehBrandModel(v.brandModel || '');
@@ -285,6 +291,88 @@ export default function VehiclesTab({
   // Find selected vehicle
   const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
 
+  // Helper classifiers for vehicle expenses (strictly mutually exclusive, read-only)
+  const isVehFinancingExpense = (t: Transaction) => {
+    if (!t || t.type !== 'despesa') return false;
+    const cat = (t.category || '').toLowerCase();
+    const desc = (t.description || '').toLowerCase();
+    return (
+      cat.includes('financiamento') ||
+      cat.includes('consórcio') ||
+      cat.includes('consorcio') ||
+      desc.includes('financiamento') ||
+      desc.includes('consórcio') ||
+      desc.includes('consorcio') ||
+      desc.includes('leasing') ||
+      desc.includes('cdc banco')
+    );
+  };
+
+  const isVehInsuranceExpense = (t: Transaction) => {
+    if (!t || t.type !== 'despesa' || isVehFinancingExpense(t)) return false;
+    const cat = (t.category || '').toLowerCase();
+    const desc = (t.description || '').toLowerCase();
+    return cat.includes('seguro') || desc.includes('seguro');
+  };
+
+  const isVehTaxExpense = (t: Transaction) => {
+    if (!t || t.type !== 'despesa' || isVehFinancingExpense(t) || isVehInsuranceExpense(t)) return false;
+    const cat = (t.category || '').toLowerCase();
+    const desc = (t.description || '').toLowerCase();
+    return (
+      cat.includes('ipva') ||
+      cat.includes('imposto') ||
+      cat.includes('taxa') ||
+      cat.includes('licenciamento') ||
+      cat.includes('emplacamento') ||
+      desc.includes('ipva') ||
+      desc.includes('imposto') ||
+      desc.includes('licenciamento') ||
+      desc.includes('emplacamento') ||
+      desc.includes('taxa') ||
+      desc.includes('multa')
+    );
+  };
+
+  const isVehMechanicalExpense = (t: Transaction) => {
+    if (!t || t.type !== 'despesa' || isVehFinancingExpense(t) || isVehInsuranceExpense(t) || isVehTaxExpense(t)) {
+      return false;
+    }
+    const cat = (t.category || '').toLowerCase();
+    const desc = (t.description || '').toLowerCase();
+    return (
+      cat.includes('manuten') ||
+      cat.includes('oficina') ||
+      cat.includes('revis') ||
+      cat.includes('reparo') ||
+      cat.includes('peça') ||
+      cat.includes('pneu') ||
+      cat.includes('alinhamento') ||
+      cat.includes('mecanic') ||
+      desc.includes('manuten') ||
+      desc.includes('oficina') ||
+      desc.includes('reparo') ||
+      desc.includes('revis') ||
+      desc.includes('conserto') ||
+      desc.includes('peça') ||
+      desc.includes('óleo') ||
+      desc.includes('oleo') ||
+      desc.includes('pneu') ||
+      desc.includes('alinhamento') ||
+      desc.includes('balanceamento') ||
+      desc.includes('estabilizadora') ||
+      desc.includes('barra axial') ||
+      desc.includes('mecanic') ||
+      desc.includes('eletricista') ||
+      desc.includes('borracheiro') ||
+      desc.includes('insulfilm') ||
+      desc.includes('lava-jato') ||
+      desc.includes('desbloqueio') ||
+      desc.includes('tag rastreio') ||
+      desc.includes('carregador')
+    );
+  };
+
   // Statistics & History calculation for SELECTED VEHICLE
   const getVehicleData = (v: Vehicle) => {
     // Current active rental
@@ -323,60 +411,30 @@ export default function VehiclesTab({
     const netDepositInHand = depositsReceived - depositsReturned;
     const netProfit = totalRevenues - totalExpenses;
 
-    const mechanicalExpenses = effectiveVehicleTransactions
-      .filter(t => t.type === 'despesa' && (
-        t.category.toLowerCase().includes('manutenção') ||
-        t.category.toLowerCase().includes('oficina') ||
-        t.category.toLowerCase().includes('revisão') ||
-        t.category.toLowerCase().includes('reparo') ||
-        t.category.toLowerCase().includes('peças') ||
-        t.category.toLowerCase().includes('peça') ||
-        t.category.toLowerCase().includes('mecanic') ||
-        t.description.toLowerCase().includes('oficina') ||
-        t.description.toLowerCase().includes('reparo') ||
-        t.description.toLowerCase().includes('revisão') ||
-        t.description.toLowerCase().includes('conserto') ||
-        t.description.toLowerCase().includes('peças') ||
-        t.description.toLowerCase().includes('peça') ||
-        t.description.toLowerCase().includes('óleo') ||
-        t.description.toLowerCase().includes('pneu') ||
-        t.description.toLowerCase().includes('alinhamento') ||
-        t.description.toLowerCase().includes('mecanic')
-      ))
-      .reduce((sum, t) => sum + t.value, 0);
-
     const financingExpenses = effectiveVehicleTransactions
-      .filter(t => t.type === 'despesa' && (
-        t.category.toLowerCase().includes('financiamento') ||
-        t.category.toLowerCase().includes('consórcio') ||
-        t.category.toLowerCase().includes('parcela') ||
-        t.description.toLowerCase().includes('financiamento') ||
-        t.description.toLowerCase().includes('consórcio')
-      ))
-      .reduce((sum, t) => sum + t.value, 0);
-
-    const taxExpenses = effectiveVehicleTransactions
-      .filter(t => t.type === 'despesa' && (
-        t.category.toLowerCase().includes('ipva') ||
-        t.category.toLowerCase().includes('imposto') ||
-        t.category.toLowerCase().includes('taxa') ||
-        t.category.toLowerCase().includes('licenciamento') ||
-        t.description.toLowerCase().includes('ipva') ||
-        t.description.toLowerCase().includes('imposto') ||
-        t.description.toLowerCase().includes('licenciamento') ||
-        t.description.toLowerCase().includes('taxa') ||
-        t.description.toLowerCase().includes('multa')
-      ))
+      .filter(isVehFinancingExpense)
       .reduce((sum, t) => sum + t.value, 0);
 
     const insuranceExpenses = effectiveVehicleTransactions
-      .filter(t => t.type === 'despesa' && (
-        t.category.toLowerCase().includes('seguro') ||
-        t.description.toLowerCase().includes('seguro')
-      ))
+      .filter(isVehInsuranceExpense)
       .reduce((sum, t) => sum + t.value, 0);
 
-    const otherExpenses = Math.max(0, totalExpenses - (mechanicalExpenses + financingExpenses + taxExpenses + insuranceExpenses));
+    const taxExpenses = effectiveVehicleTransactions
+      .filter(isVehTaxExpense)
+      .reduce((sum, t) => sum + t.value, 0);
+
+    const mechanicalExpenses = effectiveVehicleTransactions
+      .filter(isVehMechanicalExpense)
+      .reduce((sum, t) => sum + t.value, 0);
+
+    const otherExpenses = Math.max(
+      0,
+      Number((totalExpenses - (mechanicalExpenses + financingExpenses + taxExpenses + insuranceExpenses)).toFixed(2))
+    );
+
+    // Operational result excluding financing installments
+    const operationalExpensesExclFinancing = Math.max(0, totalExpenses - financingExpenses);
+    const operationalProfit = totalRevenues - operationalExpensesExclFinancing;
 
     return {
       activeRent,
@@ -386,6 +444,8 @@ export default function VehiclesTab({
       totalExpenses,
       netDepositInHand,
       netProfit,
+      operationalProfit,
+      operationalExpensesExclFinancing,
       mechanicalExpenses,
       financingExpenses,
       taxExpenses,
@@ -403,12 +463,26 @@ export default function VehiclesTab({
       totalExpenses,
       netDepositInHand,
       netProfit,
+      operationalProfit,
       mechanicalExpenses,
       financingExpenses,
       taxExpenses,
       insuranceExpenses,
       otherExpenses
     } = getVehicleData(selectedVehicle);
+
+    const formatPct = (val: number) => {
+      if (totalRevenues <= 0) return '0,0%';
+      return `${((val / totalRevenues) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+    };
+
+    const netMarginPct = totalRevenues > 0 ? (netProfit / totalRevenues) * 100 : 0;
+    const operationalMarginPct = totalRevenues > 0 ? (operationalProfit / totalRevenues) * 100 : 0;
+    const mechanicalPct = totalRevenues > 0 ? (mechanicalExpenses / totalRevenues) * 100 : 0;
+    const financingPct = totalRevenues > 0 ? (financingExpenses / totalRevenues) * 100 : 0;
+    const fixedAndOtherExpenses = insuranceExpenses + taxExpenses + otherExpenses;
+    const fixedAndOtherPct = totalRevenues > 0 ? (fixedAndOtherExpenses / totalRevenues) * 100 : 0;
+    const totalExpensesPct = totalRevenues > 0 ? (totalExpenses / totalRevenues) * 100 : 0;
 
     // Calculate days left in active rent if any
     let daysLeft: number | null = null;
@@ -418,6 +492,13 @@ export default function VehiclesTab({
       const msDiff = endDateObj.getTime() - today.getTime();
       daysLeft = Math.ceil(msDiff / (1000 * 3600 * 24));
     }
+
+    // Regra de Integridade Estrita: O fato de o veículo estar liberado para locação ou alugado
+    // é estritamente atrelado a ele possuir um contrato ativo vigente.
+    const hasActiveRental = Boolean(activeRent);
+    const effectiveStatus: Vehicle['status'] = selectedVehicle.status === 'maintenance'
+      ? 'maintenance'
+      : (hasActiveRental ? 'rented' : 'available');
 
     return (
       <div className="space-y-6 animate-fade-in">
@@ -455,22 +536,23 @@ export default function VehiclesTab({
             </button>
             {!isSocio ? (
               <div className="flex items-center gap-2">
-                {selectedVehicle.status !== 'maintenance' && (
+                {selectedVehicle.status !== 'maintenance' ? (
                   <button
                     onClick={() => onUpdateVehicleStatus(selectedVehicle.id, 'maintenance')}
-                    className="flex items-center gap-2 bg-amber-50 hover:bg-amber-100 text-amber-750 px-3 py-1.5 rounded-lg text-xs font-semibold font-sans transition-all border border-amber-250/30"
+                    className="flex items-center gap-2 bg-amber-50 hover:bg-amber-100 text-amber-800 px-3 py-1.5 rounded-lg text-xs font-semibold font-sans transition-all border border-amber-200/60 cursor-pointer"
+                    title={activeRent ? `Colocar na oficina (Contrato com ${activeRent.tenantName} permanece ativo)` : 'Enviar veículo para oficina/manutenção'}
                   >
-                    <Wrench className="h-4 w-4 text-amber-500" />
-                    Oficina / Manutenção
+                    <Wrench className="h-4 w-4 text-amber-600" />
+                    {activeRent ? 'Oficina (Carro Alugado)' : 'Oficina / Manutenção'}
                   </button>
-                )}
-                {selectedVehicle.status === 'maintenance' && (
+                ) : (
                   <button
-                    onClick={() => onUpdateVehicleStatus(selectedVehicle.id, 'available')}
-                    className="flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-750 px-3 py-1.5 rounded-lg text-xs font-semibold font-sans transition-all border border-emerald-200/30"
+                    onClick={() => onUpdateVehicleStatus(selectedVehicle.id, activeRent ? 'rented' : 'available')}
+                    className="flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 px-3 py-1.5 rounded-lg text-xs font-semibold font-sans transition-all border border-emerald-200/60 cursor-pointer"
+                    title={activeRent ? `Concluir manutenção e retornar veículo para o contrato ativo com ${activeRent.tenantName}` : 'Liberar carro disponível para novas locações'}
                   >
-                    <CheckCircle className="h-4 w-4 text-emerald-500" />
-                    Liberar Carro
+                    <CheckCircle className="h-4 w-4 text-emerald-600" />
+                    {activeRent ? 'Concluir Oficina (Voltar para Alugado)' : 'Liberar Carro (Disponível)'}
                   </button>
                 )}
                 <button
@@ -499,25 +581,25 @@ export default function VehiclesTab({
           </div>
         </div>
 
-        {/* STATS OVERVIEW CARDS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* STATS OVERVIEW CARDS (SEPARATING WORKSHOP/REPAIRS FROM FINANCING) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-premium relative overflow-hidden">
             <div className="flex justify-between items-start">
               <div>
                 <span className="text-xs text-slate-400 font-semibold block mb-1">Status Atual</span>
-                {selectedVehicle.status === 'available' && (
+                {effectiveStatus === 'available' && (
                   <span className="text-xs font-bold bg-emerald-50 text-emerald-600 px-2 py-1 rounded-full inline-flex items-center gap-1 border border-emerald-100">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span> Disponível
                   </span>
                 )}
-                {selectedVehicle.status === 'rented' && (
+                {effectiveStatus === 'rented' && (
                   <span className="text-xs font-bold bg-brand-50 text-brand-500 px-2 py-1 rounded-full inline-flex items-center gap-1 border border-brand-100">
                     <span className="h-1.5 w-1.5 rounded-full bg-brand-500"></span> Alugado
                   </span>
                 )}
-                {selectedVehicle.status === 'maintenance' && (
-                  <span className="text-xs font-bold bg-amber-50 text-amber-600 px-2 py-1 rounded-full inline-flex items-center gap-1 border border-amber-100">
-                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span> Em Manutenção
+                {effectiveStatus === 'maintenance' && (
+                  <span className="text-xs font-bold bg-amber-50 text-amber-700 px-2 py-1 rounded-full inline-flex items-center gap-1 border border-amber-200">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span> {activeRent ? `Na Oficina (${activeRent.tenantName})` : 'Em Manutenção'}
                   </span>
                 )}
               </div>
@@ -541,22 +623,24 @@ export default function VehiclesTab({
               </div>
             </div>
             <div className="mt-4 text-[11px] text-slate-400">
-              Total recebido em caixa
+              100% da receita bruta do veículo
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-premium">
+          <div className="bg-white rounded-xl border border-rose-100/80 p-4 shadow-premium">
             <div className="flex justify-between items-start">
               <div>
-                <span className="text-xs text-slate-400 font-semibold block mb-1">Custos (Oficina / Reparos)</span>
-                <span className="text-lg font-bold font-mono text-rose-500">{formatCurrency(totalExpenses)}</span>
+                <span className="text-xs text-slate-500 font-semibold block mb-1">Oficina, Reparos e Revisão</span>
+                <span className="text-lg font-bold font-mono text-rose-600">{formatCurrency(mechanicalExpenses)}</span>
               </div>
               <div className="p-2 bg-rose-50 rounded-lg text-rose-500">
-                <ArrowDownRight className="h-4 w-4" />
+                <Wrench className="h-4 w-4" />
               </div>
             </div>
-            <div className="mt-3 flex items-center justify-between">
-              <span className="text-[11px] text-slate-400">Total gasto com manutenção</span>
+            <div className="mt-3 flex items-center justify-between gap-1">
+              <span className="text-[11px] text-slate-400">
+                <strong className="text-rose-600 font-mono">{formatPct(mechanicalExpenses)}</strong> da receita
+              </span>
               <button
                 type="button"
                 onClick={() => setMaintenanceVehicle(selectedVehicle)}
@@ -565,6 +649,21 @@ export default function VehiclesTab({
                 <Wrench className="h-3 w-3 text-amber-600" />
                 Histórico
               </button>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-indigo-100/80 p-4 shadow-premium">
+            <div className="flex justify-between items-start">
+              <div>
+                <span className="text-xs text-slate-500 font-semibold block mb-1">Financiamento (Parcelas)</span>
+                <span className="text-lg font-bold font-mono text-indigo-600">{formatCurrency(financingExpenses)}</span>
+              </div>
+              <div className="p-2 bg-indigo-50 rounded-lg text-indigo-500">
+                <ArrowDownRight className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="mt-4 text-[11px] text-slate-400">
+              <strong className="text-indigo-600 font-mono">{formatPct(financingExpenses)}</strong> da receita (aquisição)
             </div>
           </div>
 
@@ -579,7 +678,7 @@ export default function VehiclesTab({
               </div>
             </div>
             <div className="mt-4 text-[11px] text-slate-400">
-              Valor de depósito em caixa
+              Valor de depósito em custódia
             </div>
           </div>
 
@@ -599,6 +698,225 @@ export default function VehiclesTab({
               Aferido em: <strong className="text-slate-700">{selectedVehicle.mileageDate ? new Date(selectedVehicle.mileageDate + 'T00:00:00').toLocaleDateString('pt-BR') : 'Sem data'}</strong>
             </div>
           </div>
+        </div>
+
+        {/* BOX DE RESULTADO FINANCEIRO SIMPLIFICADO E EM PERCENTUAIS (COM DESTAQUE NA MARGEM LÍQUIDA) */}
+        <div
+          id="vehicle-simplified-financial-result-box"
+          className="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 text-white rounded-2xl border border-slate-800 p-5 sm:p-6 shadow-premium-lg"
+        >
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-slate-800/90">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold">
+                  Resultado Financeiro Simplificado
+                </span>
+                <span className="text-[10px] font-mono text-slate-400">
+                  Placa {selectedVehicle.plate}
+                </span>
+              </div>
+              <h3 className="font-display font-bold text-base sm:text-lg text-white mt-1.5 flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-emerald-400" />
+                Demonstrativo Simplificado em Percentuais & Margem Líquida
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Separação estrita entre custos de oficina/reparos/revisão, parcelas de financiamento e margem líquida real do veículo.
+              </p>
+            </div>
+
+            {/* HIGHLIGHT BOX: MARGEM LÍQUIDA DO VEÍCULO */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+              <div className="px-4 py-3 rounded-xl bg-slate-800/80 border border-slate-700/80 text-left sm:text-right">
+                <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 block">
+                  Margem Operacional (Sem Financ.)
+                </span>
+                <div className="flex items-baseline sm:justify-end gap-2 mt-0.5">
+                  <span className={`font-mono text-base sm:text-lg font-extrabold ${operationalProfit >= 0 ? 'text-indigo-300' : 'text-rose-400'}`}>
+                    {operationalMarginPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+                  </span>
+                  <span className="text-xs font-mono text-slate-300">
+                    ({formatCurrency(operationalProfit)})
+                  </span>
+                </div>
+              </div>
+
+              <div className={`px-5 py-3 rounded-xl border-2 shadow-lg text-left sm:text-right ${
+                netProfit >= 0
+                  ? 'bg-emerald-500/15 border-emerald-400/60 shadow-emerald-950/50'
+                  : 'bg-rose-500/15 border-rose-400/60 shadow-rose-950/50'
+              }`}>
+                <span className="text-[10px] uppercase tracking-widest font-extrabold text-emerald-200 block">
+                  ★ Margem Líquida do Veículo
+                </span>
+                <div className="flex items-baseline sm:justify-end gap-2.5 mt-0.5">
+                  <span className={`font-mono text-2xl sm:text-3xl font-black tracking-tight ${
+                    netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                  }`}>
+                    {netProfit >= 0 ? '+' : ''}{netMarginPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+                  </span>
+                  <span className={`font-mono text-sm font-bold px-2 py-0.5 rounded ${
+                    netProfit >= 0 ? 'bg-emerald-500/20 text-emerald-200' : 'bg-rose-500/20 text-rose-200'
+                  }`}>
+                    {formatCurrency(netProfit)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* SIMPLIFIED BREAKDOWN CARDS WITH PERCENTAGES */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 mt-5">
+            {/* 1. Receita Bruta */}
+            <div className="bg-slate-800/50 border border-slate-700/70 rounded-xl p-3.5 flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">1. Receita de Aluguéis</span>
+                <span className="text-xs font-mono font-extrabold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  100,0%
+                </span>
+              </div>
+              <div className="mt-2">
+                <span className="font-mono text-base sm:text-lg font-bold text-emerald-400 block">
+                  +{formatCurrency(totalRevenues)}
+                </span>
+                <span className="text-[10px] text-slate-400 block mt-0.5">
+                  Base total de faturamento (100%)
+                </span>
+              </div>
+            </div>
+
+            {/* 2. Custos de Reparo, Oficina e Revisão */}
+            <div className="bg-slate-800/50 border border-rose-500/30 rounded-xl p-3.5 flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-rose-200 uppercase tracking-wider">2. Oficina e Revisão</span>
+                <span className="text-xs font-mono font-extrabold px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                  -{formatPct(mechanicalExpenses)}
+                </span>
+              </div>
+              <div className="mt-2">
+                <span className="font-mono text-base sm:text-lg font-bold text-rose-400 block">
+                  -{formatCurrency(mechanicalExpenses)}
+                </span>
+                <span className="text-[10px] text-slate-400 block mt-0.5">
+                  Reparos, peças, pneus e revisões
+                </span>
+              </div>
+            </div>
+
+            {/* 3. Financiamento (Aquisição) */}
+            <div className="bg-slate-800/50 border border-indigo-500/30 rounded-xl p-3.5 flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-indigo-200 uppercase tracking-wider">3. Financiamento</span>
+                <span className="text-xs font-mono font-extrabold px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  -{formatPct(financingExpenses)}
+                </span>
+              </div>
+              <div className="mt-2">
+                <span className="font-mono text-base sm:text-lg font-bold text-indigo-300 block">
+                  -{formatCurrency(financingExpenses)}
+                </span>
+                <span className="text-[10px] text-slate-400 block mt-0.5">
+                  Parcelas de aquisição pagas
+                </span>
+              </div>
+            </div>
+
+            {/* 4. Seguro, IPVA e Outros */}
+            <div className="bg-slate-800/50 border border-amber-500/30 rounded-xl p-3.5 flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-amber-200 uppercase tracking-wider">4. Seguro / IPVA / Outros</span>
+                <span className="text-xs font-mono font-extrabold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  -{formatPct(fixedAndOtherExpenses)}
+                </span>
+              </div>
+              <div className="mt-2">
+                <span className="font-mono text-base sm:text-lg font-bold text-amber-300 block">
+                  -{formatCurrency(fixedAndOtherExpenses)}
+                </span>
+                <span className="text-[10px] text-slate-400 block mt-0.5 truncate" title={`Seguro: ${formatCurrency(insuranceExpenses)} | IPVA/Taxas: ${formatCurrency(taxExpenses)} | Outros: ${formatCurrency(otherExpenses)}`}>
+                  Seg: {formatPct(insuranceExpenses)} • IPVA/Tx: {formatPct(taxExpenses)}{otherExpenses > 0 ? ` • Out: ${formatPct(otherExpenses)}` : ''}
+                </span>
+              </div>
+            </div>
+
+            {/* 5. Resultado Líquido & Margem Líquida */}
+            <div className={`rounded-xl p-3.5 flex flex-col justify-between border ${
+              netProfit >= 0
+                ? 'bg-emerald-950/60 border-emerald-500/50'
+                : 'bg-rose-950/60 border-rose-500/50'
+            }`}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-extrabold text-white uppercase tracking-wider">5. Margem Líquida</span>
+                <span className={`text-xs font-mono font-black px-2 py-0.5 rounded ${
+                  netProfit >= 0
+                    ? 'bg-emerald-400 text-slate-950'
+                    : 'bg-rose-400 text-slate-950'
+                }`}>
+                  {netProfit >= 0 ? '+' : ''}{netMarginPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+                </span>
+              </div>
+              <div className="mt-2">
+                <span className={`font-mono text-base sm:text-lg font-black block ${
+                  netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                }`}>
+                  {netProfit >= 0 ? '+' : ''}{formatCurrency(netProfit)}
+                </span>
+                <span className="text-[10px] text-slate-300 block mt-0.5">
+                  Custos Totais: {formatCurrency(totalExpenses)} ({totalExpensesPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%)
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* PROPORTIONAL REVENUE DISTRIBUTION BAR */}
+          {totalRevenues > 0 && (
+            <div className="mt-4 pt-3 border-t border-slate-800/80">
+              <div className="flex items-center justify-between text-[11px] text-slate-300 mb-1.5 font-sans">
+                <span className="font-semibold">Distribuição Percentual da Receita do Veículo:</span>
+                <div className="flex flex-wrap items-center gap-3 text-[10px] font-mono">
+                  <span className="inline-flex items-center gap-1">
+                    <span className="w-2.5 h-2.5 rounded-xs bg-rose-500 inline-block"></span>
+                    Oficina/Revisão ({mechanicalPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%)
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="w-2.5 h-2.5 rounded-xs bg-indigo-500 inline-block"></span>
+                    Financiamento ({financingPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%)
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="w-2.5 h-2.5 rounded-xs bg-amber-500 inline-block"></span>
+                    Seguro/IPVA/Outros ({fixedAndOtherPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%)
+                  </span>
+                  <span className="inline-flex items-center gap-1 font-bold text-emerald-300">
+                    <span className="w-2.5 h-2.5 rounded-xs bg-emerald-400 inline-block"></span>
+                    Margem Líquida ({netMarginPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%)
+                  </span>
+                </div>
+              </div>
+              <div className="h-3 w-full bg-slate-800 rounded-full overflow-hidden flex">
+                <div
+                  style={{ width: `${Math.min(100, Math.max(0, mechanicalPct))}%` }}
+                  className="bg-rose-500 h-full transition-all duration-500"
+                  title={`Oficina, Reparos e Revisão: ${formatCurrency(mechanicalExpenses)} (${formatPct(mechanicalExpenses)})`}
+                />
+                <div
+                  style={{ width: `${Math.min(100, Math.max(0, financingPct))}%` }}
+                  className="bg-indigo-500 h-full transition-all duration-500"
+                  title={`Financiamento: ${formatCurrency(financingExpenses)} (${formatPct(financingExpenses)})`}
+                />
+                <div
+                  style={{ width: `${Math.min(100, Math.max(0, fixedAndOtherPct))}%` }}
+                  className="bg-amber-500 h-full transition-all duration-500"
+                  title={`Seguro, IPVA e Outros: ${formatCurrency(fixedAndOtherExpenses)} (${formatPct(fixedAndOtherExpenses)})`}
+                />
+                {netMarginPct > 0 && (
+                  <div
+                    style={{ width: `${Math.min(100, Math.max(0, netMarginPct))}%` }}
+                    className="bg-emerald-400 h-full transition-all duration-500"
+                    title={`Margem Líquida: ${formatCurrency(netProfit)} (${formatPct(netProfit)})`}
+                  />
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* GRID SECTION: ACTIVE LEASE AND DETAILS vs TRANSACTIONS */}
@@ -671,86 +989,126 @@ export default function VehiclesTab({
 
             {/* PERFORMANCE ANALYSIS */}
             <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-premium space-y-4">
-              <h3 className="font-display font-semibold text-slate-800 text-base flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-emerald-500" />
-                Desempenho Financeiro
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="font-display font-semibold text-slate-800 text-base flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-emerald-500" />
+                  Desempenho Financeiro Detalhado
+                </h3>
+                <span className={`text-[11px] font-mono font-extrabold px-2 py-0.5 rounded-full border ${
+                  netProfit >= 0
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : 'bg-rose-50 text-rose-700 border-rose-200'
+                }`}>
+                  Margem: {netProfit >= 0 ? '+' : ''}{netMarginPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+                </span>
+              </div>
               
               <div className="space-y-3.5">
                 {/* Result header */}
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="p-2 bg-slate-50 rounded-lg text-center">
-                    <span className="text-[10px] text-slate-400 block font-sans">Receitas Acadas</span>
-                    <span className="text-xs font-bold font-mono text-slate-800">{formatCurrency(totalRevenues)}</span>
+                  <div className="p-2.5 bg-slate-50 rounded-lg text-center border border-slate-100">
+                    <span className="text-[10px] text-slate-400 block font-sans">Receitas Acumuladas</span>
+                    <span className="text-xs font-bold font-mono text-emerald-600">{formatCurrency(totalRevenues)}</span>
+                    <span className="text-[9px] font-mono text-slate-400 block">100,0%</span>
                   </div>
-                  <div className="p-2 bg-brand-50/50 rounded-lg text-center border border-brand-100/30">
-                    <span className="text-[10px] text-brand-500 block font-sans">Resultado Líquido</span>
+                  <div className="p-2.5 bg-brand-50/50 rounded-lg text-center border border-brand-100/50">
+                    <span className="text-[10px] text-brand-600 font-semibold block font-sans">Resultado Líquido</span>
                     <span className={`text-xs font-black font-mono ${netProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                       {formatCurrency(netProfit)}
+                    </span>
+                    <span className={`text-[9px] font-mono font-bold block ${netProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      Margem Líquida: {netMarginPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
                     </span>
                   </div>
                 </div>
 
                 <div className="border-t border-dashed border-slate-100 pt-3 space-y-2.5">
-                  <h4 className="text-[10px] font-bold text-slate-400 tracking-wider uppercase">Detalhamento de Custos</h4>
+                  <h4 className="text-[10px] font-bold text-slate-400 tracking-wider uppercase">Custos Separados por Natureza</h4>
 
                   {/* Mechanical mechanicalExpenses */}
                   <div className="flex justify-between items-center text-xs py-1.5 border-b border-slate-50/50">
                     <div className="flex flex-col">
-                      <span className="font-semibold text-slate-700">Custos Mecânicos</span>
-                      <span className="text-[9px] text-slate-400 font-sans">Reparos, Revisão e Oficina</span>
+                      <span className="font-semibold text-slate-700">Custos de Oficina, Reparo e Revisão</span>
+                      <span className="text-[9px] text-slate-400 font-sans">Manutenção mecânica, peças e pneus (sem financiamento)</span>
                     </div>
-                    <span className="font-bold text-rose-600 font-mono text-xs">{formatCurrency(mechanicalExpenses)}</span>
+                    <div className="text-right">
+                      <span className="font-bold text-rose-600 font-mono text-xs block">{formatCurrency(mechanicalExpenses)}</span>
+                      <span className="text-[9px] font-mono text-slate-400">{formatPct(mechanicalExpenses)} da receita</span>
+                    </div>
                   </div>
 
                   {/* Financing financingExpenses */}
                   <div className="flex justify-between items-center text-xs py-1.5 border-b border-slate-50/50">
                     <div className="flex flex-col">
-                      <span className="font-semibold text-slate-700">Financiamentos</span>
-                      <span className="text-[9px] text-slate-400 font-sans">Parcelas de Compra / Entrada</span>
+                      <span className="font-semibold text-slate-700">Financiamento (Aquisição)</span>
+                      <span className="text-[9px] text-slate-400 font-sans">Parcelas bancárias / consórcio do veículo</span>
                     </div>
-                    <span className="font-bold text-rose-650 font-mono text-xs">{formatCurrency(financingExpenses)}</span>
-                  </div>
-
-                  {/* Taxes taxExpenses */}
-                  <div className="flex justify-between items-center text-xs py-1.5 border-b border-slate-50/50">
-                    <div className="flex flex-col">
-                      <span className="font-semibold text-slate-700">Impostos / IPVA</span>
-                      <span className="text-[9px] text-slate-400 font-sans">IPVA, Licenciamento e Taxas</span>
+                    <div className="text-right">
+                      <span className="font-bold text-indigo-600 font-mono text-xs block">{formatCurrency(financingExpenses)}</span>
+                      <span className="text-[9px] font-mono text-slate-400">{formatPct(financingExpenses)} da receita</span>
                     </div>
-                    <span className="font-bold text-amber-600 font-mono text-xs">{formatCurrency(taxExpenses)}</span>
                   </div>
 
                   {/* Insurance insuranceExpenses */}
                   <div className="flex justify-between items-center text-xs py-1.5 border-b border-slate-50/50">
                     <div className="flex flex-col">
-                      <span className="font-semibold text-slate-700">Seguro veicular</span>
-                      <span className="text-[9px] text-slate-400 font-sans">Apólices regulares individualizadas</span>
+                      <span className="font-semibold text-slate-700">Seguro Veicular</span>
+                      <span className="text-[9px] text-slate-400 font-sans">Apólices e proteção individualizada</span>
                     </div>
-                    <span className="font-bold text-blue-600 font-mono text-xs">{formatCurrency(insuranceExpenses)}</span>
+                    <div className="text-right">
+                      <span className="font-bold text-blue-600 font-mono text-xs block">{formatCurrency(insuranceExpenses)}</span>
+                      <span className="text-[9px] font-mono text-slate-400">{formatPct(insuranceExpenses)} da receita</span>
+                    </div>
+                  </div>
+
+                  {/* Taxes taxExpenses */}
+                  <div className="flex justify-between items-center text-xs py-1.5 border-b border-slate-50/50">
+                    <div className="flex flex-col">
+                      <span className="font-semibold text-slate-700">Impostos / IPVA / Emplacamento</span>
+                      <span className="text-[9px] text-slate-400 font-sans">IPVA, licenciamento e taxas estaduais</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="font-bold text-amber-600 font-mono text-xs block">{formatCurrency(taxExpenses)}</span>
+                      <span className="text-[9px] font-mono text-slate-400">{formatPct(taxExpenses)} da receita</span>
+                    </div>
                   </div>
 
                   {/* Other otherExpenses */}
                   <div className="flex justify-between items-center text-xs py-1.5">
                     <div className="flex flex-col">
                       <span className="font-semibold text-slate-700">Outras Despesas</span>
-                      <span className="text-[9px] text-slate-400 font-sans">Gastos operacionais ordinários</span>
+                      <span className="text-[9px] text-slate-400 font-sans">Frete, contratos e gastos diversos</span>
                     </div>
-                    <span className="font-bold text-slate-500 font-mono text-xs">{formatCurrency(otherExpenses)}</span>
+                    <div className="text-right">
+                      <span className="font-bold text-slate-500 font-mono text-xs block">{formatCurrency(otherExpenses)}</span>
+                      <span className="text-[9px] font-mono text-slate-400">{formatPct(otherExpenses)} da receita</span>
+                    </div>
                   </div>
                 </div>
 
                 {/* Substats */}
                 <div className="bg-slate-50 p-2.5 rounded-xl space-y-1.5 text-[11px] border border-slate-100">
                   <div className="flex justify-between">
-                    <span className="text-slate-450">Histórico de Locações:</span>
-                    <strong className="text-slate-700">{pastRentals.length} encerrada(s)</strong>
+                    <span className="text-slate-500">Resultado Operacional (Sem Financ.):</span>
+                    <strong className="text-indigo-700 font-mono">
+                      {formatCurrency(operationalProfit)} ({operationalMarginPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%)
+                    </strong>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-450">Comprometimento p/ Manutenção:</span>
-                    <strong className="text-slate-705 font-mono">
-                      {totalRevenues > 0 ? `${Math.round((mechanicalExpenses / totalRevenues) * 100)}%` : '0%'}
+                    <span className="text-slate-500">Comprometimento c/ Oficina e Revisão:</span>
+                    <strong className="text-rose-600 font-mono">
+                      {formatPct(mechanicalExpenses)}
                     </strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Comprometimento c/ Financiamento:</span>
+                    <strong className="text-indigo-600 font-mono">
+                      {formatPct(financingExpenses)}
+                    </strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Histórico de Locações:</span>
+                    <strong className="text-slate-700">{pastRentals.length} encerrada(s)</strong>
                   </div>
                 </div>
               </div>
@@ -918,7 +1276,7 @@ export default function VehiclesTab({
           </div>
         </div>
 
-        {/* SEÇÃO ADICIONAL: PRESTAÇÃO DE CONTAS INTEGRADA (DINÂMICA PARA TODOS OS VEÍCULOS) */}
+        {/* SEÇÃO ADICIONAL: PRESTAÇÃO DE CONTAS INTEGRADA & ANÁLISE DE EFICIÊNCIA OPERACIONAL */}
         {(() => {
           // Dynamic month extraction
           const monthsSet = new Set<string>();
@@ -934,8 +1292,13 @@ export default function VehiclesTab({
             if (r.endDate) monthsSet.add(r.endDate.substring(0, 7));
           });
 
+          if (selectedVehicle.monthlyMileages) {
+            Object.keys(selectedVehicle.monthlyMileages).forEach(m => monthsSet.add(m));
+          }
+
           // Fallback to current month if empty
-          monthsSet.add(getBrasiliaDateStr().substring(0, 7));
+          const currentMonthStr = getBrasiliaDateStr().substring(0, 7);
+          monthsSet.add(currentMonthStr);
           const sortedMonths = Array.from(monthsSet).sort();
 
           const getMonthNamePortuguese = (mStr: string) => {
@@ -945,121 +1308,440 @@ export default function VehiclesTab({
               'JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO',
               'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'
             ];
-            return `${monthNames[monthIdx]} / ${year}`;
+            return `${monthNames[monthIdx] || month} / ${year}`;
           };
 
+          // Pre-calculate monthly rows so we can show non-redundant analytical KPIs at the top
           let totalEntradasAll = 0;
           let totalCustosAll = 0;
+          let totalMechanicalAll = 0;
+          let totalFinancingAll = 0;
+          let totalOtherCostsAll = 0;
+          let profitableMonthsCount = 0;
+          let activeFinancialMonthsCount = 0;
 
-          // Find associated future expenses
+          const monthlyRowsData = sortedMonths.map((mStr, idx) => {
+            const mTransactions = vehicleTransactions.filter(t => t.date.startsWith(mStr));
+            const mEntradas = mTransactions.filter(t => t.type === 'receita').reduce((sum, t) => sum + t.value, 0);
+            const mCustos = mTransactions.filter(t => t.type === 'despesa').reduce((sum, t) => sum + t.value, 0);
+            const mMechanical = mTransactions.filter(isVehMechanicalExpense).reduce((sum, t) => sum + t.value, 0);
+            const mFinancing = mTransactions.filter(isVehFinancingExpense).reduce((sum, t) => sum + t.value, 0);
+            const mOtherCosts = Math.max(0, Number((mCustos - mMechanical - mFinancing).toFixed(2)));
+            const mRentabilidade = mEntradas - mCustos;
+            const mMarginPct = mEntradas > 0 ? (mRentabilidade / mEntradas) * 100 : 0;
+
+            totalEntradasAll += mEntradas;
+            totalCustosAll += mCustos;
+            totalMechanicalAll += mMechanical;
+            totalFinancingAll += mFinancing;
+            totalOtherCostsAll += mOtherCosts;
+
+            if (mEntradas > 0 || mCustos > 0) {
+              activeFinancialMonthsCount += 1;
+              if (mRentabilidade > 0) profitableMonthsCount += 1;
+            }
+
+            const savedKm = selectedVehicle.monthlyMileages?.[mStr];
+            // Find previous recorded monthly mileage for delta calculation
+            let prevSavedKm: number | undefined = undefined;
+            for (let p = idx - 1; p >= 0; p--) {
+              const candidate = selectedVehicle.monthlyMileages?.[sortedMonths[p]];
+              if (candidate !== undefined && candidate > 0) {
+                prevSavedKm = candidate;
+                break;
+              }
+            }
+            const kmDelta = (savedKm !== undefined && prevSavedKm !== undefined && savedKm >= prevSavedKm)
+              ? savedKm - prevSavedKm
+              : null;
+
+            return {
+              mStr,
+              mTransactions,
+              mEntradas,
+              mCustos,
+              mMechanical,
+              mFinancing,
+              mOtherCosts,
+              mRentabilidade,
+              mMarginPct,
+              savedKm,
+              kmDelta
+            };
+          });
+
+          const monthsDivisor = Math.max(1, activeFinancialMonthsCount || sortedMonths.length);
+          const avgMonthlyRevenue = totalEntradasAll / monthsDivisor;
+          const avgMonthlyNetProfit = (totalEntradasAll - totalCustosAll) / monthsDivisor;
+
+          // Calculate total tracked KM for efficiency per KM metrics
+          const recordedMileages = Object.values(selectedVehicle.monthlyMileages || {}).filter((v): v is number => typeof v === 'number' && v > 0);
+          if (selectedVehicle.mileage && selectedVehicle.mileage > 0) {
+            recordedMileages.push(selectedVehicle.mileage);
+          }
+          if (selectedVehicle.mileageHistory && selectedVehicle.mileageHistory.length > 0) {
+            selectedVehicle.mileageHistory.forEach(h => {
+              if (h.mileage > 0) recordedMileages.push(h.mileage);
+            });
+          }
+          const maxRecordedKm = recordedMileages.length > 0 ? Math.max(...recordedMileages) : 0;
+          const minRecordedKm = recordedMileages.length > 1 ? Math.min(...recordedMileages) : 0;
+          const trackedKmSpan = (maxRecordedKm > minRecordedKm && minRecordedKm > 0)
+            ? (maxRecordedKm - minRecordedKm)
+            : maxRecordedKm;
+
+          const mechanicalCostPerKm = trackedKmSpan > 0 ? totalMechanicalAll / trackedKmSpan : 0;
+          const netProfitPerKm = trackedKmSpan > 0 ? (totalEntradasAll - totalCustosAll) / trackedKmSpan : 0;
+
+          // Associated future expenses (installment contracts, financing, insurance, IPVA)
           const associatedFutureExpenses = futureExpenses.filter(fe => fe.vehicleId === selectedVehicle.id);
+
+          // Vacancy & Break-even calculations (non-redundant operational metrics)
+          const vacancyMetrics = calculateVacancyForVehicle(selectedVehicle, rentals);
+          const totalTrackedDays = vacancyMetrics.totalCountableDays || 0;
+          const rentedDaysCount = Math.max(0, totalTrackedDays - vacancyMetrics.vacantDays);
+          const occupancyRatePct = totalTrackedDays > 0 ? (rentedDaysCount / totalTrackedDays) * 100 : (activeRent ? 100 : 0);
+
+          // Fixed monthly obligation estimate based on active installment contracts or historical average
+          const monthlyFixedInstallments = associatedFutureExpenses.reduce((sum, fe) => {
+            const hasPending = fe.installments?.some((inst: any) => inst.status === 'pending' || inst.status === 'pendente');
+            return sum + (hasPending ? fe.value : 0);
+          }, 0);
+          const effectiveMonthlyFixedCost = monthlyFixedInstallments > 0
+            ? monthlyFixedInstallments
+            : ((totalFinancingAll + totalOtherCostsAll) / monthsDivisor);
+          const weeklyRateRef = activeRent?.weeklyRate || selectedVehicle.weeklyRate || 650;
+          const estimatedIdleCost = (vacancyMetrics.vacantDays / 7) * weeklyRateRef;
+          const breakEvenWeeksPerMonth = weeklyRateRef > 0 ? (effectiveMonthlyFixedCost / weeklyRateRef) : 0;
+
+          // Helper to commit KM measurement (both quick bar and monthly row)
+          const handleCommitMonthlyKm = (mStr: string, rawVal: string) => {
+            const trimmed = rawVal.trim();
+            const currentMileages = { ...(selectedVehicle.monthlyMileages || {}) };
+            if (trimmed === '') {
+              delete currentMileages[mStr];
+              onUpdateVehicle(selectedVehicle.id, { monthlyMileages: currentMileages });
+              return;
+            }
+            const numericKm = Number(trimmed);
+            if (!Number.isFinite(numericKm) || numericKm < 0) return;
+
+            currentMileages[mStr] = numericKm;
+            const updates: Partial<Vehicle> = {
+              monthlyMileages: currentMileages
+            };
+            // Also sync main vehicle odometer if this is the latest month or higher than current mileage
+            if (mStr >= currentMonthStr || numericKm >= (selectedVehicle.mileage || 0)) {
+              updates.mileage = numericKm;
+              updates.mileageDate = getBrasiliaDateStr();
+            }
+            onUpdateVehicle(selectedVehicle.id, updates);
+          };
+
+          const handleQuickKmSubmit = (e: React.FormEvent) => {
+            e.preventDefault();
+            const numericKm = Number(quickKmInput);
+            if (!Number.isFinite(numericKm) || numericKm <= 0) return;
+            const targetDate = quickKmDate || getBrasiliaDateStr();
+            const targetMonth = targetDate.substring(0, 7);
+            const currentMileages = { ...(selectedVehicle.monthlyMileages || {}), [targetMonth]: numericKm };
+
+            onUpdateVehicle(selectedVehicle.id, {
+              mileage: numericKm,
+              mileageDate: targetDate,
+              monthlyMileages: currentMileages
+            });
+            setMonthlyKmDrafts(prev => ({
+              ...prev,
+              [`${selectedVehicle.id}_${targetMonth}`]: String(numericKm)
+            }));
+            setQuickKmInput('');
+          };
 
           return (
             <div className="mt-6 bg-slate-900 text-slate-100 rounded-2xl border border-slate-800 p-6 shadow-premium-lg space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+              {/* HEADER + AFERIÇÃO RÁPIDA DE HODÔMETRO */}
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800 pb-5">
                 <div>
-                  <span className="text-[10px] bg-indigo-500/15 text-indigo-300 font-bold px-2 py-0.5 rounded-full border border-indigo-500/20 uppercase tracking-widest font-mono">
-                    Prestação de Contas Integrada
+                  <span className="text-[10px] bg-indigo-500/15 text-indigo-300 font-bold px-2.5 py-0.5 rounded-full border border-indigo-500/20 uppercase tracking-widest font-mono">
+                    Inteligência Operacional & Competência Mensal
                   </span>
                   <h4 className="font-display font-bold text-slate-100 text-lg mt-1.5 flex items-center gap-2">
                     <NotebookTabs className="h-5 w-5 text-indigo-400" />
-                    Acompanhamento Geral - {selectedVehicle.brandModel.toUpperCase()}
+                    Evolução Mensal, Aferição de KM e Passivos - {selectedVehicle.brandModel.toUpperCase()}
                   </h4>
                   <p className="text-xs text-slate-400 mt-0.5 font-sans">
-                    Faturamento, custos detalhados, despesas parceladas estruturais e controle de quilometragem.
+                    Indicadores de produtividade por quilômetro, fechamento mensal por competência, amortização de contratos e ponto de equilíbrio.
                   </p>
                 </div>
-                {activeRent && (
-                  <div className="flex items-center gap-3">
-                    <div className="text-right sm:text-right">
-                      <span className="text-[10px] text-slate-500 block uppercase font-bold tracking-wider">Locação Ativa</span>
-                      <span className="text-xs font-semibold font-mono text-indigo-300">{activeRent.tenantName}</span>
+
+                {/* WIDGET FUNCIONAL DE AFERIÇÃO DE KM ATUAL */}
+                <form
+                  onSubmit={handleQuickKmSubmit}
+                  className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 flex flex-wrap sm:flex-nowrap items-center gap-2.5 self-start lg:self-auto"
+                >
+                  <div className="flex items-center gap-2 pr-1">
+                    <div className="p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+                      <Milestone className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">
+                        Hodômetro Atual: <strong className="text-slate-100 font-mono">{selectedVehicle.mileage ? `${selectedVehicle.mileage.toLocaleString('pt-BR')} km` : 'Não aferido'}</strong>
+                      </span>
+                      <span className="text-[10px] text-slate-500 block">
+                        {selectedVehicle.mileageDate
+                          ? `Última aferição em ${new Date(selectedVehicle.mileageDate + 'T00:00:00').toLocaleDateString('pt-BR')}`
+                          : 'Registre a quilometragem atual do veículo'}
+                      </span>
                     </div>
                   </div>
-                )}
+                  {!isSocio && (
+                    <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={quickKmInput}
+                        onChange={(e) => setQuickKmInput(e.target.value)}
+                        placeholder={selectedVehicle.mileage ? `Ex: ${selectedVehicle.mileage + 500}` : 'Novo KM'}
+                        className="bg-slate-900 border border-slate-700 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-100 w-28 focus:outline-none"
+                      />
+                      <input
+                        type="date"
+                        value={quickKmDate}
+                        onChange={(e) => setQuickKmDate(e.target.value)}
+                        className="bg-slate-900 border border-slate-700 focus:border-indigo-500 rounded-lg px-2 py-1.5 text-[11px] font-mono text-slate-300 focus:outline-none"
+                        title="Data da aferição"
+                      />
+                      <button
+                        type="submit"
+                        disabled={!quickKmInput || Number(quickKmInput) <= 0}
+                        className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-semibold text-xs px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-xs"
+                      >
+                        <CheckCircle className="h-3.5 w-3.5" />
+                        Aferir KM
+                      </button>
+                    </div>
+                  )}
+                </form>
+              </div>
+
+              {/* FAIXA DE INDICADORES ANALÍTICOS INÉDITOS (NÃO REDUNDANTES COM O TOPO) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                <div className="bg-slate-950/50 border border-slate-800/80 rounded-xl p-3.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                    Faturamento Médio Mensal
+                  </span>
+                  <div className="text-base font-bold font-mono text-emerald-400 mt-1">
+                    {formatCurrency(avgMonthlyRevenue)}<span className="text-xs font-normal text-slate-500"> / mês</span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 mt-1 block">
+                    Baseado em {monthsDivisor} {monthsDivisor === 1 ? 'mês apurado' : 'meses apurados'}
+                  </span>
+                </div>
+
+                <div className="bg-slate-950/50 border border-slate-800/80 rounded-xl p-3.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                    Resultado Líquido Médio
+                  </span>
+                  <div className={`text-base font-bold font-mono mt-1 ${avgMonthlyNetProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {avgMonthlyNetProfit >= 0 ? '+' : ''}{formatCurrency(avgMonthlyNetProfit)}<span className="text-xs font-normal text-slate-500"> / mês</span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 mt-1 block">
+                    {profitableMonthsCount} de {monthsDivisor} meses fecharam no azul
+                  </span>
+                </div>
+
+                <div className="bg-slate-950/50 border border-slate-800/80 rounded-xl p-3.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                    Custo de Oficina por KM
+                  </span>
+                  <div className="text-base font-bold font-mono text-rose-400 mt-1">
+                    {trackedKmSpan > 0 ? `${formatCurrency(mechanicalCostPerKm)} / km` : 'Aferir KM'}
+                  </div>
+                  <span className="text-[10px] text-slate-500 mt-1 block">
+                    {trackedKmSpan > 0
+                      ? `Base: ${trackedKmSpan.toLocaleString('pt-BR')} km monitorados`
+                      : 'Registre o hodômetro para calcular R$/km'}
+                  </span>
+                </div>
+
+                <div className="bg-slate-950/50 border border-slate-800/80 rounded-xl p-3.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                    Ponto de Equilíbrio Mensal
+                  </span>
+                  <div className="text-base font-bold font-mono text-indigo-300 mt-1">
+                    {effectiveMonthlyFixedCost > 0
+                      ? `${breakEvenWeeksPerMonth.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} sem. aluguel`
+                      : '0,0 sem. (Sem Custo Fixo)'}
+                  </div>
+                  <span className="text-[10px] text-slate-500 mt-1 block">
+                    Custo fixo est.: {formatCurrency(effectiveMonthlyFixedCost)}/mês (ref. {formatCurrency(weeklyRateRef)}/sem)
+                  </span>
+                </div>
               </div>
 
               {/* GRELHA MÊS A MÊS */}
               <div className="space-y-3">
-                <h5 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5 font-sans">
-                  <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
-                  Fluxo de Caixa Mensal (Apuração por Competência)
-                </h5>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <h5 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5 font-sans">
+                    <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
+                    Fechamento Mensal por Competência & Evolução de Hodômetro
+                  </h5>
+                  <span className="text-[11px] text-slate-400 font-sans">
+                    Digite o KM do mês e clique em <strong className="text-indigo-300">Aferir</strong> (ou pressione Enter) para gravar no histórico.
+                  </span>
+                </div>
                 <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/40">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
                       <tr className="border-b border-slate-800 bg-slate-900/60 text-slate-400 uppercase font-bold text-[10px] tracking-wider">
-                        <th className="p-3">Mês de Fechamento</th>
+                        <th className="p-3">Mês de Competência</th>
                         <th className="p-3 text-right">Entradas (Aluguéis)</th>
-                        <th className="p-3 text-right">Custos (Operacionais)</th>
-                        <th className="p-3 text-right">Rentabilidade Líquida</th>
-                        <th className="p-3 text-center w-36">Quilometragem (KM)</th>
-                        <th className="p-3">Principais Ocorrências / Observações</th>
+                        <th className="p-3 text-right">Oficina / Revisão</th>
+                        <th className="p-3 text-right">Financiamento</th>
+                        <th className="p-3 text-right">Seguro / IPVA / Outros</th>
+                        <th className="p-3 text-right">Resultado & Margem</th>
+                        <th className="p-3 text-center w-52">Aferição de KM Mensal</th>
+                        <th className="p-3">Anotações Gerenciais do Mês</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/50 font-sans">
-                      {sortedMonths.map((mStr) => {
-                        const mTransactions = vehicleTransactions.filter(t => t.date.startsWith(mStr));
-                        const mEntradas = mTransactions.filter(t => t.type === 'receita').reduce((sum, t) => sum + t.value, 0);
-                        const mCustos = mTransactions.filter(t => t.type === 'despesa').reduce((sum, t) => sum + t.value, 0);
-                        const mRentabilidade = mEntradas - mCustos;
+                      {monthlyRowsData.map((row) => {
+                        const {
+                          mStr,
+                          mEntradas,
+                          mMechanical,
+                          mFinancing,
+                          mOtherCosts,
+                          mRentabilidade,
+                          mMarginPct,
+                          savedKm,
+                          kmDelta
+                        } = row;
 
-                        totalEntradasAll += mEntradas;
-                        totalCustosAll += mCustos;
+                        const kmDraftKey = `${selectedVehicle.id}_${mStr}`;
+                        const currentKmDraft = monthlyKmDrafts[kmDraftKey] !== undefined
+                          ? monthlyKmDrafts[kmDraftKey]
+                          : (savedKm !== undefined ? String(savedKm) : '');
+                        const isKmDirty = currentKmDraft !== (savedKm !== undefined ? String(savedKm) : '');
 
-                        const txDescList = mTransactions.map(t => t.description).filter(Boolean).join(', ');
+                        const savedNote = selectedVehicle.monthlyNotes?.[mStr] || '';
+                        const currentNoteDraft = monthlyNoteDrafts[kmDraftKey] !== undefined
+                          ? monthlyNoteDrafts[kmDraftKey]
+                          : savedNote;
+                        const isNoteDirty = currentNoteDraft !== savedNote;
 
                         return (
                           <tr key={mStr} className="hover:bg-slate-900/30 transition-colors">
-                            <td className="p-3 font-semibold text-slate-300 uppercase">{getMonthNamePortuguese(mStr)}</td>
-                            <td className="p-3 text-right font-mono text-emerald-400">
+                            <td className="p-3 font-semibold text-slate-300 uppercase whitespace-nowrap">
+                              {getMonthNamePortuguese(mStr)}
+                            </td>
+                            <td className="p-3 text-right font-mono text-emerald-400 whitespace-nowrap">
                               {mEntradas > 0 ? `+${formatCurrency(mEntradas)}` : formatCurrency(0)}
                             </td>
-                            <td className="p-3 text-right font-mono text-rose-400">
-                              {mCustos > 0 ? `-${formatCurrency(mCustos)}` : formatCurrency(0)}
+                            <td className="p-3 text-right font-mono text-rose-400 whitespace-nowrap">
+                              {mMechanical > 0 ? `-${formatCurrency(mMechanical)}` : formatCurrency(0)}
                             </td>
-                            <td className={`p-3 text-right font-mono ${mRentabilidade > 0 ? 'text-emerald-400' : mRentabilidade < 0 ? 'text-rose-400' : 'text-slate-400'}`}>
-                              {mRentabilidade > 0 ? '+' : ''}{formatCurrency(mRentabilidade)}
+                            <td className="p-3 text-right font-mono text-indigo-300 whitespace-nowrap">
+                              {mFinancing > 0 ? `-${formatCurrency(mFinancing)}` : formatCurrency(0)}
+                            </td>
+                            <td className="p-3 text-right font-mono text-amber-300 whitespace-nowrap">
+                              {mOtherCosts > 0 ? `-${formatCurrency(mOtherCosts)}` : formatCurrency(0)}
+                            </td>
+                            <td className="p-3 text-right whitespace-nowrap">
+                              <div className={`font-mono font-bold ${mRentabilidade > 0 ? 'text-emerald-400' : mRentabilidade < 0 ? 'text-rose-400' : 'text-slate-400'}`}>
+                                {mRentabilidade > 0 ? '+' : ''}{formatCurrency(mRentabilidade)}
+                              </div>
+                              {mEntradas > 0 && (
+                                <span className={`text-[10px] font-mono ${mMarginPct >= 0 ? 'text-emerald-500/80' : 'text-rose-400/80'}`}>
+                                  Margem: {mMarginPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+                                </span>
+                              )}
                             </td>
                             <td className="p-3 text-center">
-                              <input
-                                type="number"
-                                className="bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded text-center font-mono text-xs w-28 px-2 py-1 text-slate-100 focus:outline-none"
-                                value={selectedVehicle.monthlyMileages?.[mStr] || ''}
-                                placeholder="Aferir KM"
-                                disabled={isSocio}
-                                onChange={(e) => {
-                                  const val = e.target.value === '' ? undefined : Number(e.target.value);
-                                  const currentMileages = selectedVehicle.monthlyMileages || {};
-                                  const updatedMileages = { ...currentMileages };
-                                  if (val === undefined) {
-                                    delete updatedMileages[mStr];
-                                  } else {
-                                    updatedMileages[mStr] = val;
-                                  }
-                                  onUpdateVehicle(selectedVehicle.id, { monthlyMileages: updatedMileages });
-                                }}
-                              />
+                              <div className="flex flex-col items-center gap-1">
+                                <div className="flex items-center justify-center gap-1">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    className="bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-lg text-center font-mono text-xs w-24 px-2 py-1 text-slate-100 focus:outline-none"
+                                    value={currentKmDraft}
+                                    placeholder="KM do mês"
+                                    disabled={isSocio}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setMonthlyKmDrafts(prev => ({ ...prev, [kmDraftKey]: val }));
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        handleCommitMonthlyKm(mStr, currentKmDraft);
+                                      }
+                                    }}
+                                  />
+                                  {!isSocio && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCommitMonthlyKm(mStr, currentKmDraft)}
+                                      className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                                        isKmDirty
+                                          ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs'
+                                          : savedKm !== undefined
+                                            ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25'
+                                            : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                                      }`}
+                                      title="Confirmar e salvar aferição de quilometragem deste mês"
+                                    >
+                                      {isKmDirty ? 'Aferir' : savedKm !== undefined ? 'Aferido' : 'Aferir'}
+                                    </button>
+                                  )}
+                                </div>
+                                {kmDelta !== null && kmDelta > 0 && (
+                                  <span className="text-[10px] font-mono text-indigo-300">
+                                    +{kmDelta.toLocaleString('pt-BR')} km rodados no mês
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="p-3">
-                              <div className="space-y-1">
+                              <div className="flex items-center gap-1.5">
                                 <input
                                   type="text"
-                                  className="bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded text-left px-2 py-1 text-xs w-full text-slate-200 focus:outline-none placeholder-slate-700"
-                                  value={selectedVehicle.monthlyNotes?.[mStr] || ''}
-                                  placeholder="Clique para adicionar observação personalizada..."
+                                  className="bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-lg text-left px-2.5 py-1 text-xs w-full text-slate-200 focus:outline-none placeholder-slate-600"
+                                  value={currentNoteDraft}
+                                  placeholder="Adicionar observação gerencial para este mês..."
                                   disabled={isSocio}
                                   onChange={(e) => {
                                     const val = e.target.value;
-                                    const currentNotes = selectedVehicle.monthlyNotes || {};
-                                    const updatedNotes = { ...currentNotes, [mStr]: val };
-                                    onUpdateVehicle(selectedVehicle.id, { monthlyNotes: updatedNotes });
+                                    setMonthlyNoteDrafts(prev => ({ ...prev, [kmDraftKey]: val }));
+                                  }}
+                                  onBlur={() => {
+                                    if (isNoteDirty) {
+                                      const currentNotes = { ...(selectedVehicle.monthlyNotes || {}), [mStr]: currentNoteDraft };
+                                      onUpdateVehicle(selectedVehicle.id, { monthlyNotes: currentNotes });
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && isNoteDirty) {
+                                      e.preventDefault();
+                                      const currentNotes = { ...(selectedVehicle.monthlyNotes || {}), [mStr]: currentNoteDraft };
+                                      onUpdateVehicle(selectedVehicle.id, { monthlyNotes: currentNotes });
+                                    }
                                   }}
                                 />
-                                {txDescList && (
-                                  <span className="block text-[10px] text-slate-500 italic max-w-sm truncate" title={txDescList}>
-                                    Caixa automático: {txDescList}
-                                  </span>
+                                {!isSocio && isNoteDirty && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const currentNotes = { ...(selectedVehicle.monthlyNotes || {}), [mStr]: currentNoteDraft };
+                                      onUpdateVehicle(selectedVehicle.id, { monthlyNotes: currentNotes });
+                                    }}
+                                    className="px-2 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold uppercase cursor-pointer shrink-0"
+                                  >
+                                    Salvar
+                                  </button>
                                 )}
                               </div>
                             </td>
@@ -1070,17 +1752,19 @@ export default function VehiclesTab({
                       <tr className="bg-slate-900/80 font-bold border-t border-slate-700">
                         <td className="p-3 text-slate-200">TOTAL ACUMULADO</td>
                         <td className="p-3 text-right font-mono text-emerald-400">+{formatCurrency(totalEntradasAll)}</td>
-                        <td className="p-3 text-right font-mono text-rose-400">-{formatCurrency(totalCustosAll)}</td>
-                        <td className={`p-3 text-right font-mono ${totalEntradasAll - totalCustosAll >= 0 ? 'text-indigo-300' : 'text-rose-400'}`}>
-                          {formatCurrency(totalEntradasAll - totalCustosAll)}
+                        <td className="p-3 text-right font-mono text-rose-400">-{formatCurrency(totalMechanicalAll)}</td>
+                        <td className="p-3 text-right font-mono text-indigo-300">-{formatCurrency(totalFinancingAll)}</td>
+                        <td className="p-3 text-right font-mono text-amber-300">-{formatCurrency(totalOtherCostsAll)}</td>
+                        <td className={`p-3 text-right font-mono ${totalEntradasAll - totalCustosAll >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {totalEntradasAll - totalCustosAll >= 0 ? '+' : ''}{formatCurrency(totalEntradasAll - totalCustosAll)}
                         </td>
-                        <td className="p-3 text-center font-mono text-slate-400">
+                        <td className="p-3 text-center font-mono text-slate-300">
                           {selectedVehicle.mileage ? `${selectedVehicle.mileage.toLocaleString('pt-BR')} KM` : '-'}
                         </td>
-                        <td className="p-3 text-indigo-300 font-sans">
-                          {totalEntradasAll - totalCustosAll >= 0 
-                            ? `Rentabilidade de ${formatCurrency(totalEntradasAll - totalCustosAll)} acumulada para esta placa.`
-                            : `Margem deficitária de ${formatCurrency(totalEntradasAll - totalCustosAll)} devido a custos excedentes.`}
+                        <td className="p-3 text-indigo-300 font-sans text-xs">
+                          {netProfitPerKm !== 0 && trackedKmSpan > 0
+                            ? `Rentabilidade líquida de ${formatCurrency(netProfitPerKm)} por KM monitorado.`
+                            : `Média líquida de ${formatCurrency(avgMonthlyNetProfit)}/mês nos períodos apurados.`}
                         </td>
                       </tr>
                     </tbody>
@@ -1088,65 +1772,155 @@ export default function VehiclesTab({
                 </div>
               </div>
 
-              {/* DESPESAS PARCELADAS E GARANTIA */}
+              {/* PAINÉIS INFERIORES NÃO REDUNDANTES: AMORTIZAÇÃO DE CONTRATOS & TAXA DE OCUPAÇÃO / HISTÓRICO DE KM */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-                <div className="bg-slate-950/40 rounded-xl border border-slate-800 p-4 space-y-3 font-sans">
-                  <h5 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                    <ShieldCheck className="h-3.5 w-3.5 text-indigo-400" />
-                    Previsão Contratual de Despesas Parceladas
-                  </h5>
+                {/* CARD 1: PROGRESSO DE AMORTIZAÇÃO DE PASSIVOS E CONTRATOS PARCELADOS */}
+                <div className="bg-slate-950/40 rounded-xl border border-slate-800 p-4 space-y-3.5 font-sans">
+                  <div className="flex items-center justify-between">
+                    <h5 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <ShieldCheck className="h-3.5 w-3.5 text-indigo-400" />
+                      Amortização de Contratos & Passivos Vinculados
+                    </h5>
+                    <span className="text-[10px] font-mono text-slate-400">
+                      {associatedFutureExpenses.length} {associatedFutureExpenses.length === 1 ? 'contrato' : 'contratos'}
+                    </span>
+                  </div>
+
                   {associatedFutureExpenses.length > 0 ? (
-                    <div className="space-y-2 text-xs">
+                    <div className="space-y-3 text-xs">
                       {associatedFutureExpenses.map(fe => {
-                        const totalCost = fe.value * fe.installmentsCount;
+                        const totalInstallments = fe.installments?.length || fe.installmentsCount || 1;
+                        const paidInstallments = fe.installments
+                          ? fe.installments.filter((i: any) => i.status === 'realized' || i.status === 'pago').length
+                          : 0;
+                        const pendingInstallments = Math.max(0, totalInstallments - paidInstallments);
+                        const totalContractValue = fe.value * totalInstallments;
+                        const paidValue = paidInstallments * fe.value;
+                        const remainingDebt = pendingInstallments * fe.value;
+                        const progressPct = totalInstallments > 0 ? Math.min(100, (paidInstallments / totalInstallments) * 100) : 0;
+                        const nextPending = fe.installments
+                          ?.filter((i: any) => i.status === 'pending' || i.status === 'pendente')
+                          .sort((a: any, b: any) => a.dueDate.localeCompare(b.dueDate))[0];
+
                         return (
-                          <div key={fe.id} className="flex justify-between py-1 border-b border-slate-800">
-                            <span className="text-slate-400">{fe.description || fe.category}:</span>
-                            <span className="font-semibold text-slate-200">
-                              {fe.installmentsCount}x de {formatCurrency(fe.value)} ({formatCurrency(totalCost)})
-                            </span>
+                          <div key={fe.id} className="bg-slate-900/60 border border-slate-800/80 rounded-lg p-3 space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-semibold text-slate-200 truncate">
+                                {fe.description || fe.category}
+                              </span>
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/20 shrink-0">
+                                {paidInstallments}/{totalInstallments} pagas ({progressPct.toFixed(0)}%)
+                              </span>
+                            </div>
+                            <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-indigo-500 rounded-full transition-all"
+                                style={{ width: `${progressPct}%` }}
+                              />
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 pt-1 text-[11px]">
+                              <div>
+                                <span className="text-slate-500 block text-[10px]">Parcela</span>
+                                <span className="font-mono text-slate-300 font-semibold">{formatCurrency(fe.value)}</span>
+                              </div>
+                              <div>
+                                <span className="text-slate-500 block text-[10px]">Quitado</span>
+                                <span className="font-mono text-emerald-400 font-semibold">{formatCurrency(paidValue)}</span>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-slate-500 block text-[10px]">Saldo a Pagar</span>
+                                <span className="font-mono text-rose-400 font-semibold">{formatCurrency(remainingDebt)}</span>
+                              </div>
+                            </div>
+                            {nextPending && (
+                              <div className="text-[10px] text-amber-300/90 font-mono pt-1 border-t border-slate-800/60 flex justify-between">
+                                <span>Próximo vencimento (Parcela {nextPending.installmentNumber || nextPending.number}/{totalInstallments}):</span>
+                                <span>{new Date(nextPending.dueDate + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
+                              </div>
+                            )}
+                            {!nextPending && totalContractValue > 0 && (
+                              <div className="text-[10px] text-emerald-400 font-mono pt-1 border-t border-slate-800/60">
+                                Contrato 100% quitado ({formatCurrency(totalContractValue)})
+                              </div>
+                            )}
                           </div>
                         );
                       })}
-                      <div className="flex justify-between pt-1 font-bold text-slate-300">
-                        <span>Provisão de Custo Estrutural Anual:</span>
-                        <span className="font-mono text-indigo-400">
-                          {formatCurrency(associatedFutureExpenses.reduce((sum, fe) => sum + (fe.value * fe.installmentsCount), 0))}
-                        </span>
-                      </div>
                     </div>
                   ) : (
                     <div className="text-xs text-slate-500 py-6 text-center italic border border-dashed border-slate-800 rounded-lg">
-                      Nenhuma despesa parcelada ou futura provisionada para este veículo.
-                      <p className="text-[10px] text-slate-600 mt-1">Lançamentos de seguro, IPVA e financiamento podem ser estruturados na aba de Finanças / Lançamentos Futuros.</p>
+                      Nenhum contrato parcelado (Financiamento, Seguro ou IPVA) vinculado a este veículo em Despesas Futuras.
                     </div>
                   )}
                 </div>
 
-                <div className="bg-slate-950/40 rounded-xl border border-slate-800 p-4 space-y-3 flex flex-col justify-between font-sans">
-                  <div>
-                    <h5 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                      <History className="h-3.5 w-3.5 text-amber-400" />
-                      Garantia Caução & Condições Gerais
-                    </h5>
-                    <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
-                      {activeRent ? (
-                        <>
-                          O locatário ativo <strong className="text-slate-200">{activeRent.tenantName.toUpperCase()}</strong> efetuou depósito caução contratual no valor de <strong className="text-amber-400 font-mono">{formatCurrency(activeRent.depositValue)}</strong> retida em conta de segurança para garantias. O contrato iniciou em <strong className="text-slate-300">{new Date(activeRent.startDate + 'T00:00:00').toLocaleDateString('pt-BR')}</strong>.
-                        </>
+                {/* CARD 2: EFICIÊNCIA DE OCUPAÇÃO E ÚLTIMAS AFERIÇÕES DE HODÔMETRO */}
+                <div className="bg-slate-950/40 rounded-xl border border-slate-800 p-4 space-y-4 flex flex-col justify-between font-sans">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h5 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                        <History className="h-3.5 w-3.5 text-amber-400" />
+                        Eficiência de Ocupação & Histórico de Aferições de KM
+                      </h5>
+                      <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                        Ocupação: {occupancyRatePct.toFixed(1)}%
+                      </span>
+                    </div>
+
+                    {/* Ocupação vs Ociosidade */}
+                    <div className="grid grid-cols-3 gap-2 bg-slate-900/60 border border-slate-800/80 rounded-lg p-3 text-xs">
+                      <div>
+                        <span className="text-[10px] text-slate-500 uppercase block">Dias Alugados</span>
+                        <span className="font-mono font-bold text-emerald-400 text-sm">{rentedDaysCount} dias</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 uppercase block">Dias Parados</span>
+                        <span className="font-mono font-bold text-amber-400 text-sm">{vacancyMetrics.vacantDays} dias</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-500 uppercase block">Custo Ociosidade</span>
+                        <span className="font-mono font-bold text-rose-400 text-sm">{formatCurrency(estimatedIdleCost)}</span>
+                      </div>
+                    </div>
+
+                    {/* Últimas Aferições de KM Registradas */}
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                        Últimas Aferições de Hodômetro Registradas
+                      </span>
+                      {(selectedVehicle.mileageHistory && selectedVehicle.mileageHistory.length > 0) ? (
+                        <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
+                          {selectedVehicle.mileageHistory.slice(0, 4).map((entry) => (
+                            <div
+                              key={entry.id}
+                              className="flex items-center justify-between text-[11px] bg-slate-900/40 border border-slate-800/60 rounded px-2.5 py-1"
+                            >
+                              <span className="text-slate-400 truncate max-w-[180px]">{entry.notes || 'Aferição de Hodômetro'}</span>
+                              <div className="flex items-center gap-3 font-mono shrink-0">
+                                <span className="text-slate-500 text-[10px]">
+                                  {new Date(entry.date + 'T00:00:00').toLocaleDateString('pt-BR')}
+                                </span>
+                                <span className="text-indigo-300 font-semibold">
+                                  {entry.mileage.toLocaleString('pt-BR')} km
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       ) : (
-                        <>
-                          Não há locatário ativo vinculado a este veículo no momento. O caução padrão sugerido para futuras locações é de <strong className="text-amber-400 font-mono">{formatCurrency(selectedVehicle.depositValue)}</strong>.
-                        </>
+                        <p className="text-[11px] text-slate-500 italic">
+                          Nenhuma aferição anterior registrada no histórico. Utilize o botão "Aferir KM" acima ou na tabela mensal.
+                        </p>
                       )}
-                    </p>
-                    <p className="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
-                      Este painel consolida de forma contábil e em tempo real todos os lançamentos financeiros vinculados ao veículo no período desejado.
-                    </p>
+                    </div>
                   </div>
-                  <div className="text-[11px] text-indigo-400 italic mt-2 border-t border-slate-800/60 pt-2 flex items-center gap-1.5 font-mono">
-                    <span className="h-2 w-2 rounded-full bg-indigo-500 animate-pulse"></span>
-                    Integração em conformidade com o livro-caixa administrativo.
+
+                  <div className="text-[11px] text-indigo-400 italic border-t border-slate-800/60 pt-2 flex items-center justify-between font-mono">
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                      Dados sincronizados com o livro-caixa e controle de frota
+                    </span>
+                    <span>{vRentals.length} {vRentals.length === 1 ? 'contrato histórico' : 'contratos históricos'}</span>
                   </div>
                 </div>
               </div>
@@ -1379,6 +2153,374 @@ export default function VehiclesTab({
             </div>
           </div>
         )}
+
+        {/* MODAL: ADD/EDIT TRANSACTION (IN SELECTED VEHICLE VIEW) */}
+        {showAddTxModal && selectedVehicle && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fade-in animate-duration-150">
+            <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-premium-lg border border-slate-100 transform scale-100 transition-all font-sans text-slate-800">
+              <div className="flex justify-between items-center mb-5">
+                <div>
+                  <h3 className="font-display font-bold text-slate-800 text-base">
+                    {editingTx ? 'Editar Lançamento' : 'Novo Lançamento'}
+                  </h3>
+                  <p className="text-xs text-slate-400 font-sans mt-0.5">
+                    {editingTx ? 'Altere os dados da transação financeira.' : 'Adicione uma transação para este veículo.'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowAddTxModal(false)}
+                  className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-all"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                if (txValue === '') return;
+                const txData = {
+                  date: txDate,
+                  type: txType,
+                  value: Number(txValue),
+                  category: txCategory,
+                  description: txDescription,
+                  vehicleId: selectedVehicle.id
+                };
+                if (editingTx) {
+                  onUpdateTransaction?.(editingTx.id, txData);
+                } else {
+                  onAddTransaction?.(txData);
+                }
+                setShowAddTxModal(false);
+              }} className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Tipo de Lançamento</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTxType('despesa');
+                          setTxCategory('Manutenção');
+                        }}
+                        className={`py-2 px-3 text-xs font-bold rounded-lg border text-center transition-all ${
+                          txType === 'despesa'
+                            ? 'bg-rose-50 text-rose-700 border-rose-300 ring-1 ring-rose-350'
+                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        Despesa / Custo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTxType('receita');
+                          setTxCategory('Aluguel');
+                        }}
+                        className={`py-2 px-3 text-xs font-bold rounded-lg border text-center transition-all ${
+                          txType === 'receita'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-300 ring-1 ring-emerald-350'
+                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        Receita / Aluguel
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Data</label>
+                    <input
+                      type="date"
+                      required
+                      value={txDate}
+                      onChange={(e) => setTxDate(e.target.value)}
+                      className="w-full text-xs px-3 py-2 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-brand-500 font-sans text-slate-850"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Valor (R$)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      required
+                      placeholder="0.00"
+                      value={txValue}
+                      onChange={(e) => setTxValue(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="w-full text-xs px-3 py-2 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-brand-500 font-mono text-slate-850"
+                    />
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 font-sans">Categoria</label>
+                    {txType === 'despesa' ? (
+                      <select
+                        value={txCategory}
+                        onChange={(e) => setTxCategory(e.target.value)}
+                        className="w-full text-xs px-3 py-2 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-brand-500 bg-white font-sans text-slate-850"
+                      >
+                        <option value="Manutenção">Manutenção / Oficina</option>
+                        <option value="Seguro">Seguro Veicular</option>
+                        <option value="IPVA">IPVA / Impostos</option>
+                        <option value="Financiamento">Financiamento</option>
+                        <option value="Combustível">Combustível / Carga</option>
+                        <option value="Acessórios">Acessórios / Estética</option>
+                        <option value="Outros">Outros</option>
+                      </select>
+                    ) : (
+                      <select
+                        value={txCategory}
+                        onChange={(e) => setTxCategory(e.target.value)}
+                        className="w-full text-xs px-3 py-2 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-brand-500 bg-white font-sans text-slate-850"
+                      >
+                        <option value="Aluguel">Aluguel Semanal</option>
+                        <option value="Ajuste de Saldo">Ajuste de Saldo / Cobrança</option>
+                        <option value="Outros">Outros</option>
+                      </select>
+                    )}
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 font-sans">Descrição / Justificativa</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex: Troca de pastilhas de freio dianteiras"
+                      value={txDescription}
+                      onChange={(e) => setTxDescription(e.target.value)}
+                      className="w-full text-xs px-3 py-2 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-brand-500 font-sans text-slate-850"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2 mt-4 font-sans">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddTxModal(false)}
+                    className="px-4 py-2 border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-lg text-xs font-semibold"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-semibold shadow-premium"
+                  >
+                    {editingTx ? 'Salvar Alterações' : 'Lançar Transação'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: HISTÓRICO DE MANUTENÇÃO DEDICADO DO VEÍCULO (IN SELECTED VEHICLE VIEW) */}
+        {maintenanceVehicle && (() => {
+          const vehicleMaintenanceList = (transactions || [])
+            .filter(t => {
+              if (!t || typeof t !== 'object') return false;
+              const matchesVehicle = 
+                t.vehicleId === maintenanceVehicle.id || 
+                (Boolean(maintenanceVehicle.plate) && Boolean(t.description) && t.description.includes(maintenanceVehicle.plate));
+              return matchesVehicle && isVehMechanicalExpense(t);
+            })
+            .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+          const totalSpent = vehicleMaintenanceList.reduce((sum, r) => sum + (Number(r.value) || 0), 0);
+          const count = vehicleMaintenanceList.length;
+          const avg = count > 0 ? totalSpent / count : 0;
+          const lastDate = count > 0 ? vehicleMaintenanceList[0].date : null;
+
+          return (
+            <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fade-in font-sans">
+              <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-premium-2xl border border-slate-100 overflow-hidden">
+                <div className="px-6 py-4 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-white border-b border-amber-100 flex items-center justify-between gap-3 shrink-0">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-amber-500 text-white rounded-xl shadow-md shadow-amber-500/20">
+                      <Wrench className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-display font-bold text-slate-850 text-base flex items-center gap-2">
+                        Histórico de Manutenções
+                        <span className="font-mono text-xs bg-amber-100 text-amber-900 px-2 py-0.5 rounded font-bold border border-amber-200">
+                          {maintenanceVehicle.plate}
+                        </span>
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        {maintenanceVehicle.brandModel} • KM Estimado: {maintenanceVehicle.mileage ? `${maintenanceVehicle.mileage.toLocaleString('pt-BR')} KM` : 'Não registrado'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedVehicleId(maintenanceVehicle.id);
+                        setEditingTx(null);
+                        setTxType('despesa');
+                        setTxCategory('Manutenção');
+                        setTxDescription('');
+                        setTxValue('');
+                        setTxDate(getBrasiliaDateStr());
+                        setShowAddTxModal(true);
+                        setMaintenanceVehicle(null);
+                      }}
+                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>+ Nova Manutenção</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMaintenanceVehicle(null)}
+                      className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-5 bg-slate-50/60 border-b border-slate-100 shrink-0">
+                  <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Gasto</span>
+                    <span className="text-sm font-bold font-mono text-rose-600 block mt-0.5">
+                      {formatCurrency(totalSpent)}
+                    </span>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Intervenções</span>
+                    <span className="text-sm font-bold font-mono text-slate-800 block mt-0.5">
+                      {count} {count === 1 ? 'registro' : 'registros'}
+                    </span>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Média por Reparo</span>
+                    <span className="text-sm font-bold font-mono text-amber-700 block mt-0.5">
+                      {formatCurrency(avg)}
+                    </span>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Última Revisão</span>
+                    <span className="text-xs font-semibold font-mono text-slate-700 block mt-1">
+                      {lastDate ? formatDateBR(lastDate) : 'Nenhuma'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-5 overflow-y-auto flex-1 divide-y divide-slate-100">
+                  {vehicleMaintenanceList.length > 0 ? (
+                    <div className="space-y-2">
+                      {vehicleMaintenanceList.map((item) => (
+                        <div
+                          key={item.id}
+                          className="p-3 bg-white hover:bg-slate-50/80 rounded-xl border border-slate-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 transition-colors"
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 bg-amber-50 text-amber-700 rounded-lg mt-0.5 shrink-0 border border-amber-100">
+                              <Wrench className="h-4 w-4" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-slate-850 text-xs sm:text-sm">
+                                  {item.description}
+                                </span>
+                                <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200">
+                                  {item.category}
+                                </span>
+                              </div>
+                              <span className="text-[11px] text-slate-400 font-mono mt-0.5 block">
+                                Data: {formatDateBR(item.date)}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                            <span className="font-mono font-bold text-xs sm:text-sm text-rose-600">
+                              - {formatCurrency(item.value)}
+                            </span>
+
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedVehicleId(maintenanceVehicle.id);
+                                  setEditingTx(item);
+                                  setTxType(item.type);
+                                  setTxValue(item.value);
+                                  setTxCategory(item.category);
+                                  setTxDescription(item.description);
+                                  setTxDate(item.date);
+                                  setShowAddTxModal(true);
+                                  setMaintenanceVehicle(null);
+                                }}
+                                className="p-1.5 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors cursor-pointer"
+                                title="Editar registro de manutenção"
+                              >
+                                <Edit3 className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (onDeleteTransaction && window.confirm(`Tem certeza que deseja excluir a despesa de manutenção "${item.description}"?`)) {
+                                    onDeleteTransaction(item.id);
+                                  }
+                                }}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                title="Excluir despesa de manutenção"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="py-12 flex flex-col items-center justify-center text-center">
+                      <div className="p-3 bg-amber-50 rounded-2xl text-amber-500 mb-3 border border-amber-100">
+                        <Wrench className="h-8 w-8 stroke-[1.5]" />
+                      </div>
+                      <h4 className="font-bold text-slate-800 text-sm">Nenhuma manutenção registrada</h4>
+                      <p className="text-xs text-slate-500 max-w-sm mt-1">
+                        Este veículo ainda não possui despesas mecânicas ou revisões lançadas no livro-caixa.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedVehicleId(maintenanceVehicle.id);
+                          setEditingTx(null);
+                          setTxType('despesa');
+                          setTxCategory('Manutenção');
+                          setTxDescription('');
+                          setTxValue('');
+                          setTxDate(getBrasiliaDateStr());
+                          setShowAddTxModal(true);
+                          setMaintenanceVehicle(null);
+                        }}
+                        className="mt-4 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Lançar Primeira Manutenção
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 shrink-0">
+                  <span>Histórico individualizado por veículo • Eletroflow Frota</span>
+                  <button
+                    type="button"
+                    onClick={() => setMaintenanceVehicle(null)}
+                    className="px-4 py-2 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold rounded-lg transition-colors cursor-pointer"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     );
   }
@@ -1559,7 +2701,7 @@ export default function VehiclesTab({
               <div className="flex justify-between items-end mb-2 text-xs text-slate-500 font-semibold">
                 <span>Relação de Alocação</span>
                 <span>
-                  {vehicles.filter(v => v.status === 'rented' && !v.isDeleted).length} de {vehicles.filter(v => !v.isDeleted).length} carros
+                  {vehicles.filter(v => !v.isDeleted && rentals.some(r => r.vehicleId === v.id && !r.isDeleted && r.status === 'active')).length} de {vehicles.filter(v => !v.isDeleted).length} carros
                 </span>
               </div>
 
@@ -1567,7 +2709,7 @@ export default function VehiclesTab({
                 <div
                   className="h-full bg-brand-500 rounded-full transition-all duration-500"
                   style={{
-                    width: `${vehicles.filter(v => !v.isDeleted).length > 0 ? (vehicles.filter(v => v.status === 'rented' && !v.isDeleted).length / vehicles.filter(v => !v.isDeleted).length) * 100 : 0}%`
+                    width: `${vehicles.filter(v => !v.isDeleted).length > 0 ? (vehicles.filter(v => !v.isDeleted && rentals.some(r => r.vehicleId === v.id && !r.isDeleted && r.status === 'active')).length / vehicles.filter(v => !v.isDeleted).length) * 100 : 0}%`
                   }}
                 />
               </div>
@@ -1580,7 +2722,7 @@ export default function VehiclesTab({
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Disponíveis
                 </span>
                 <span className="text-slate-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 font-mono">
-                  {vehicles.filter(v => v.status === 'available' && !v.isDeleted).length}
+                  {vehicles.filter(v => !v.isDeleted && v.status !== 'maintenance' && !rentals.some(r => r.vehicleId === v.id && !r.isDeleted && r.status === 'active')).length}
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs font-semibold py-1.5 border-b border-dashed border-slate-100">
@@ -1588,7 +2730,7 @@ export default function VehiclesTab({
                   <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span> Em Contratos Ativos
                 </span>
                 <span className="text-slate-800 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 font-mono">
-                  {vehicles.filter(v => v.status === 'rented' && !v.isDeleted).length}
+                  {vehicles.filter(v => !v.isDeleted && rentals.some(r => r.vehicleId === v.id && !r.isDeleted && r.status === 'active')).length}
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs font-semibold py-1.5">
@@ -1596,7 +2738,7 @@ export default function VehiclesTab({
                   <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Na Oficina (Manutenção)
                 </span>
                 <span className="text-slate-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 font-mono">
-                  {vehicles.filter(v => v.status === 'maintenance' && !v.isDeleted).length}
+                  {vehicles.filter(v => !v.isDeleted && v.status === 'maintenance').length}
                 </span>
               </div>
             </div>
@@ -1617,14 +2759,17 @@ export default function VehiclesTab({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {vehicles.filter(v => !v.isDeleted).map((v) => {
-            const activeRent = rentals.find(r => r.vehicleId === v.id && r.status === 'active');
+            const activeRent = rentals.find(r => r.vehicleId === v.id && !r.isDeleted && r.status === 'active');
+            const effectiveStatus: Vehicle['status'] = v.status === 'maintenance'
+              ? 'maintenance'
+              : (activeRent ? 'rented' : 'available');
             
             // Generate visual styles based on status
             let cardBg = '';
             let statusBadge = null;
             let iconColor = '';
 
-            if (v.status === 'available') {
+            if (effectiveStatus === 'available') {
               cardBg = 'bg-white hover:bg-emerald-50/35 border-emerald-100 hover:border-emerald-300 hover:shadow-emerald-100/40';
               iconColor = 'text-emerald-500 bg-emerald-50';
               statusBadge = (
@@ -1632,7 +2777,7 @@ export default function VehiclesTab({
                   <span className="h-1 w-1 rounded-full bg-emerald-500 animate-pulse"></span> Disponível
                 </span>
               );
-            } else if (v.status === 'rented') {
+            } else if (effectiveStatus === 'rented') {
               cardBg = 'bg-white hover:bg-blue-50/35 border-blue-100 hover:border-blue-300 hover:shadow-blue-100/40';
               iconColor = 'text-blue-600 bg-blue-50';
               statusBadge = (
@@ -1645,7 +2790,7 @@ export default function VehiclesTab({
               iconColor = 'text-amber-500 bg-amber-50';
               statusBadge = (
                 <span className="text-[10px] font-medium bg-amber-50/75 border border-amber-200 text-amber-800 px-2 py-0.5 rounded-lg flex items-center gap-1">
-                  <span className="h-1 w-1 rounded-full bg-amber-500"></span> Oficina
+                  <span className="h-1 w-1 rounded-full bg-amber-500"></span> {activeRent ? 'Oficina (Alugado)' : 'Oficina'}
                 </span>
               );
             }
@@ -2257,7 +3402,7 @@ export default function VehiclesTab({
             const matchesVehicle = 
               t.vehicleId === maintenanceVehicle.id || 
               (Boolean(maintenanceVehicle.plate) && Boolean(t.description) && t.description.includes(maintenanceVehicle.plate));
-            return matchesVehicle && isMaintenanceTransaction(t);
+            return matchesVehicle && isVehMechanicalExpense(t);
           })
           .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 

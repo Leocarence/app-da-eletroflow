@@ -1805,13 +1805,13 @@ export default function RentalsTab({
                   >
                     <option value="">Selecione...</option>
                     {vehicles
-                      .filter(v => v.status === 'available')
+                      .filter(v => !v.isDeleted && v.status !== 'maintenance' && !rentals.some(r => r.vehicleId === v.id && !r.isDeleted && r.status === 'active'))
                       .map(v => (
                         <option key={v.id} value={v.id}>
                           {v.brandModel} ({v.plate})
                         </option>
                       ))}
-                    {vehicles.filter(v => v.status === 'available').length === 0 && (
+                    {vehicles.filter(v => !v.isDeleted && v.status !== 'maintenance' && !rentals.some(r => r.vehicleId === v.id && !r.isDeleted && r.status === 'active')).length === 0 && (
                       <option disabled>Nenhum carro disponível em estoque</option>
                     )}
                   </select>

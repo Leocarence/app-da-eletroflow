@@ -69,6 +69,28 @@ const INITIAL_USERS: AppUser[] = [
   }
 ];
 
+export const normalizeVehicleStatuses = (vList: Vehicle[], rList: Rental[]): Vehicle[] => {
+  const activeVehicleIds = new Set(
+    (rList || [])
+      .filter(r => !r.isDeleted && r.status === 'active')
+      .map(r => r.vehicleId)
+  );
+
+  return (vList || []).map(v => {
+    const hasActive = activeVehicleIds.has(v.id);
+    // Regra de Integridade Estrita:
+    // Se possui contrato ativo vigente, o status NÃO pode ser 'available'. Se estiver 'available', deve ser 'rented'.
+    if (hasActive && v.status === 'available') {
+      return { ...v, status: 'rented' as const };
+    }
+    // Se NÃO possui contrato ativo e constava como 'rented', deve retornar para 'available'.
+    if (!hasActive && v.status === 'rented') {
+      return { ...v, status: 'available' as const };
+    }
+    return v;
+  });
+};
+
 export default function App() {
   // Navigation
   const [activeTab, setActiveTab] = useState<'dashboard' | 'financials' | 'transactions' | 'vehicles' | 'rentals' | 'users' | 'ai-manager'>('dashboard');
@@ -122,21 +144,25 @@ export default function App() {
   // Dashboard Sub-Financials visibility toggle (revenue, deposit, expenses)
   const [showSubFinancials, setShowSubFinancials] = useState(false);
 
-  // Core Reactive Data Store with local persistence
-  const [vehicles, setVehicles] = useState<Vehicle[]>(() => {
-    try {
-      const stored = localStorage.getItem('loca_vehicles');
-      return stored ? JSON.parse(stored) : INITIAL_VEHICLES;
-    } catch (e) {
-      return INITIAL_VEHICLES;
-    }
-  });
+  // Core Reactive Data Store with local persistence & contract status normalization
   const [rentals, setRentals] = useState<Rental[]>(() => {
     try {
       const stored = localStorage.getItem('loca_rentals');
       return stored ? JSON.parse(stored) : INITIAL_RENTALS;
     } catch (e) {
       return INITIAL_RENTALS;
+    }
+  });
+
+  const [vehicles, setVehicles] = useState<Vehicle[]>(() => {
+    try {
+      const storedV = localStorage.getItem('loca_vehicles');
+      const storedR = localStorage.getItem('loca_rentals');
+      const vList: Vehicle[] = storedV ? JSON.parse(storedV) : INITIAL_VEHICLES;
+      const rList: Rental[] = storedR ? JSON.parse(storedR) : INITIAL_RENTALS;
+      return normalizeVehicleStatuses(vList, rList);
+    } catch (e) {
+      return normalizeVehicleStatuses(INITIAL_VEHICLES, INITIAL_RENTALS);
     }
   });
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
@@ -230,11 +256,13 @@ export default function App() {
             const sAccessLogs = serverBackup.accessLogs || [];
             const sLeads = serverBackup.interestedLeads || [];
 
+            const normalizedVehicles = normalizeVehicleStatuses(sVehicles, sRentals);
+
             // Safe State Updates (prevents screen flickers and only updates on difference)
             setVehicles(prev => {
-              if (JSON.stringify(prev) !== JSON.stringify(sVehicles)) {
-                localStorage.setItem('loca_vehicles', JSON.stringify(sVehicles));
-                return sVehicles;
+              if (JSON.stringify(prev) !== JSON.stringify(normalizedVehicles)) {
+                localStorage.setItem('loca_vehicles', JSON.stringify(normalizedVehicles));
+                return normalizedVehicles;
               }
               return prev;
             });
@@ -329,6 +357,17 @@ export default function App() {
       window.removeEventListener('focus', handleVisibilityChange);
     };
   }, []);
+
+  // Regra de Integridade Contratual Automática:
+  // Se qualquer veículo possui contrato ativo vigente e está marcado como 'available', corrige para 'rented'
+  useEffect(() => {
+    const normalized = normalizeVehicleStatuses(vehicles, rentals);
+    if (JSON.stringify(normalized) !== JSON.stringify(vehicles)) {
+      setVehicles(normalized);
+      localStorage.setItem('loca_vehicles', JSON.stringify(normalized));
+      persistToBackend(normalized, rentals, transactions, futureExpenses, users);
+    }
+  }, [rentals, vehicles]);
 
   // Gesture detection for mobile Pull-to-Refresh
   useEffect(() => {
@@ -1296,10 +1335,28 @@ export default function App() {
   };
 
   // 2. Change Vehicle status
-  const handleUpdateVehicleStatus = (id: string, status: Vehicle['status']) => {
-    const updated = vehicles.map(v => v.id === id ? { ...v, status } : v);
+  const handleUpdateVehicleStatus = (id: string, requestedStatus: Vehicle['status']) => {
+    const targetVeh = vehicles.find(v => v.id === id);
+    const hasActiveRental = rentals.some(r => r.vehicleId === id && !r.isDeleted && r.status === 'active');
+
+    // Regra de Integridade Estrita: O status de liberado para locação ou alugado é estritamente atrelado à vigência de contratos ativos
+    let finalStatus = requestedStatus;
+    if (hasActiveRental && requestedStatus === 'available') {
+      finalStatus = 'rented';
+    } else if (!hasActiveRental && requestedStatus === 'rented') {
+      finalStatus = 'available';
+    }
+
+    const updated = vehicles.map(v => v.id === id ? { ...v, status: finalStatus } : v);
     syncAndSetVehicles(updated);
-    showNotification('Status do veículo atualizado!', 'success');
+
+    if (hasActiveRental && requestedStatus === 'available') {
+      showNotification(`Veículo ${targetVeh?.plate || ''} possui contrato ativo vigente e retornou ao status Alugado.`, 'info');
+    } else if (finalStatus === 'maintenance') {
+      showNotification(hasActiveRental ? 'Veículo alocado na oficina (locação permanece ativa).' : 'Veículo alocado na oficina para manutenção.', 'info');
+    } else {
+      showNotification('Status do veículo atualizado com sucesso!', 'success');
+    }
   };
 
   // 3. Delete Vehicle
