@@ -159,10 +159,10 @@ async function startServer() {
   // Gestor IA (Skywalker) endpoint with Gemini API integration
   app.post("/api/gestor-ia/chat", async (req, res) => {
     try {
-      const { message, history, context } = req.body;
+      const { message, history, context, attachments } = req.body;
 
-      if (!message || typeof message !== "string") {
-        return res.status(400).json({ error: "Mensagem é obrigatória." });
+      if ((!message || typeof message !== "string") && (!attachments || !attachments.length)) {
+        return res.status(400).json({ error: "Mensagem ou anexo é obrigatório." });
       }
 
       const rawApiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || process.env.VITE_GEMINI_API_KEY || "";
@@ -202,7 +202,17 @@ DIRETRIZES OBRIGATÓRIAS DE FORMATAÇÃO E CORES (EXIGÊNCIA RIGOROSA):
      * NÚMEROS NEGATIVOS / DESPESAS / SAÍDAS / FINANCIAMENTOS / OFICINA / DÉBITOS / DÉFICIT: Devem SEMPRE vir acompanhados do sinal de menos (-) e formatação em Reais (ex: -R$ 1.655,74, -R$ 790,00, -R$ 1.054,50) ou identificados em colunas/linhas explicitamente como "Despesa", "Manutenção", "Financiamento" ou "Saída". A interface os destacará automaticamente em VERMELHO.
      * Resumos de saldo devem respeitar o sinal: se o saldo do período for superavitário, use "+R$ ...", se for deficitário ou negativo, use "-R$ ...".
 
-3. ECONOMIA DE MARCAÇÃO E ESTRUTURA:
+3. DIRETRIZ CRÍTICA DE PLACAS DE VEÍCULOS (NUNCA CONFUNDIR COM NÚMEROS NEGATIVOS):
+   - Placas brasileiras (ex: TYU-0E16, ABC-1234, BRA2E19) são códigos alfanuméricos identificadores de veículos.
+   - NUNCA anteceda placas com sinal de menos (-) e NUNCA as divida de forma a parecerem valores negativos. Escreva a placa normalmente (ex: TYU-0E16 ou ABC-1234).
+
+4. ANÁLISE DE FOTOS, ARQUIVOS E DOCUMENTOS ANEXADOS:
+   - O usuário pode anexar imagens, comprovantes, notas fiscais, fotos de painéis/odômetros, relatórios, PDFs, arquivos CSV e tabelas.
+   - Analise visualmente e detalhadamente qualquer anexo recebido.
+   - Se o usuário enviar foto do painel de um carro para aferir quilometragem, identifique o valor exibido no odômetro e invoque 'update_vehicle_mileage' para registrar a km e notas no veículo correto.
+   - Se o usuário enviar nota fiscal, recibo ou comprovante de pagamento, extraia os valores, data, descrição e veículo associado e lance via 'add_transaction' (classificando como Financiamento ou Manutenção).
+
+5. ECONOMIA DE MARCAÇÃO E ESTRUTURA:
    - Use formatação Markdown (negrito em títulos/cabeçalhos e colunas). Evite excesso de asteriscos sem propósito.
    - Organize com títulos curtos, tabelas limpas e, quando usar listas, marcadores simples (-).
    - Conclua sempre com um resumo sintético dos totais (Total de Receitas [+], Total de Despesas [-] e Saldo Líquido [+/-]).
@@ -213,7 +223,7 @@ DIRETRIZES FUNDAMENTAIS DO SISTEMA:
 2. Não use textos explicativos prolixos. Vá direto ao ponto, com conclusões assertivas e dados consolidados.
 3. Organize tabelas e listas em Markdown conciso. Valores monetários devem estar formatados em Reais (R$).
 4. NENHUM DADO DEVE SER OMITIDO da sua consulta. Você tem acesso completo e irrestrito a todas as abas, tabelas e registros:
-   - Veículos da frota (placa, modelo, status: disponível, locado ou manutenção, valor semanal, caução, km, gastos de oficina).
+   - Veículos da frota (placa, modelo, status: disponível, locado ou manutenção, valor semanal, caução, km, histórico de aferição de odômetro, gastos de oficina).
    - Histórico de Manutenção de cada veículo: você tem acesso a todos os reparos, revisões, pneus e intervenções de oficina de cada carro.
    - Separação Financeira Estrita: despesas de Financiamento (aquisição, parcelas bancárias e consórcios) devem ser tratadas de forma estritamente separada das despesas de Manutenção (oficina, peças e revisões).
    - Contratos de locação (locatários, telefones, veículos vinculados, status, valores semanais, início e fim).
@@ -225,7 +235,9 @@ DIRETRIZES FUNDAMENTAIS DO SISTEMA:
    - Você pode usar todas as funções que um usuário desenvolvedor/administrador possui.
    - Quando o usuário solicitar criação, alteração ou navegação, invoque a ferramenta correspondente:
      * add_transaction: Lança receita, despesa ou caução no extrato (use categoria 'Financiamento' para parcelas de veículos e 'Manutenção' para reparos).
+     * delete_transaction: Exclui um lançamento do extrato.
      * update_vehicle_status: Atualiza status do veículo (available, rented, maintenance).
+     * update_vehicle_mileage: Registra ou afere a quilometragem atual do veículo, com notas de vistoria.
      * add_vehicle: Cadastra novo carro na frota.
      * add_future_expense: Lança previsão de despesa futura fixa ou parcelada.
      * start_rental: Inicia novo contrato de locação.
@@ -456,6 +468,46 @@ ${dataSnapshot}
             },
             required: ["tab"]
           }
+        },
+        {
+          name: "update_vehicle_mileage",
+          description: "Atualiza ou afere a quilometragem (km) de um veículo da frota, podendo registrar observações de vistoria ou odômetro extraído de fotos do painel.",
+          parameters: {
+            type: Type.OBJECT,
+            properties: {
+              plateOrId: {
+                type: Type.STRING,
+                description: "Placa ou ID do veículo a atualizar (ex: TYU-0E16)"
+              },
+              mileage: {
+                type: Type.NUMBER,
+                description: "Quilometragem aferida (km atual)"
+              },
+              notes: {
+                type: Type.STRING,
+                description: "Observação da aferição ou vistoria (opcional)"
+              }
+            },
+            required: ["plateOrId", "mileage"]
+          }
+        },
+        {
+          name: "delete_transaction",
+          description: "Exclui um lançamento do extrato financeiro pelo ID ou por descrição aproximada.",
+          parameters: {
+            type: Type.OBJECT,
+            properties: {
+              transactionId: {
+                type: Type.STRING,
+                description: "ID da transação a ser excluída"
+              },
+              description: {
+                type: Type.STRING,
+                description: "Descrição aproximada se o ID exato não for conhecido"
+              }
+            },
+            required: ["transactionId"]
+          }
         }
       ];
 
@@ -472,9 +524,29 @@ ${dataSnapshot}
         }
       }
 
+      // Build multimodal parts for current user message
+      const userParts: any[] = [];
+      if (Array.isArray(attachments) && attachments.length > 0) {
+        for (const att of attachments) {
+          if (att && att.data && att.mimeType) {
+            let rawBase64 = att.data;
+            if (rawBase64.includes("base64,")) {
+              rawBase64 = rawBase64.split("base64,")[1];
+            }
+            userParts.push({
+              inlineData: {
+                mimeType: att.mimeType,
+                data: rawBase64
+              }
+            });
+          }
+        }
+      }
+      userParts.push({ text: message || "Analise as informações e os arquivos enviados." });
+
       contents.push({
         role: "user",
-        parts: [{ text: message }]
+        parts: userParts
       });
 
       // Multi-model resilience: strictly use active, production-ready models from Google

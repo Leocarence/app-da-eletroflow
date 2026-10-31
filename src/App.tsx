@@ -3022,8 +3022,10 @@ export default function App() {
                 otherExpenses: financials.otherExpenses
               }}
               onAddTransaction={handleAddTransaction}
+              onDeleteTransaction={handleDeleteTransaction}
               onUpdateVehicleStatus={handleUpdateVehicleStatus}
               onAddVehicle={handleAddVehicle}
+              onUpdateVehicle={handleUpdateVehicle}
               onAddFutureExpense={handleAddFutureExpense}
               onStartRental={handleStartRental}
               onTerminateRental={handleTerminateRental}

@@ -30,7 +30,15 @@ import {
   Info,
   Maximize2,
   Minimize2,
-  Wrench
+  Wrench,
+  Paperclip,
+  Image as ImageIcon,
+  FileText,
+  X,
+  Eye,
+  Trash2,
+  Gauge,
+  UploadCloud
 } from 'lucide-react';
 
 export interface GestorIATabProps {
@@ -51,8 +59,10 @@ export interface GestorIATabProps {
     otherExpenses?: number;
   };
   onAddTransaction: (t: Omit<Transaction, 'id'>) => void;
+  onDeleteTransaction?: (id: string) => void;
   onUpdateVehicleStatus: (id: string, status: 'available' | 'rented' | 'maintenance') => void;
   onAddVehicle: (v: Omit<Vehicle, 'id'>) => void;
+  onUpdateVehicle?: (id: string, updatedFields: Partial<Vehicle>) => void;
   onAddFutureExpense: (fe: Omit<FutureExpense, 'id'>) => void;
   onStartRental: (r: Omit<Rental, 'id'>) => void;
   onTerminateRental: (rentalId: string, endDate: string) => void;
@@ -61,11 +71,28 @@ export interface GestorIATabProps {
   showNotification: (msg: string, type: 'success' | 'info' | 'error') => void;
 }
 
+export interface AttachedFileItem {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  dataUrl: string;
+  base64: string;
+  isImage: boolean;
+}
+
 interface ChatMessage {
   id: string;
   role: 'user' | 'model';
   text: string;
   timestamp: string;
+  attachments?: Array<{
+    name: string;
+    type: string;
+    dataUrl: string;
+    isImage: boolean;
+    size: number;
+  }>;
   actionsExecuted?: Array<{
     type: string;
     description: string;
@@ -98,8 +125,10 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
   currentUser,
   financials,
   onAddTransaction,
+  onDeleteTransaction,
   onUpdateVehicleStatus,
   onAddVehicle,
+  onUpdateVehicle,
   onAddFutureExpense,
   onStartRental,
   onTerminateRental,
@@ -120,8 +149,55 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
 
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [attachments, setAttachments] = useState<AttachedFileItem[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [selectedPreviewImage, setSelectedPreviewImage] = useState<string | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // File attachments handlers
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      processFiles(Array.from(e.target.files));
+      e.target.value = '';
+    }
+  };
+
+  const processFiles = (filesList: File[]) => {
+    const validFiles = filesList.filter(f => f.size <= 25 * 1024 * 1024);
+    if (validFiles.length < filesList.length) {
+      showNotification('Alguns arquivos excederam o limite máximo de 25MB e foram desconsiderados.', 'info');
+    }
+
+    validFiles.forEach(file => {
+      const reader = new FileReader();
+      const isImg = file.type.startsWith('image/');
+      reader.onload = () => {
+        const result = reader.result as string;
+        const cleanBase64 = result.includes('base64,') ? result.split('base64,')[1] : result;
+        setAttachments(prev => [
+          ...prev,
+          {
+            id: 'att_' + Math.random().toString(36).substr(2, 9),
+            name: file.name,
+            type: file.type || (file.name.endsWith('.csv') ? 'text/csv' : 'application/octet-stream'),
+            size: file.size,
+            dataUrl: result,
+            base64: cleanBase64,
+            isImage: isImg
+          }
+        ]);
+        showNotification(`Arquivo "${file.name}" anexado para análise do Skywalker.`, 'info');
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removeAttachment = (id: string) => {
+    setAttachments(prev => prev.filter(a => a.id !== id));
+  };
 
   // Dynamic Mouse & Touch Drag Resizing
   const [chatHeight, setChatHeight] = useState<number>(() => {
@@ -344,6 +420,52 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
             targetTab: 'rentals'
           });
         }
+        else if (name === 'update_vehicle_mileage') {
+          const plateOrId = String(args.plateOrId || '');
+          const newMileage = Number(args.mileage) || 0;
+          const notes = args.notes || 'Aferição de odômetro via Skywalker IA';
+          const target = vehicles.find(v => 
+            v.id === plateOrId || 
+            v.plate.toUpperCase().replace('-', '') === plateOrId.toUpperCase().replace('-', '')
+          );
+          if (target && onUpdateVehicle) {
+            const todayStr = getBrasiliaDateStr();
+            const currentMonth = todayStr.substring(0, 7);
+            onUpdateVehicle(target.id, {
+              mileage: newMileage,
+              mileageDate: todayStr,
+              monthlyMileages: {
+                ...(target.monthlyMileages || {}),
+                [currentMonth]: newMileage
+              },
+              monthlyNotes: {
+                ...(target.monthlyNotes || {}),
+                [currentMonth]: notes
+              }
+            });
+            executed.push({
+              type: 'Odômetro Aferido',
+              description: `${target.brandModel} (${target.plate}): ${newMileage.toLocaleString('pt-BR')} km registrado`,
+              targetTab: 'vehicles'
+            });
+          }
+        }
+        else if (name === 'delete_transaction') {
+          const targetId = String(args.transactionId || '');
+          const descFilter = args.description ? String(args.description).toLowerCase() : '';
+          const tx = transactions.find(t => 
+            t.id === targetId || 
+            (descFilter && t.description.toLowerCase().includes(descFilter))
+          );
+          if (tx && onDeleteTransaction) {
+            onDeleteTransaction(tx.id);
+            executed.push({
+              type: 'Lançamento Removido',
+              description: `${tx.description} (${tx.type.toUpperCase()}: R$ ${tx.value.toFixed(2)})`,
+              targetTab: 'transactions'
+            });
+          }
+        }
         else if (name === 'get_vehicle_maintenance_history') {
           const v = vehicles.find(item => 
             item.id === args.plateOrId || 
@@ -392,18 +514,37 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
 
   const handleSendMessage = async (textToSend?: string) => {
     const query = (textToSend || inputMessage).trim();
-    if (!query || isLoading) return;
+    const hasAttachments = attachments.length > 0;
+    if ((!query && !hasAttachments) || isLoading) return;
+
+    const attachedSnapshot = attachments.map(a => ({
+      name: a.name,
+      type: a.type,
+      dataUrl: a.dataUrl,
+      isImage: a.isImage,
+      size: a.size
+    }));
+
+    const attachmentsForApi = attachments.map(a => ({
+      name: a.name,
+      mimeType: a.type,
+      data: a.base64
+    }));
+
+    const displayText = query || (attachments.length === 1 ? `[Arquivo anexado: ${attachments[0].name}]` : `[${attachments.length} arquivos anexados para análise]`);
 
     const userMsg: ChatMessage = {
       id: 'msg_' + Date.now(),
       role: 'user',
-      text: query,
-      timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      text: displayText,
+      timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      attachments: attachedSnapshot.length > 0 ? attachedSnapshot : undefined
     };
 
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInputMessage('');
+    setAttachments([]);
     setIsLoading(true);
 
     try {
@@ -453,6 +594,10 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
             valorSemanal: v.weeklyRate,
             caucao: v.depositValue,
             kmAtual: v.mileage,
+            dataKm: v.mileageDate,
+            afericoesMensais: v.monthlyMileages || {},
+            notasMensais: v.monthlyNotes || {},
+            historicoKm: v.mileageHistory || [],
             locatarioAtual: currentRental ? currentRental.tenantName : null,
             totalGastoManutencao: totalMaintenance,
             quantidadeManutencoes: vehicleMaintenanceTxs.length,
@@ -480,7 +625,7 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
             diaPagamentoSemana: r.paymentDayOfWeek
           };
         }),
-        extratoRecente: transactions.slice(-120).map(t => {
+        extratoRecente: transactions.slice(-140).map(t => {
           const v = t.vehicleId ? vehicles.find(veh => veh.id === t.vehicleId) : null;
           return {
             id: t.id,
@@ -519,9 +664,10 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: query,
+          message: query || "Por favor, analise minuciosamente os arquivos/documentos anexados e processe as informações no sistema.",
           history: messages.slice(-8).map(m => ({ role: m.role, text: m.text })),
-          context: contextSnapshot
+          context: contextSnapshot,
+          attachments: attachmentsForApi
         })
       });
 
@@ -582,10 +728,33 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
   };
 
   // Financial numbers & markdown formatting: Green for positive/revenues, Red for negative/expenses
+  // CRITICAL: Vehicle plates (ex: TYU-0E16, ABC-1234) are strictly protected so they are NEVER colored red as negative numbers!
   const highlightFormatting = (str: string, contextHint: string = '') => {
     if (!str) return '';
 
-    // Check if context has strong expense indicators
+    // Step 1: Detect and protect Brazilian license plates FIRST
+    // Matches Mercosul (ex: TYU-0E16, TYU 0E16, TYU0E16, BRA2E19) and Legacy (ex: ABC-1234, ABC 1234)
+    const plateTokens: { [key: string]: string } = {};
+    let plateCounter = 0;
+
+    const plateRegex = /\b([a-zA-Z]{3}\s*[-–—]?\s*[0-9][a-zA-Z0-9][0-9]{2}|[a-zA-Z]{3}\s*[-–—]?\s*[0-9]{4})\b/g;
+
+    let preprocessed = str.replace(plateRegex, (match) => {
+      // Normalize plate display to standard hyphenated uppercase: ABC-1234 or TYU-0E16
+      const cleanUpper = match.toUpperCase().replace(/\s+/g, '');
+      let normalizedPlate = cleanUpper;
+      if (!cleanUpper.includes('-') && cleanUpper.length === 7) {
+        normalizedPlate = `${cleanUpper.substring(0, 3)}-${cleanUpper.substring(3)}`;
+      }
+      const token = `___VEHICLE_PLATE_TOKEN_${plateCounter++}___`;
+      plateTokens[token] = `<span class="inline-flex items-center gap-1 font-mono font-bold tracking-wider text-cyan-300 bg-slate-900/90 px-1.5 py-0.5 rounded border border-cyan-500/40 shadow-xs uppercase not-italic text-[11px] whitespace-nowrap"><span class="w-1.5 h-1.5 rounded-full bg-cyan-400 inline-block"></span>${normalizedPlate}</span>`;
+      return token;
+    });
+
+    // Step 2: Bold **text**
+    let formatted = preprocessed.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-white">$1</strong>');
+
+    // Step 3: Financial contextual tags & Monetary amounts
     const expenseRegex = /(despesa|despesas|gasto|gastos|oficina|manutenç|parcela|parcelas|financiamento|financiamentos|saída|saida|saídas|saidas|prejuízo|prejuizo|déficit|deficit|dívida|divida|custo|custos|débito|debito|pneu|pneus|seguro|ipva|revis|reparo|reparos|conserto|consertos|pendente|pagar|pago|pagamento)/i;
     const revenueRegex = /(receita|receitas|entrada|entradas|aluguel|aluguéis|alugueis|locaç|lucro|lucros|superávit|superavit|faturamento|ganho|ganhos|saldo\s+positivo|receber|recebido)/i;
 
@@ -593,12 +762,10 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
     const isContextExpense = expenseRegex.test(combinedContext);
     const isContextRevenue = revenueRegex.test(combinedContext);
 
-    // Bold **text**
-    let formatted = str.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-white">$1</strong>');
-
-    // Monetary amounts pattern:
-    // Examples: +R$ 1.300,00 | -R$ 790,00 | R$ -790,00 | R$ +1.300,00 | (R$ 500,00) | R$ 1.250,00 | + 1.300,00 | - 790,00
-    const moneyRegex = /([+\-−]?\s*R\$\s*[+\-−]?\s*[\d.,]+|\(\s*R\$\s*[\d.,]+\s*\)|[+\-−]\s*[\d.,]+(?:\s*reais)?)/gi;
+    // Strictly match currency amounts with boundaries:
+    // With explicit R$: [+-]? R$ [+-]? 1.200,00 | (R$ 500,00)
+    // Or standalone signed numbers with word boundaries: +1.200,00 | -790,00 | 1.200 reais
+    const moneyRegex = /([+\-−]?\s*R\$\s*[+\-−]?\s*[\d.,]+|\(\s*R\$\s*[\d.,]+\s*\)|(?<=^|[\s(])[+\-−]\s*[\d.,]+(?:\s*reais)?(?=$|[\s),.;:!])|(?<=^|[\s(])[\d.,]+\s*reais(?=$|[\s),.;:!]))/gi;
 
     formatted = formatted.replace(moneyRegex, (match) => {
       const isExplicitNegative = match.includes('-') || match.includes('−') || (match.startsWith('(') && match.endsWith(')'));
@@ -609,6 +776,11 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
       } else {
         return `<span class="inline-flex items-center font-mono font-bold text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-500/40 whitespace-nowrap shadow-xs">${match}</span>`;
       }
+    });
+
+    // Step 4: Restore protected vehicle plate tokens
+    Object.keys(plateTokens).forEach((token) => {
+      formatted = formatted.replace(new RegExp(token, 'g'), plateTokens[token]);
     });
 
     return formatted;
@@ -841,6 +1013,44 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
                       : 'bg-slate-800/90 text-slate-100 rounded-tl-xs border border-slate-700/80 shadow-inner'
                   }`}
                 >
+                  {/* Render attachments in user message if any */}
+                  {msg.attachments && msg.attachments.length > 0 && (
+                    <div className="mb-2.5 flex flex-wrap gap-2">
+                      {msg.attachments.map((att, attIdx) => (
+                        att.isImage ? (
+                          <div 
+                            key={attIdx} 
+                            onClick={() => setSelectedPreviewImage(att.dataUrl)}
+                            className="group relative rounded-lg overflow-hidden border border-white/20 bg-black/50 cursor-pointer hover:border-cyan-400 transition-all shadow-md"
+                          >
+                            <img
+                              src={att.dataUrl}
+                              alt={att.name}
+                              className="h-24 w-auto max-w-[180px] object-cover group-hover:scale-105 transition-transform"
+                            />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                              <Eye className="h-5 w-5 drop-shadow" />
+                            </div>
+                            <div className="absolute bottom-0 inset-x-0 bg-black/80 px-1.5 py-0.5 text-[9px] text-slate-200 truncate font-mono">
+                              {att.name}
+                            </div>
+                          </div>
+                        ) : (
+                          <div 
+                            key={attIdx} 
+                            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-black/40 border border-white/20 text-white text-xs shadow-sm"
+                          >
+                            <FileText className="h-4 w-4 text-cyan-300 shrink-0" />
+                            <div className="truncate max-w-[150px] sm:max-w-[200px]">
+                              <p className="font-medium truncate text-[11px]">{att.name}</p>
+                              <p className="text-[9px] text-slate-400 font-mono">{(att.size / 1024).toFixed(0)} KB</p>
+                            </div>
+                          </div>
+                        )
+                      ))}
+                    </div>
+                  )}
+
                   {isUser ? (
                     <p className="text-xs sm:text-[13px] leading-relaxed whitespace-pre-wrap">{msg.text}</p>
                   ) : (
@@ -913,7 +1123,84 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
       </div>
 
       {/* 4. INPUT COMPONENT */}
-      <div className="p-3 sm:p-4 bg-slate-950 border-t border-slate-800/80 shrink-0">
+      <div 
+        onDragOver={(e) => {
+          e.preventDefault();
+          setIsDragging(true);
+        }}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setIsDragging(false);
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            processFiles(Array.from(e.dataTransfer.files));
+          }
+        }}
+        className={`p-3 sm:p-4 bg-slate-950 border-t transition-colors shrink-0 ${
+          isDragging ? 'bg-cyan-950/40 border-cyan-500' : 'border-slate-800/80'
+        }`}
+      >
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept="image/*,application/pdf,.csv,.txt"
+          onChange={handleFileSelect}
+          className="hidden"
+        />
+
+        {/* Attachment chips bar */}
+        {attachments.length > 0 && (
+          <div className="mb-2 p-2 bg-slate-900/90 rounded-xl border border-slate-700/80 flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-cyan-400 font-bold px-1 flex items-center gap-1">
+              <Paperclip className="h-3 w-3" />
+              {attachments.length} Anexo(s):
+            </span>
+            {attachments.map(att => (
+              <div
+                key={att.id}
+                className="flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-200 shadow-sm"
+              >
+                {att.isImage ? (
+                  <img 
+                    src={att.dataUrl} 
+                    alt={att.name} 
+                    className="h-5 w-5 rounded object-cover cursor-pointer" 
+                    onClick={() => setSelectedPreviewImage(att.dataUrl)} 
+                  />
+                ) : (
+                  <FileText className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
+                )}
+                <span className="truncate max-w-[120px] text-[11px] font-medium">{att.name}</span>
+                <span className="text-[9px] text-slate-400 font-mono">({(att.size / 1024).toFixed(0)}KB)</span>
+                <button
+                  type="button"
+                  onClick={() => removeAttachment(att.id)}
+                  className="p-1 hover:bg-slate-700 text-slate-400 hover:text-rose-400 rounded transition-colors cursor-pointer"
+                  title="Remover anexo"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => setAttachments([])}
+              className="text-[10px] text-slate-400 hover:text-rose-400 underline font-mono ml-auto px-1 cursor-pointer"
+            >
+              Limpar todos
+            </button>
+          </div>
+        )}
+
+        {isDragging && (
+          <div className="mb-2 p-3 rounded-xl border-2 border-dashed border-cyan-400 bg-cyan-950/60 flex items-center justify-center gap-2 text-cyan-200 text-xs font-mono animate-pulse">
+            <UploadCloud className="h-5 w-5 text-cyan-400" />
+            <span>Solte os arquivos ou fotos aqui para anexar</span>
+          </div>
+        )}
+
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -934,21 +1221,35 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
                 }
               }}
               disabled={isLoading}
-              placeholder="Pergunte ao Skywalker ou peça uma ação executiva (ex: lance uma despesa, consulte faturamento, analise contratos, etc.)..."
-              className="w-full min-h-[96px] sm:min-h-[108px] max-h-56 px-4 py-3 pr-14 rounded-xl bg-slate-900 border border-slate-700/80 text-white placeholder-slate-500 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-all font-sans resize-y leading-relaxed scrollbar-thin shadow-inner"
+              placeholder={attachments.length > 0 ? "Adicione instruções sobre o anexo ou pressione Enter para o Skywalker analisar..." : "Pergunte ao Skywalker, solicite uma ação executiva ou anexe fotos/documentos..."}
+              className="w-full min-h-[96px] sm:min-h-[108px] max-h-56 px-4 py-3 pr-24 rounded-xl bg-slate-900 border border-slate-700/80 text-white placeholder-slate-500 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-all font-sans resize-y leading-relaxed scrollbar-thin shadow-inner"
             />
-            <button
-              type="submit"
-              disabled={!inputMessage.trim() || isLoading}
-              className="absolute right-2.5 bottom-3 p-2.5 bg-gradient-to-r from-cyan-500 to-brand-500 hover:from-cyan-400 hover:to-brand-400 disabled:opacity-40 disabled:hover:from-cyan-500 text-white rounded-xl transition-all cursor-pointer shadow-md disabled:cursor-not-allowed flex items-center justify-center"
-              title="Enviar mensagem para Skywalker (Enter)"
-            >
-              <Send className="h-4 w-4" />
-            </button>
+            
+            {/* Input Action Buttons (Attachment & Send) */}
+            <div className="absolute right-2.5 bottom-3 flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isLoading}
+                className="p-2.5 bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-cyan-300 border border-slate-700 rounded-xl transition-all cursor-pointer shadow-sm disabled:opacity-40"
+                title="Anexar foto, CRLV, nota fiscal, comprovante ou documento (PDF, imagens, CSV)"
+              >
+                <Paperclip className="h-4 w-4" />
+              </button>
+
+              <button
+                type="submit"
+                disabled={(!inputMessage.trim() && attachments.length === 0) || isLoading}
+                className="p-2.5 bg-gradient-to-r from-cyan-500 to-brand-500 hover:from-cyan-400 hover:to-brand-400 disabled:opacity-40 disabled:hover:from-cyan-500 text-white rounded-xl transition-all cursor-pointer shadow-md disabled:cursor-not-allowed flex items-center justify-center"
+                title="Enviar mensagem para Skywalker (Enter)"
+              >
+                <Send className="h-4 w-4" />
+              </button>
+            </div>
           </div>
           <div className="flex items-center justify-between text-[10px] text-slate-500 px-1 font-mono">
-            <span>Pressione <strong className="text-slate-400 font-bold">Enter</strong> para enviar • <strong className="text-slate-400 font-bold">Shift + Enter</strong> para nova linha</span>
-            <span className="hidden sm:inline">Skywalker com acesso irrestrito a todos os dados</span>
+            <span>Pressione <strong className="text-slate-400 font-bold">Enter</strong> para enviar • <strong className="text-slate-400 font-bold">Shift + Enter</strong> para quebra • Arraste arquivos para anexar</span>
+            <span className="hidden sm:inline">Multimodal: fotos de odômetro/km, recibos, notas, CRLV e tabelas</span>
           </div>
         </form>
       </div>
@@ -979,6 +1280,33 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
             <div className="w-3 h-0.5 bg-cyan-400/80 rounded-full" />
             <div className="w-2 h-0.5 bg-cyan-400/80 rounded-full" />
             <div className="w-1 h-0.5 bg-cyan-400/80 rounded-full" />
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen Image Preview Modal */}
+      {selectedPreviewImage && (
+        <div 
+          onClick={() => setSelectedPreviewImage(null)}
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
+        >
+          <div className="relative max-w-4xl max-h-[90vh] bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden shadow-2xl p-2" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center px-3 py-2 border-b border-slate-800 mb-2">
+              <span className="text-xs font-mono text-cyan-300 font-bold flex items-center gap-1.5">
+                <ImageIcon className="h-4 w-4" /> Visualização de Imagem Anexada
+              </span>
+              <button
+                onClick={() => setSelectedPreviewImage(null)}
+                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <img 
+              src={selectedPreviewImage} 
+              alt="Anexo ampliado" 
+              className="max-h-[75vh] w-auto max-w-full rounded-lg object-contain mx-auto" 
+            />
           </div>
         </div>
       )}
