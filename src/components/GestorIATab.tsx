@@ -45,7 +45,9 @@ import {
   Square,
   Download,
   Volume2,
-  FileDown
+  FileDown,
+  Copy,
+  Check
 } from 'lucide-react';
 
 export interface GestorIATabProps {
@@ -94,6 +96,7 @@ export interface GeneratedReportPayload {
   filename: string;
   format: 'pdf' | 'csv' | 'txt' | 'json';
   summary: string;
+  fullMarkdownText?: string;
   headers?: string[];
   rows?: string[][];
 }
@@ -172,6 +175,21 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
   const [attachments, setAttachments] = useState<AttachedFileItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [selectedPreviewImage, setSelectedPreviewImage] = useState<string | null>(null);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+
+  const handleCopyMessage = async (msg: ChatMessage) => {
+    try {
+      const cleanText = msg.text.replace(/\*\*(.*?)\*\*/g, '$1');
+      await navigator.clipboard.writeText(cleanText);
+      setCopiedMessageId(msg.id);
+      showNotification('Resposta copiada para a área de transferência!', 'success');
+      setTimeout(() => {
+        setCopiedMessageId(prev => (prev === msg.id ? null : prev));
+      }, 2000);
+    } catch (_) {
+      showNotification('Não foi possível copiar automaticamente.', 'error');
+    }
+  };
 
   // Audio recording states
   const [isRecording, setIsRecording] = useState(false);
@@ -339,24 +357,63 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
     setAttachments(prev => prev.filter(a => a.id !== id));
   };
 
-  // Helper to extract markdown tables from raw text when exporting any message
-  const extractMarkdownTableFromText = (rawText: string): { headers: string[]; rows: string[][] } | null => {
-    const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.startsWith('|') && l.endsWith('|'));
-    if (lines.length < 2) return null;
-    const parseRow = (line: string) =>
+  // Helper to parse markdown text into sequential text and table blocks (identical to chat rendering)
+  const parseMarkdownIntoBlocks = (rawText: string) => {
+    const lines = (rawText || '').split('\n');
+    const blocks: Array<{
+      type: 'table' | 'text';
+      lines: string[];
+      headers?: string[];
+      rows?: string[][];
+    }> = [];
+    let currentTable: string[] = [];
+    let currentText: string[] = [];
+
+    const parsePipeRow = (line: string) =>
       line
+        .trim()
         .replace(/^\|/, '')
         .replace(/\|$/, '')
         .split('|')
         .map(c => c.trim().replace(/\*\*/g, ''));
 
-    const headers = parseRow(lines[0]);
-    const dataLines = lines.slice(1).filter(l => !/^\|[\s\-:|]+\|$/.test(l));
-    const rows = dataLines.map(parseRow);
-    return headers.length > 0 && rows.length > 0 ? { headers, rows } : null;
+    const flushText = () => {
+      if (currentText.length > 0) {
+        blocks.push({ type: 'text', lines: [...currentText] });
+        currentText = [];
+      }
+    };
+
+    const flushTable = () => {
+      if (currentTable.length > 0) {
+        if (currentTable.length >= 2) {
+          const headers = parsePipeRow(currentTable[0]);
+          const dataLines = currentTable.slice(1).filter(l => !/^\|[\s\-:|]+\|$/.test(l.trim()) && !l.includes('---'));
+          const rows = dataLines.map(parsePipeRow);
+          blocks.push({ type: 'table', lines: [...currentTable], headers, rows });
+        } else {
+          currentText.push(...currentTable);
+        }
+        currentTable = [];
+      }
+    };
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+        flushText();
+        currentTable.push(trimmed);
+      } else {
+        flushTable();
+        currentText.push(line);
+      }
+    }
+    flushText();
+    flushTable();
+    return blocks;
   };
 
-  // Universal Report & File Downloader (PDF, CSV, TXT, JSON)
+  // Universal Report & File Downloader (PDF, CSV, TXT, JSON) matching the exact chat structure
   const triggerReportDownload = (report: GeneratedReportPayload, targetFormat?: 'pdf' | 'csv' | 'txt' | 'json') => {
     const fmt = (targetFormat || report.format || 'pdf').toLowerCase() as 'pdf' | 'csv' | 'txt' | 'json';
     const baseName = (report.filename || report.title || 'relatorio_eletroflow')
@@ -366,14 +423,24 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
       .replace(/[^a-z0-9_-]+/g, '_')
       .replace(/^_+|_+$/g, '') || 'relatorio_eletroflow';
 
-    const cleanSummary = (report.summary || '').replace(/\*\*/g, '');
-    const headers = report.headers && report.headers.length > 0 ? report.headers : [];
-    const rows = report.rows && report.rows.length > 0 ? report.rows : [];
+    const sourceMarkdown = report.fullMarkdownText || report.summary || '';
+    const parsedBlocks = parseMarkdownIntoBlocks(sourceMarkdown);
+    const hasMarkdownTables = parsedBlocks.some(b => b.type === 'table' && b.headers && b.headers.length > 0);
+    const explicitHeaders = report.headers && report.headers.length > 0 ? report.headers : [];
+    const explicitRows = report.rows && report.rows.length > 0 ? report.rows : [];
+
+    // Determine widest column count to choose portrait vs landscape
+    const maxCols = Math.max(
+      explicitHeaders.length,
+      ...parsedBlocks.map(b => (b.headers ? b.headers.length : 0)),
+      0
+    );
 
     try {
       if (fmt === 'pdf') {
-        const doc = new jsPDF({ orientation: headers.length > 5 ? 'landscape' : 'portrait', unit: 'mm', format: 'a4' });
+        const doc = new jsPDF({ orientation: maxCols > 5 ? 'landscape' : 'portrait', unit: 'mm', format: 'a4' });
         const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
 
         // Corporate Header Banner
         doc.setFillColor(15, 23, 42); // Slate-900
@@ -383,8 +450,8 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
 
         doc.setTextColor(255, 255, 255);
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(14);
-        doc.text('ELETROFLOW - SKYWALKER GESTOR IA', 14, 12);
+        doc.setFontSize(13);
+        doc.text('ELETROFLOW - SKYWALKER GESTOR IA', 14, 11);
 
         doc.setFontSize(10);
         doc.setTextColor(103, 232, 249); // Cyan-300
@@ -393,42 +460,31 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
         doc.setTextColor(203, 213, 225);
-        doc.text(`Emitido em: ${getBrasiliaUiDateStr()}`, pageWidth - 14, 12, { align: 'right' });
+        doc.text(`Emitido em: ${getBrasiliaUiDateStr()}`, pageWidth - 14, 11, { align: 'right' });
         doc.text(`Caixa Atual: R$ ${financials.currentCash.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, pageWidth - 14, 20, { align: 'right' });
 
-        let currentY = 38;
+        let currentY = 36;
 
-        // Executive Summary Section
-        if (cleanSummary) {
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(10);
-          doc.setTextColor(15, 23, 42);
-          doc.text('Resumo Executivo / Parecer Skywalker:', 14, currentY);
-          currentY += 6;
-
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(9);
-          doc.setTextColor(51, 65, 85);
-          const splitLines = doc.splitTextToSize(cleanSummary, pageWidth - 28);
-          doc.text(splitLines, 14, currentY);
-          currentY += splitLines.length * 4.5 + 6;
-        }
-
-        // Table Data if available
-        if (headers.length > 0 && rows.length > 0) {
+        const renderTableInPdf = (tHeaders: string[], tRows: string[][]) => {
+          if (!tHeaders.length || !tRows.length) return;
+          if (currentY > pageHeight - 30) {
+            doc.addPage();
+            currentY = 18;
+          }
           autoTable(doc, {
-            startY: Math.min(currentY, 240),
-            head: [headers],
-            body: rows,
+            startY: currentY,
+            head: [tHeaders],
+            body: tRows,
             theme: 'grid',
             styles: {
               fontSize: 8.5,
-              cellPadding: 2.8,
-              textColor: [30, 41, 59]
+              cellPadding: 2.5,
+              textColor: [30, 41, 59],
+              overflow: 'linebreak'
             },
             headStyles: {
               fillColor: [15, 23, 42],
-              textColor: [255, 255, 255],
+              textColor: [103, 232, 249],
               fontStyle: 'bold'
             },
             alternateRowStyles: {
@@ -437,13 +493,12 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
             didParseCell: (data) => {
               if (data.section === 'body') {
                 const cellText = String(data.cell.raw || '');
-                // Keep plates neutral, color negative money red and positive money green
-                const isPlate = /\b([A-Z]{3}-?[0-9][A-Z0-9][0-9]{2}|[A-Z]{3}-?[0-9]{4})\b/i.test(cellText);
+                const isPlate = /\b([A-Z]{3}\s*[-–—]?\s*[0-9][A-Z0-9][0-9]{2}|[A-Z]{3}\s*[-–—]?\s*[0-9]{4})\b/i.test(cellText);
                 if (!isPlate) {
-                  if (cellText.includes('-R$') || cellText.startsWith('-')) {
+                  if (cellText.includes('-R$') || /^-\s*[\d.,]+/.test(cellText.trim())) {
                     data.cell.styles.textColor = [225, 29, 72]; // Rose-600
                     data.cell.styles.fontStyle = 'bold';
-                  } else if (cellText.includes('+R$') || cellText.startsWith('+')) {
+                  } else if (cellText.includes('+R$') || /^\+\s*[\d.,]+/.test(cellText.trim())) {
                     data.cell.styles.textColor = [5, 150, 105]; // Emerald-600
                     data.cell.styles.fontStyle = 'bold';
                   }
@@ -451,21 +506,79 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
               }
             }
           });
+          currentY = ((doc as any).lastAutoTable?.finalY || currentY + 15) + 6;
+        };
+
+        // Render blocks in the exact order they appear in the chat response
+        for (const block of parsedBlocks) {
+          if (block.type === 'table' && block.headers && block.rows) {
+            renderTableInPdf(block.headers, block.rows);
+          } else {
+            for (const rawLine of block.lines) {
+              const trimmed = rawLine.trim();
+              if (!trimmed) {
+                currentY += 2.5;
+                continue;
+              }
+              if (currentY > pageHeight - 20) {
+                doc.addPage();
+                currentY = 18;
+              }
+
+              const isHeading = trimmed.startsWith('#') || (trimmed.startsWith('**') && trimmed.endsWith('**'));
+              const isBullet = trimmed.startsWith('- ') || trimmed.startsWith('* ');
+              const cleanLine = trimmed
+                .replace(/^#+\s*/, '')
+                .replace(/\*\*(.*?)\*\*/g, '$1');
+
+              if (isHeading) {
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(10);
+                doc.setTextColor(15, 23, 42);
+              } else {
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(9);
+                doc.setTextColor(51, 65, 85);
+              }
+
+              const indent = isBullet ? 18 : 14;
+              const prefix = isBullet ? '• ' : '';
+              const wrapped = doc.splitTextToSize(prefix + (isBullet ? cleanLine.substring(2) : cleanLine), pageWidth - indent - 14);
+              doc.text(wrapped, indent, currentY);
+              currentY += wrapped.length * 4.5 + (isHeading ? 2 : 1);
+            }
+            currentY += 2;
+          }
+        }
+
+        // If the AI passed structured headers/rows via tool args and didn't include a markdown table in text
+        if (!hasMarkdownTables && explicitHeaders.length > 0 && explicitRows.length > 0) {
+          renderTableInPdf(explicitHeaders, explicitRows);
         }
 
         doc.save(`${baseName}.pdf`);
         showNotification(`Relatório PDF "${baseName}.pdf" baixado com sucesso!`, 'success');
       } else if (fmt === 'csv') {
         const csvLines: string[] = [];
-        if (headers.length > 0) {
-          csvLines.push(headers.map(h => `"${String(h).replace(/"/g, '""')}"`).join(';'));
-          rows.forEach(r => {
+        if (hasMarkdownTables) {
+          for (const block of parsedBlocks) {
+            if (block.type === 'table' && block.headers && block.rows) {
+              csvLines.push(block.headers.map(h => `"${String(h).replace(/"/g, '""')}"`).join(';'));
+              block.rows.forEach(r => {
+                csvLines.push(r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';'));
+              });
+              csvLines.push('');
+            }
+          }
+        } else if (explicitHeaders.length > 0) {
+          csvLines.push(explicitHeaders.map(h => `"${String(h).replace(/"/g, '""')}"`).join(';'));
+          explicitRows.forEach(r => {
             csvLines.push(r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';'));
           });
         } else {
           csvLines.push(`"Relatório";"${report.title}"`);
           csvLines.push(`"Data";"${getBrasiliaUiDateStr()}"`);
-          csvLines.push(`"Resumo";"${cleanSummary.replace(/"/g, '""')}"`);
+          csvLines.push(`"Conteúdo";"${sourceMarkdown.replace(/\*\*/g, '').replace(/"/g, '""')}"`);
         }
         const blob = new Blob(['\uFEFF' + csvLines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
@@ -481,9 +594,9 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
         const payload = {
           titulo: report.title,
           emitidoEm: getBrasiliaUiDateStr(),
-          resumo: cleanSummary,
-          colunas: headers,
-          dados: rows
+          conteudo: sourceMarkdown.replace(/\*\*/g, ''),
+          colunas: explicitHeaders,
+          dados: explicitRows
         };
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
@@ -496,19 +609,17 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
         URL.revokeObjectURL(url);
         showNotification(`Arquivo JSON "${baseName}.json" baixado com sucesso!`, 'success');
       } else {
-        // TXT
+        // TXT preserving exact response layout
         let txtContent = `==========================================================\n`;
         txtContent += `ELETROFLOW - SKYWALKER GESTOR IA\n`;
         txtContent += `RELATÓRIO: ${report.title}\n`;
         txtContent += `DATA DE EMISSÃO: ${getBrasiliaUiDateStr()}\n`;
         txtContent += `==========================================================\n\n`;
-        if (cleanSummary) {
-          txtContent += `${cleanSummary}\n\n`;
-        }
-        if (headers.length > 0 && rows.length > 0) {
-          txtContent += headers.join(' | ') + '\n';
+        txtContent += `${sourceMarkdown.replace(/\*\*/g, '')}\n`;
+        if (!hasMarkdownTables && explicitHeaders.length > 0 && explicitRows.length > 0) {
+          txtContent += '\n' + explicitHeaders.join(' | ') + '\n';
           txtContent += '-'.repeat(60) + '\n';
-          rows.forEach(r => {
+          explicitRows.forEach(r => {
             txtContent += r.join(' | ') + '\n';
           });
         }
@@ -527,28 +638,6 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
       console.error('Erro ao gerar arquivo para download:', err);
       showNotification('Erro ao gerar o arquivo para download.', 'error');
     }
-  };
-
-  // Export any chat message directly to PDF, CSV, or TXT
-  const exportChatMessageAsFile = (msg: ChatMessage, format: 'pdf' | 'csv' | 'txt') => {
-    const parsedTable = extractMarkdownTableFromText(msg.text);
-    const nonTableLines = msg.text
-      .split('\n')
-      .filter(l => !l.trim().startsWith('|'))
-      .join('\n')
-      .trim();
-
-    triggerReportDownload(
-      {
-        title: 'Relatório Executivo Skywalker - Eletroflow',
-        filename: `relatorio_skywalker_${getBrasiliaDateStr()}`,
-        format,
-        summary: nonTableLines || msg.text,
-        headers: parsedTable?.headers || [],
-        rows: parsedTable?.rows || []
-      },
-      format
-    );
   };
 
   // Dynamic Mouse & Touch Drag Resizing
@@ -623,7 +712,7 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
   };
 
   // Helper to execute function calls returned by Gemini
-  const executeFunctionCalls = (functionCalls: Array<{ name: string; args: any }>) => {
+  const executeFunctionCalls = (functionCalls: Array<{ name: string; args: any }>, fullReplyText?: string) => {
     const executed: Array<{ type: string; description: string; targetTab?: any }> = [];
     const generatedReportsList: GeneratedReportPayload[] = [];
     const today = getBrasiliaDateStr();
@@ -863,6 +952,7 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
             filename: args.filename || 'relatorio_eletroflow',
             format: (args.format || 'pdf').toLowerCase() as 'pdf' | 'csv' | 'txt' | 'json',
             summary: args.summary || '',
+            fullMarkdownText: fullReplyText || args.summary || '',
             headers: Array.isArray(args.headers) ? args.headers.map(String) : [],
             rows: Array.isArray(args.rows) ? args.rows.map((r: any) => (Array.isArray(r) ? r.map(String) : [])) : []
           };
@@ -1070,11 +1160,16 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
       }
 
       const data = await res.json();
+
+      let replyText = data.reply || 'Operação processada.';
+      if (replyText.startsWith('{') && replyText.includes('"error"')) {
+        replyText = 'Os servidores de inteligência artificial estão com alta demanda temporária. Por favor, aguarde alguns instantes e tente novamente.';
+      }
       
       let actionsExecuted: Array<{ type: string; description: string; targetTab?: any }> = [];
       let generatedReports: GeneratedReportPayload[] = [];
       if (data.functionCalls && data.functionCalls.length > 0) {
-        const result = executeFunctionCalls(data.functionCalls);
+        const result = executeFunctionCalls(data.functionCalls, replyText);
         actionsExecuted = result.executed;
         generatedReports = result.generatedReportsList;
         if (actionsExecuted.length > 0) {
@@ -1082,9 +1177,26 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
         }
       }
 
-      let replyText = data.reply || 'Operação processada.';
-      if (replyText.startsWith('{') && replyText.includes('"error"')) {
-        replyText = 'Os servidores de inteligência artificial estão com alta demanda temporária. Por favor, aguarde alguns instantes e tente novamente.';
+      // If the user explicitly asked to emit/download a file/report and the model replied with text without invoking the tool,
+      // automatically create and trigger the download using the exact formatted response.
+      const requestedDownloadMatch = query.match(/(?:gerar|gere|emitir|emita|exportar|exporte|baixar|baixe|download|arquivo|relat[óo]rio\s+em)\s*.*?(pdf|csv|txt|json|planilha|relat[óo]rio)/i);
+      if (generatedReports.length === 0 && requestedDownloadMatch) {
+        const fmtRaw = requestedDownloadMatch[1].toLowerCase();
+        const detectedFormat: 'pdf' | 'csv' | 'txt' | 'json' =
+          fmtRaw === 'csv' || fmtRaw === 'planilha' ? 'csv' :
+          fmtRaw === 'txt' ? 'txt' :
+          fmtRaw === 'json' ? 'json' : 'pdf';
+        const fallbackReport: GeneratedReportPayload = {
+          title: 'Relatório Executivo Skywalker IA',
+          filename: `relatorio_skywalker_${getBrasiliaDateStr()}`,
+          format: detectedFormat,
+          summary: replyText,
+          fullMarkdownText: replyText,
+          headers: [],
+          rows: []
+        };
+        generatedReports.push(fallbackReport);
+        triggerReportDownload(fallbackReport, detectedFormat);
       }
 
       const modelMsg: ChatMessage = {
@@ -1223,7 +1335,7 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
     flushTable();
 
     return (
-      <div className="space-y-3 text-xs sm:text-[13px] leading-relaxed">
+      <div className="space-y-3 text-xs sm:text-[13px] leading-relaxed w-full min-w-0 break-words">
         {blocks.map((block, bIdx) => {
           if (block.type === 'table') {
             const tableRows = block.lines;
@@ -1232,12 +1344,12 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
             const dataRows = tableRows.slice(1).filter(r => !r.includes('---'));
 
             return (
-              <div key={bIdx} className="overflow-x-auto my-2.5 rounded-xl border border-slate-700/80 bg-slate-950/70 shadow-md">
-                <table className="w-full text-left text-xs border-collapse">
+              <div key={bIdx} className="w-full max-w-full overflow-x-auto my-2.5 rounded-xl border border-slate-700/80 bg-slate-950/70 shadow-md">
+                <table className="w-full table-auto text-left text-xs border-collapse">
                   <thead>
                     <tr className="bg-slate-800/95 border-b border-slate-700 text-cyan-300 font-mono font-bold">
                       {headerCells.map((hCell, hIdx) => (
-                        <th key={hIdx} className="px-3.5 py-2.5 text-[11px] uppercase tracking-wider whitespace-nowrap">
+                        <th key={hIdx} className="px-2.5 py-2 text-[10px] sm:text-[11px] uppercase tracking-wider break-words whitespace-normal align-top">
                           {hCell}
                         </th>
                       ))}
@@ -1256,7 +1368,7 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
                             const columnHeader = headerCells[cIdx] || '';
                             const combinedContext = `${columnHeader} ${rowContext}`;
                             return (
-                              <td key={cIdx} className="px-3.5 py-2 text-xs font-mono">
+                              <td key={cIdx} className="px-2.5 py-2 text-[11px] sm:text-xs font-mono break-words whitespace-normal align-top">
                                 <span dangerouslySetInnerHTML={{ __html: highlightFormatting(cell, combinedContext) }} />
                               </td>
                             );
@@ -1272,7 +1384,7 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
 
           // Text block
           return (
-            <div key={bIdx} className="space-y-1.5">
+            <div key={bIdx} className="space-y-1.5 min-w-0 break-words">
               {block.lines.map((p, pIdx) => {
                 if (!p.trim()) return <div key={pIdx} className="h-1" />;
 
@@ -1280,15 +1392,15 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
                 if (p.trim().startsWith('- ') || p.trim().startsWith('* ')) {
                   const content = p.trim().substring(2);
                   return (
-                    <div key={pIdx} className="flex items-start gap-2 pl-1">
+                    <div key={pIdx} className="flex items-start gap-2 pl-1 min-w-0">
                       <span className="text-cyan-400 font-bold shrink-0 mt-0.5">•</span>
-                      <span dangerouslySetInnerHTML={{ __html: highlightFormatting(content) }} />
+                      <span className="min-w-0 break-words" dangerouslySetInnerHTML={{ __html: highlightFormatting(content) }} />
                     </div>
                   );
                 }
 
                 return (
-                  <p key={pIdx} dangerouslySetInnerHTML={{ __html: highlightFormatting(p) }} />
+                  <p key={pIdx} className="min-w-0 break-words" dangerouslySetInnerHTML={{ __html: highlightFormatting(p) }} />
                 );
               })}
             </div>
@@ -1381,13 +1493,13 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
       </div>
 
       {/* 3. MESSAGE THREAD CONTAINER */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-5 space-y-4 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950">
         {messages.map((msg) => {
           const isUser = msg.role === 'user';
           return (
             <div
               key={msg.id}
-              className={`flex items-start gap-3 ${isUser ? 'justify-end' : 'justify-start'} animate-fade-in`}
+              className={`flex items-start gap-2.5 sm:gap-3 w-full min-w-0 ${isUser ? 'justify-end' : 'justify-start'} animate-fade-in`}
             >
               {!isUser && (
                 <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-cyan-600 to-brand-500 flex items-center justify-center text-white shrink-0 shadow-md border border-cyan-400/30 mt-0.5">
@@ -1395,9 +1507,9 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
                 </div>
               )}
 
-              <div className={`max-w-[88%] sm:max-w-[78%] flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
+              <div className={`min-w-0 max-w-[90%] sm:max-w-[82%] flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
                 <div
-                  className={`rounded-2xl px-4 py-3 shadow-md ${
+                  className={`w-full min-w-0 overflow-hidden break-words rounded-2xl px-4 py-3 shadow-md ${
                     isUser
                       ? 'bg-gradient-to-br from-cyan-600 to-brand-600 text-white rounded-tr-xs border border-cyan-400/30'
                       : 'bg-slate-800/90 text-slate-100 rounded-tl-xs border border-slate-700/80 shadow-inner'
@@ -1428,7 +1540,7 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
                         ) : att.isAudio || att.type.startsWith('audio/') ? (
                           <div
                             key={attIdx}
-                            className="flex flex-col gap-1.5 px-3 py-2 rounded-xl bg-slate-950/70 border border-white/20 text-white text-xs shadow-sm min-w-[230px]"
+                            className="flex flex-col gap-1.5 px-3 py-2 rounded-xl bg-slate-950/70 border border-white/20 text-white text-xs shadow-sm max-w-full"
                           >
                             <div className="flex items-center justify-between gap-2 text-[10px] text-cyan-200 font-mono">
                               <span className="flex items-center gap-1 font-bold truncate">
@@ -1437,7 +1549,7 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
                               </span>
                               <span className="text-slate-300 shrink-0">{(att.size / 1024).toFixed(0)} KB</span>
                             </div>
-                            <audio controls src={att.dataUrl} className="h-8 w-full max-w-[260px]" />
+                            <audio controls src={att.dataUrl} className="h-8 w-full max-w-[240px]" />
                           </div>
                         ) : (
                           <div 
@@ -1456,12 +1568,12 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
                   )}
 
                   {isUser ? (
-                    <p className="text-xs sm:text-[13px] leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                    <p className="text-xs sm:text-[13px] leading-relaxed whitespace-pre-wrap break-words">{msg.text}</p>
                   ) : (
                     renderFormattedText(msg.text)
                   )}
 
-                  {/* Render generated downloadable reports if any */}
+                  {/* Render generated downloadable reports if any (only when requested) */}
                   {msg.generatedReports && msg.generatedReports.length > 0 && (
                     <div className="mt-3 pt-2.5 border-t border-slate-700/80 space-y-2">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-1 font-mono">
@@ -1476,13 +1588,13 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
                           <div className="min-w-0">
                             <p className="text-xs font-bold text-white truncate">{rep.title}</p>
                             <p className="text-[10px] text-slate-400 font-mono">
-                              Formato principal: <strong className="text-cyan-300 uppercase">{rep.format}</strong> • Escolha o formato para baixar:
+                              Formato fiel à resposta • Baixar novamente:
                             </p>
                           </div>
                           <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                             <button
                               type="button"
-                              onClick={() => triggerReportDownload(rep, 'pdf')}
+                              onClick={() => triggerReportDownload({ ...rep, fullMarkdownText: rep.fullMarkdownText || msg.text }, 'pdf')}
                               className="px-2.5 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-[10px] font-bold font-mono flex items-center gap-1 transition-all cursor-pointer shadow-xs"
                             >
                               <Download className="h-3 w-3" />
@@ -1490,7 +1602,7 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
                             </button>
                             <button
                               type="button"
-                              onClick={() => triggerReportDownload(rep, 'csv')}
+                              onClick={() => triggerReportDownload({ ...rep, fullMarkdownText: rep.fullMarkdownText || msg.text }, 'csv')}
                               className="px-2.5 py-1 rounded-lg bg-emerald-600/90 hover:bg-emerald-500 text-white text-[10px] font-bold font-mono flex items-center gap-1 transition-all cursor-pointer shadow-xs"
                             >
                               <Download className="h-3 w-3" />
@@ -1498,17 +1610,10 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
                             </button>
                             <button
                               type="button"
-                              onClick={() => triggerReportDownload(rep, 'txt')}
+                              onClick={() => triggerReportDownload({ ...rep, fullMarkdownText: rep.fullMarkdownText || msg.text }, 'txt')}
                               className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 text-[10px] font-bold font-mono flex items-center gap-1 transition-all cursor-pointer"
                             >
                               TXT
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => triggerReportDownload(rep, 'json')}
-                              className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 text-[10px] font-bold font-mono flex items-center gap-1 transition-all cursor-pointer"
-                            >
-                              JSON
                             </button>
                           </div>
                         </div>
@@ -1545,47 +1650,38 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
                       ))}
                     </div>
                   )}
-
-                  {/* Quick export toolbar on every Skywalker response */}
-                  {!isUser && msg.id !== 'msg_welcome' && (
-                    <div className="mt-2.5 pt-2 border-t border-slate-700/50 flex flex-wrap items-center justify-end gap-1.5">
-                      <span className="text-[9.5px] text-slate-400 font-mono mr-auto flex items-center gap-1">
-                        <FileDown className="h-3 w-3 text-cyan-400" />
-                        Exportar resposta:
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => exportChatMessageAsFile(msg, 'pdf')}
-                        className="px-2 py-0.5 rounded bg-slate-900/90 hover:bg-cyan-950/80 text-cyan-300 border border-cyan-500/30 text-[10px] font-mono font-bold flex items-center gap-1 transition-colors cursor-pointer"
-                        title="Baixar esta resposta como relatório PDF"
-                      >
-                        <Download className="h-2.5 w-2.5" />
-                        PDF
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => exportChatMessageAsFile(msg, 'csv')}
-                        className="px-2 py-0.5 rounded bg-slate-900/90 hover:bg-emerald-950/80 text-emerald-300 border border-emerald-500/30 text-[10px] font-mono font-bold flex items-center gap-1 transition-colors cursor-pointer"
-                        title="Baixar dados como planilha CSV"
-                      >
-                        <Download className="h-2.5 w-2.5" />
-                        CSV
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => exportChatMessageAsFile(msg, 'txt')}
-                        className="px-2 py-0.5 rounded bg-slate-900/90 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[10px] font-mono font-bold flex items-center gap-1 transition-colors cursor-pointer"
-                        title="Baixar como arquivo de texto TXT"
-                      >
-                        TXT
-                      </button>
-                    </div>
-                  )}
                 </div>
 
-                <span className="text-[9.5px] text-slate-500 font-mono mt-1 px-1">
-                  {msg.timestamp}
-                </span>
+                {/* Timestamp & Classic Copy Response Shortcut */}
+                <div className="flex items-center gap-2 mt-1 px-1">
+                  <span className="text-[9.5px] text-slate-500 font-mono">
+                    {msg.timestamp}
+                  </span>
+                  {!isUser && (
+                    <button
+                      type="button"
+                      onClick={() => handleCopyMessage(msg)}
+                      title="Copiar resposta"
+                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono transition-all cursor-pointer ${
+                        copiedMessageId === msg.id
+                          ? 'text-emerald-400 bg-emerald-950/60 border border-emerald-500/40'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800 border border-transparent hover:border-slate-700'
+                      }`}
+                    >
+                      {copiedMessageId === msg.id ? (
+                        <>
+                          <Check className="h-3 w-3 text-emerald-400" />
+                          <span>Copiado</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-3 w-3" />
+                          <span>Copiar</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
               </div>
 
               {isUser && (
