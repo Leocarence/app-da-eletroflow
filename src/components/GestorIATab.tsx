@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { 
   Vehicle, 
   Rental, 
@@ -38,7 +40,12 @@ import {
   Eye,
   Trash2,
   Gauge,
-  UploadCloud
+  UploadCloud,
+  Mic,
+  Square,
+  Download,
+  Volume2,
+  FileDown
 } from 'lucide-react';
 
 export interface GestorIATabProps {
@@ -79,6 +86,16 @@ export interface AttachedFileItem {
   dataUrl: string;
   base64: string;
   isImage: boolean;
+  isAudio?: boolean;
+}
+
+export interface GeneratedReportPayload {
+  title: string;
+  filename: string;
+  format: 'pdf' | 'csv' | 'txt' | 'json';
+  summary: string;
+  headers?: string[];
+  rows?: string[][];
 }
 
 interface ChatMessage {
@@ -91,8 +108,10 @@ interface ChatMessage {
     type: string;
     dataUrl: string;
     isImage: boolean;
+    isAudio?: boolean;
     size: number;
   }>;
+  generatedReports?: GeneratedReportPayload[];
   actionsExecuted?: Array<{
     type: string;
     description: string;
@@ -109,6 +128,7 @@ const INITIAL_MESSAGE: ChatMessage = {
 
 const QUICK_PROMPTS = [
   { label: '💰 Saldo & Receita', prompt: 'Qual o saldo atual em caixa e o total de receitas acumuladas?' },
+  { label: '📄 Emitir Relatório PDF', prompt: 'Emita um relatório executivo completo em PDF com o resumo financeiro, veículos e contratos ativos para download.' },
   { label: '🚗 Veículos Livres & Oficina', prompt: 'Quais veículos estão disponíveis para locação e quais estão na oficina?' },
   { label: '📅 Despesas Próximos 30 dias', prompt: 'Quais são as despesas futuras previstas para os próximos 30 dias?' },
   { label: '📊 Carro Mais Lucrativo', prompt: 'Qual veículo gerou maior receita em aluguéis e qual teve mais gastos de manutenção?' },
@@ -153,9 +173,127 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [selectedPreviewImage, setSelectedPreviewImage] = useState<string | null>(null);
 
+  // Audio recording states
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<number | null>(null);
+  const autoSendAudioRef = useRef<boolean>(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Cleanup recording timer on unmount
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) window.clearInterval(recordingTimerRef.current);
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
+    };
+  }, []);
+
+  // Start Microphone Audio Recording
+  const startAudioRecording = async () => {
+    if (isLoading || isRecording) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+        ? 'audio/webm'
+        : MediaRecorder.isTypeSupported('audio/mp4')
+        ? 'audio/mp4'
+        : '';
+
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (ev) => {
+        if (ev.data && ev.data.size > 0) {
+          audioChunksRef.current.push(ev.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        stream.getTracks().forEach(t => t.stop());
+        if (recordingTimerRef.current) {
+          window.clearInterval(recordingTimerRef.current);
+          recordingTimerRef.current = null;
+        }
+        setIsRecording(false);
+        setRecordingSeconds(0);
+
+        if (audioChunksRef.current.length === 0) return;
+
+        const actualMime = (recorder.mimeType || 'audio/webm').split(';')[0];
+        const ext = actualMime.includes('mp4') ? 'm4a' : actualMime.includes('ogg') ? 'ogg' : 'webm';
+        const audioBlob = new Blob(audioChunksRef.current, { type: actualMime });
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = reader.result as string;
+          const cleanBase64 = dataUrl.includes('base64,') ? dataUrl.split('base64,')[1] : dataUrl;
+          const newAudioItem: AttachedFileItem = {
+            id: 'att_aud_' + Date.now(),
+            name: `comando_voz_${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(/:/g, '-')}.${ext}`,
+            type: actualMime,
+            size: audioBlob.size,
+            dataUrl,
+            base64: cleanBase64,
+            isImage: false,
+            isAudio: true
+          };
+
+          if (autoSendAudioRef.current) {
+            autoSendAudioRef.current = false;
+            sendDirectAudioMessage(newAudioItem);
+          } else {
+            setAttachments(prev => [...prev, newAudioItem]);
+            showNotification('Áudio gravado e anexado! Pressione Enviar ou adicione instruções.', 'success');
+          }
+        };
+        reader.readAsDataURL(audioBlob);
+      };
+
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setIsRecording(true);
+      setRecordingSeconds(0);
+      recordingTimerRef.current = window.setInterval(() => {
+        setRecordingSeconds(s => s + 1);
+      }, 1000);
+    } catch (err) {
+      console.error('Microphone error:', err);
+      showNotification('Não foi possível acessar o microfone. Verifique as permissões do navegador.', 'error');
+    }
+  };
+
+  const stopAudioRecording = (sendImmediately: boolean = false) => {
+    autoSendAudioRef.current = sendImmediately;
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+  };
+
+  const cancelAudioRecording = () => {
+    autoSendAudioRef.current = false;
+    audioChunksRef.current = [];
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.onstop = () => {
+        mediaRecorderRef.current?.stream.getTracks().forEach(t => t.stop());
+      };
+      mediaRecorderRef.current.stop();
+    }
+    if (recordingTimerRef.current) {
+      window.clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    setIsRecording(false);
+    setRecordingSeconds(0);
+    showNotification('Gravação de áudio cancelada.', 'info');
+  };
 
   // File attachments handlers
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -174,6 +312,7 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
     validFiles.forEach(file => {
       const reader = new FileReader();
       const isImg = file.type.startsWith('image/');
+      const isAud = file.type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|webm)$/i.test(file.name);
       reader.onload = () => {
         const result = reader.result as string;
         const cleanBase64 = result.includes('base64,') ? result.split('base64,')[1] : result;
@@ -182,11 +321,12 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
           {
             id: 'att_' + Math.random().toString(36).substr(2, 9),
             name: file.name,
-            type: file.type || (file.name.endsWith('.csv') ? 'text/csv' : 'application/octet-stream'),
+            type: file.type || (file.name.endsWith('.csv') ? 'text/csv' : isAud ? 'audio/webm' : 'application/octet-stream'),
             size: file.size,
             dataUrl: result,
             base64: cleanBase64,
-            isImage: isImg
+            isImage: isImg,
+            isAudio: isAud
           }
         ]);
         showNotification(`Arquivo "${file.name}" anexado para análise do Skywalker.`, 'info');
@@ -197,6 +337,218 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
 
   const removeAttachment = (id: string) => {
     setAttachments(prev => prev.filter(a => a.id !== id));
+  };
+
+  // Helper to extract markdown tables from raw text when exporting any message
+  const extractMarkdownTableFromText = (rawText: string): { headers: string[]; rows: string[][] } | null => {
+    const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.startsWith('|') && l.endsWith('|'));
+    if (lines.length < 2) return null;
+    const parseRow = (line: string) =>
+      line
+        .replace(/^\|/, '')
+        .replace(/\|$/, '')
+        .split('|')
+        .map(c => c.trim().replace(/\*\*/g, ''));
+
+    const headers = parseRow(lines[0]);
+    const dataLines = lines.slice(1).filter(l => !/^\|[\s\-:|]+\|$/.test(l));
+    const rows = dataLines.map(parseRow);
+    return headers.length > 0 && rows.length > 0 ? { headers, rows } : null;
+  };
+
+  // Universal Report & File Downloader (PDF, CSV, TXT, JSON)
+  const triggerReportDownload = (report: GeneratedReportPayload, targetFormat?: 'pdf' | 'csv' | 'txt' | 'json') => {
+    const fmt = (targetFormat || report.format || 'pdf').toLowerCase() as 'pdf' | 'csv' | 'txt' | 'json';
+    const baseName = (report.filename || report.title || 'relatorio_eletroflow')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9_-]+/g, '_')
+      .replace(/^_+|_+$/g, '') || 'relatorio_eletroflow';
+
+    const cleanSummary = (report.summary || '').replace(/\*\*/g, '');
+    const headers = report.headers && report.headers.length > 0 ? report.headers : [];
+    const rows = report.rows && report.rows.length > 0 ? report.rows : [];
+
+    try {
+      if (fmt === 'pdf') {
+        const doc = new jsPDF({ orientation: headers.length > 5 ? 'landscape' : 'portrait', unit: 'mm', format: 'a4' });
+        const pageWidth = doc.internal.pageSize.getWidth();
+
+        // Corporate Header Banner
+        doc.setFillColor(15, 23, 42); // Slate-900
+        doc.rect(0, 0, pageWidth, 28, 'F');
+        doc.setFillColor(6, 182, 212); // Cyan-500 accent bar
+        doc.rect(0, 28, pageWidth, 1.5, 'F');
+
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(14);
+        doc.text('ELETROFLOW - SKYWALKER GESTOR IA', 14, 12);
+
+        doc.setFontSize(10);
+        doc.setTextColor(103, 232, 249); // Cyan-300
+        doc.text(report.title || 'Relatório Executivo', 14, 20);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(203, 213, 225);
+        doc.text(`Emitido em: ${getBrasiliaUiDateStr()}`, pageWidth - 14, 12, { align: 'right' });
+        doc.text(`Caixa Atual: R$ ${financials.currentCash.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, pageWidth - 14, 20, { align: 'right' });
+
+        let currentY = 38;
+
+        // Executive Summary Section
+        if (cleanSummary) {
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(10);
+          doc.setTextColor(15, 23, 42);
+          doc.text('Resumo Executivo / Parecer Skywalker:', 14, currentY);
+          currentY += 6;
+
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(9);
+          doc.setTextColor(51, 65, 85);
+          const splitLines = doc.splitTextToSize(cleanSummary, pageWidth - 28);
+          doc.text(splitLines, 14, currentY);
+          currentY += splitLines.length * 4.5 + 6;
+        }
+
+        // Table Data if available
+        if (headers.length > 0 && rows.length > 0) {
+          autoTable(doc, {
+            startY: Math.min(currentY, 240),
+            head: [headers],
+            body: rows,
+            theme: 'grid',
+            styles: {
+              fontSize: 8.5,
+              cellPadding: 2.8,
+              textColor: [30, 41, 59]
+            },
+            headStyles: {
+              fillColor: [15, 23, 42],
+              textColor: [255, 255, 255],
+              fontStyle: 'bold'
+            },
+            alternateRowStyles: {
+              fillColor: [248, 250, 252]
+            },
+            didParseCell: (data) => {
+              if (data.section === 'body') {
+                const cellText = String(data.cell.raw || '');
+                // Keep plates neutral, color negative money red and positive money green
+                const isPlate = /\b([A-Z]{3}-?[0-9][A-Z0-9][0-9]{2}|[A-Z]{3}-?[0-9]{4})\b/i.test(cellText);
+                if (!isPlate) {
+                  if (cellText.includes('-R$') || cellText.startsWith('-')) {
+                    data.cell.styles.textColor = [225, 29, 72]; // Rose-600
+                    data.cell.styles.fontStyle = 'bold';
+                  } else if (cellText.includes('+R$') || cellText.startsWith('+')) {
+                    data.cell.styles.textColor = [5, 150, 105]; // Emerald-600
+                    data.cell.styles.fontStyle = 'bold';
+                  }
+                }
+              }
+            }
+          });
+        }
+
+        doc.save(`${baseName}.pdf`);
+        showNotification(`Relatório PDF "${baseName}.pdf" baixado com sucesso!`, 'success');
+      } else if (fmt === 'csv') {
+        const csvLines: string[] = [];
+        if (headers.length > 0) {
+          csvLines.push(headers.map(h => `"${String(h).replace(/"/g, '""')}"`).join(';'));
+          rows.forEach(r => {
+            csvLines.push(r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';'));
+          });
+        } else {
+          csvLines.push(`"Relatório";"${report.title}"`);
+          csvLines.push(`"Data";"${getBrasiliaUiDateStr()}"`);
+          csvLines.push(`"Resumo";"${cleanSummary.replace(/"/g, '""')}"`);
+        }
+        const blob = new Blob(['\uFEFF' + csvLines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${baseName}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showNotification(`Planilha CSV "${baseName}.csv" baixada com sucesso!`, 'success');
+      } else if (fmt === 'json') {
+        const payload = {
+          titulo: report.title,
+          emitidoEm: getBrasiliaUiDateStr(),
+          resumo: cleanSummary,
+          colunas: headers,
+          dados: rows
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${baseName}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showNotification(`Arquivo JSON "${baseName}.json" baixado com sucesso!`, 'success');
+      } else {
+        // TXT
+        let txtContent = `==========================================================\n`;
+        txtContent += `ELETROFLOW - SKYWALKER GESTOR IA\n`;
+        txtContent += `RELATÓRIO: ${report.title}\n`;
+        txtContent += `DATA DE EMISSÃO: ${getBrasiliaUiDateStr()}\n`;
+        txtContent += `==========================================================\n\n`;
+        if (cleanSummary) {
+          txtContent += `${cleanSummary}\n\n`;
+        }
+        if (headers.length > 0 && rows.length > 0) {
+          txtContent += headers.join(' | ') + '\n';
+          txtContent += '-'.repeat(60) + '\n';
+          rows.forEach(r => {
+            txtContent += r.join(' | ') + '\n';
+          });
+        }
+        const blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${baseName}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showNotification(`Relatório TXT "${baseName}.txt" baixado com sucesso!`, 'success');
+      }
+    } catch (err) {
+      console.error('Erro ao gerar arquivo para download:', err);
+      showNotification('Erro ao gerar o arquivo para download.', 'error');
+    }
+  };
+
+  // Export any chat message directly to PDF, CSV, or TXT
+  const exportChatMessageAsFile = (msg: ChatMessage, format: 'pdf' | 'csv' | 'txt') => {
+    const parsedTable = extractMarkdownTableFromText(msg.text);
+    const nonTableLines = msg.text
+      .split('\n')
+      .filter(l => !l.trim().startsWith('|'))
+      .join('\n')
+      .trim();
+
+    triggerReportDownload(
+      {
+        title: 'Relatório Executivo Skywalker - Eletroflow',
+        filename: `relatorio_skywalker_${getBrasiliaDateStr()}`,
+        format,
+        summary: nonTableLines || msg.text,
+        headers: parsedTable?.headers || [],
+        rows: parsedTable?.rows || []
+      },
+      format
+    );
   };
 
   // Dynamic Mouse & Touch Drag Resizing
@@ -273,6 +625,7 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
   // Helper to execute function calls returned by Gemini
   const executeFunctionCalls = (functionCalls: Array<{ name: string; args: any }>) => {
     const executed: Array<{ type: string; description: string; targetTab?: any }> = [];
+    const generatedReportsList: GeneratedReportPayload[] = [];
     const today = getBrasiliaDateStr();
 
     for (const call of functionCalls) {
@@ -504,34 +857,61 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
             });
           }
         }
+        else if (name === 'generate_downloadable_report') {
+          const reportPayload: GeneratedReportPayload = {
+            title: args.title || 'Relatório Executivo Eletroflow',
+            filename: args.filename || 'relatorio_eletroflow',
+            format: (args.format || 'pdf').toLowerCase() as 'pdf' | 'csv' | 'txt' | 'json',
+            summary: args.summary || '',
+            headers: Array.isArray(args.headers) ? args.headers.map(String) : [],
+            rows: Array.isArray(args.rows) ? args.rows.map((r: any) => (Array.isArray(r) ? r.map(String) : [])) : []
+          };
+          generatedReportsList.push(reportPayload);
+          triggerReportDownload(reportPayload);
+          executed.push({
+            type: `Relatório ${reportPayload.format.toUpperCase()} Emitido`,
+            description: `${reportPayload.title} (${reportPayload.format.toUpperCase()}) gerado para download`
+          });
+        }
       } catch (err) {
         console.warn("[Skywalker Action Execution Error]:", err);
       }
     }
 
-    return executed;
+    return { executed, generatedReportsList };
   };
 
-  const handleSendMessage = async (textToSend?: string) => {
-    const query = (textToSend || inputMessage).trim();
-    const hasAttachments = attachments.length > 0;
+  const sendDirectAudioMessage = (audioFile: AttachedFileItem) => {
+    handleSendMessage(inputMessage, [audioFile]);
+  };
+
+  const handleSendMessage = async (textToSend?: string, customAttachments?: AttachedFileItem[]) => {
+    const query = (textToSend !== undefined ? textToSend : inputMessage).trim();
+    const activeAttachments = customAttachments || attachments;
+    const hasAttachments = activeAttachments.length > 0;
     if ((!query && !hasAttachments) || isLoading) return;
 
-    const attachedSnapshot = attachments.map(a => ({
+    const attachedSnapshot = activeAttachments.map(a => ({
       name: a.name,
       type: a.type,
       dataUrl: a.dataUrl,
       isImage: a.isImage,
+      isAudio: a.isAudio,
       size: a.size
     }));
 
-    const attachmentsForApi = attachments.map(a => ({
+    const attachmentsForApi = activeAttachments.map(a => ({
       name: a.name,
       mimeType: a.type,
       data: a.base64
     }));
 
-    const displayText = query || (attachments.length === 1 ? `[Arquivo anexado: ${attachments[0].name}]` : `[${attachments.length} arquivos anexados para análise]`);
+    const hasAudioOnly = !query && activeAttachments.length === 1 && activeAttachments[0].isAudio;
+    const displayText = query || (hasAudioOnly
+      ? '🎙️ Mensagem de voz enviada para o Skywalker'
+      : activeAttachments.length === 1
+      ? `[Arquivo anexado: ${activeAttachments[0].name}]`
+      : `[${activeAttachments.length} arquivos anexados para análise]`);
 
     const userMsg: ChatMessage = {
       id: 'msg_' + Date.now(),
@@ -544,7 +924,9 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInputMessage('');
-    setAttachments([]);
+    if (!customAttachments) {
+      setAttachments([]);
+    }
     setIsLoading(true);
 
     try {
@@ -660,11 +1042,15 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
         } : null
       };
 
+      const defaultPromptForMedia = activeAttachments.some(a => a.isAudio)
+        ? "Ouça atentamente esta mensagem de áudio do usuário e execute ou responda exatamente o que foi solicitado."
+        : "Por favor, analise minuciosamente os arquivos/documentos anexados e processe as informações no sistema.";
+
       const res = await fetch('/api/gestor-ia/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: query || "Por favor, analise minuciosamente os arquivos/documentos anexados e processe as informações no sistema.",
+          message: query || defaultPromptForMedia,
           history: messages.slice(-8).map(m => ({ role: m.role, text: m.text })),
           context: contextSnapshot,
           attachments: attachmentsForApi
@@ -686,8 +1072,11 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
       const data = await res.json();
       
       let actionsExecuted: Array<{ type: string; description: string; targetTab?: any }> = [];
+      let generatedReports: GeneratedReportPayload[] = [];
       if (data.functionCalls && data.functionCalls.length > 0) {
-        actionsExecuted = executeFunctionCalls(data.functionCalls);
+        const result = executeFunctionCalls(data.functionCalls);
+        actionsExecuted = result.executed;
+        generatedReports = result.generatedReportsList;
         if (actionsExecuted.length > 0) {
           showNotification(`✓ ${actionsExecuted.length} ação(ões) executada(s) pelo Skywalker.`, 'success');
         }
@@ -703,6 +1092,7 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
         role: 'model',
         text: replyText,
         timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        generatedReports: generatedReports.length > 0 ? generatedReports : undefined,
         actionsExecuted: actionsExecuted.length > 0 ? actionsExecuted : undefined
       };
 
@@ -1035,6 +1425,20 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
                               {att.name}
                             </div>
                           </div>
+                        ) : att.isAudio || att.type.startsWith('audio/') ? (
+                          <div
+                            key={attIdx}
+                            className="flex flex-col gap-1.5 px-3 py-2 rounded-xl bg-slate-950/70 border border-white/20 text-white text-xs shadow-sm min-w-[230px]"
+                          >
+                            <div className="flex items-center justify-between gap-2 text-[10px] text-cyan-200 font-mono">
+                              <span className="flex items-center gap-1 font-bold truncate">
+                                <Volume2 className="h-3.5 w-3.5 text-cyan-300 shrink-0" />
+                                {att.name}
+                              </span>
+                              <span className="text-slate-300 shrink-0">{(att.size / 1024).toFixed(0)} KB</span>
+                            </div>
+                            <audio controls src={att.dataUrl} className="h-8 w-full max-w-[260px]" />
+                          </div>
                         ) : (
                           <div 
                             key={attIdx} 
@@ -1055,6 +1459,61 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
                     <p className="text-xs sm:text-[13px] leading-relaxed whitespace-pre-wrap">{msg.text}</p>
                   ) : (
                     renderFormattedText(msg.text)
+                  )}
+
+                  {/* Render generated downloadable reports if any */}
+                  {msg.generatedReports && msg.generatedReports.length > 0 && (
+                    <div className="mt-3 pt-2.5 border-t border-slate-700/80 space-y-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-1 font-mono">
+                        <FileDown className="h-3.5 w-3.5 text-cyan-400" />
+                        Relatório Emitido para Download:
+                      </span>
+                      {msg.generatedReports.map((rep, rIdx) => (
+                        <div
+                          key={rIdx}
+                          className="p-2.5 rounded-xl bg-slate-900/95 border border-cyan-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-md"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-white truncate">{rep.title}</p>
+                            <p className="text-[10px] text-slate-400 font-mono">
+                              Formato principal: <strong className="text-cyan-300 uppercase">{rep.format}</strong> • Escolha o formato para baixar:
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => triggerReportDownload(rep, 'pdf')}
+                              className="px-2.5 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-[10px] font-bold font-mono flex items-center gap-1 transition-all cursor-pointer shadow-xs"
+                            >
+                              <Download className="h-3 w-3" />
+                              PDF
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => triggerReportDownload(rep, 'csv')}
+                              className="px-2.5 py-1 rounded-lg bg-emerald-600/90 hover:bg-emerald-500 text-white text-[10px] font-bold font-mono flex items-center gap-1 transition-all cursor-pointer shadow-xs"
+                            >
+                              <Download className="h-3 w-3" />
+                              CSV
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => triggerReportDownload(rep, 'txt')}
+                              className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 text-[10px] font-bold font-mono flex items-center gap-1 transition-all cursor-pointer"
+                            >
+                              TXT
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => triggerReportDownload(rep, 'json')}
+                              className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 text-[10px] font-bold font-mono flex items-center gap-1 transition-all cursor-pointer"
+                            >
+                              JSON
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   )}
 
                   {/* Render executed actions cards if any */}
@@ -1084,6 +1543,42 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
                           )}
                         </div>
                       ))}
+                    </div>
+                  )}
+
+                  {/* Quick export toolbar on every Skywalker response */}
+                  {!isUser && msg.id !== 'msg_welcome' && (
+                    <div className="mt-2.5 pt-2 border-t border-slate-700/50 flex flex-wrap items-center justify-end gap-1.5">
+                      <span className="text-[9.5px] text-slate-400 font-mono mr-auto flex items-center gap-1">
+                        <FileDown className="h-3 w-3 text-cyan-400" />
+                        Exportar resposta:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => exportChatMessageAsFile(msg, 'pdf')}
+                        className="px-2 py-0.5 rounded bg-slate-900/90 hover:bg-cyan-950/80 text-cyan-300 border border-cyan-500/30 text-[10px] font-mono font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                        title="Baixar esta resposta como relatório PDF"
+                      >
+                        <Download className="h-2.5 w-2.5" />
+                        PDF
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => exportChatMessageAsFile(msg, 'csv')}
+                        className="px-2 py-0.5 rounded bg-slate-900/90 hover:bg-emerald-950/80 text-emerald-300 border border-emerald-500/30 text-[10px] font-mono font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                        title="Baixar dados como planilha CSV"
+                      >
+                        <Download className="h-2.5 w-2.5" />
+                        CSV
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => exportChatMessageAsFile(msg, 'txt')}
+                        className="px-2 py-0.5 rounded bg-slate-900/90 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[10px] font-mono font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                        title="Baixar como arquivo de texto TXT"
+                      >
+                        TXT
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1145,10 +1640,47 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
           ref={fileInputRef}
           type="file"
           multiple
-          accept="image/*,application/pdf,.csv,.txt"
+          accept="image/*,audio/*,application/pdf,.csv,.txt,.mp3,.wav,.ogg,.m4a,.webm"
           onChange={handleFileSelect}
           className="hidden"
         />
+
+        {/* Active Voice Recording Banner */}
+        {isRecording && (
+          <div className="mb-2.5 px-3.5 py-2.5 bg-rose-950/80 border border-rose-500/60 rounded-xl flex flex-wrap items-center justify-between gap-2 animate-fade-in shadow-md">
+            <div className="flex items-center gap-2.5">
+              <span className="h-3 w-3 rounded-full bg-rose-500 animate-ping" />
+              <span className="text-xs font-bold text-rose-200 font-mono">
+                Gravando Áudio para o Skywalker... ({String(Math.floor(recordingSeconds / 60)).padStart(2, '0')}:{String(recordingSeconds % 60).padStart(2, '0')})
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={cancelAudioRecording}
+                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono border border-slate-600 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => stopAudioRecording(false)}
+                className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold font-mono flex items-center gap-1 cursor-pointer"
+              >
+                <Square className="h-3 w-3" />
+                Parar e Anexar
+              </button>
+              <button
+                type="button"
+                onClick={() => stopAudioRecording(true)}
+                className="px-3 py-1 rounded-lg bg-gradient-to-r from-cyan-500 to-brand-500 hover:from-cyan-400 hover:to-brand-400 text-white text-xs font-bold font-mono flex items-center gap-1 cursor-pointer shadow-sm"
+              >
+                <Send className="h-3 w-3" />
+                Enviar Áudio Agora
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Attachment chips bar */}
         {attachments.length > 0 && (
@@ -1169,6 +1701,11 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
                     className="h-5 w-5 rounded object-cover cursor-pointer" 
                     onClick={() => setSelectedPreviewImage(att.dataUrl)} 
                   />
+                ) : att.isAudio || att.type.startsWith('audio/') ? (
+                  <div className="flex items-center gap-1.5">
+                    <Volume2 className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
+                    <audio controls src={att.dataUrl} className="h-6 w-36" />
+                  </div>
                 ) : (
                   <FileText className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
                 )}
@@ -1197,7 +1734,7 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
         {isDragging && (
           <div className="mb-2 p-3 rounded-xl border-2 border-dashed border-cyan-400 bg-cyan-950/60 flex items-center justify-center gap-2 text-cyan-200 text-xs font-mono animate-pulse">
             <UploadCloud className="h-5 w-5 text-cyan-400" />
-            <span>Solte os arquivos ou fotos aqui para anexar</span>
+            <span>Solte os arquivos, fotos ou áudios aqui para anexar</span>
           </div>
         )}
 
@@ -1221,18 +1758,32 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
                 }
               }}
               disabled={isLoading}
-              placeholder={attachments.length > 0 ? "Adicione instruções sobre o anexo ou pressione Enter para o Skywalker analisar..." : "Pergunte ao Skywalker, solicite uma ação executiva ou anexe fotos/documentos..."}
-              className="w-full min-h-[96px] sm:min-h-[108px] max-h-56 px-4 py-3 pr-24 rounded-xl bg-slate-900 border border-slate-700/80 text-white placeholder-slate-500 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-all font-sans resize-y leading-relaxed scrollbar-thin shadow-inner"
+              placeholder={attachments.length > 0 ? "Adicione instruções sobre o anexo/áudio ou pressione Enter para o Skywalker analisar..." : "Pergunte ao Skywalker, grave um áudio, peça um relatório em PDF/CSV ou anexe fotos/documentos..."}
+              className="w-full min-h-[96px] sm:min-h-[108px] max-h-56 px-4 py-3 pr-36 rounded-xl bg-slate-900 border border-slate-700/80 text-white placeholder-slate-500 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-all font-sans resize-y leading-relaxed scrollbar-thin shadow-inner"
             />
             
-            {/* Input Action Buttons (Attachment & Send) */}
+            {/* Input Action Buttons (Microphone, Attachment & Send) */}
             <div className="absolute right-2.5 bottom-3 flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => (isRecording ? stopAudioRecording(true) : startAudioRecording())}
+                disabled={isLoading}
+                className={`p-2.5 border rounded-xl transition-all cursor-pointer shadow-sm disabled:opacity-40 flex items-center justify-center ${
+                  isRecording
+                    ? 'bg-rose-600 hover:bg-rose-500 text-white border-rose-400 animate-pulse'
+                    : 'bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-rose-400 border-slate-700'
+                }`}
+                title={isRecording ? "Parar gravação e enviar áudio para o Skywalker" : "Gravar comando de voz / áudio para o Skywalker"}
+              >
+                {isRecording ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              </button>
+
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isLoading}
                 className="p-2.5 bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-cyan-300 border border-slate-700 rounded-xl transition-all cursor-pointer shadow-sm disabled:opacity-40"
-                title="Anexar foto, CRLV, nota fiscal, comprovante ou documento (PDF, imagens, CSV)"
+                title="Anexar foto, áudio, CRLV, nota fiscal, comprovante ou documento (PDF, imagens, áudio, CSV)"
               >
                 <Paperclip className="h-4 w-4" />
               </button>
@@ -1248,8 +1799,8 @@ export const GestorIATab: React.FC<GestorIATabProps> = ({
             </div>
           </div>
           <div className="flex items-center justify-between text-[10px] text-slate-500 px-1 font-mono">
-            <span>Pressione <strong className="text-slate-400 font-bold">Enter</strong> para enviar • <strong className="text-slate-400 font-bold">Shift + Enter</strong> para quebra • Arraste arquivos para anexar</span>
-            <span className="hidden sm:inline">Multimodal: fotos de odômetro/km, recibos, notas, CRLV e tabelas</span>
+            <span>Pressione <strong className="text-slate-400 font-bold">Enter</strong> para enviar • <strong className="text-slate-400 font-bold">Microfone</strong> para enviar áudio • Arraste arquivos para anexar</span>
+            <span className="hidden sm:inline">Suporta Voz/Áudio, Relatórios em PDF/CSV/TXT/JSON, Fotos e Documentos</span>
           </div>
         </form>
       </div>

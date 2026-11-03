@@ -206,13 +206,17 @@ DIRETRIZES OBRIGATÓRIAS DE FORMATAÇÃO E CORES (EXIGÊNCIA RIGOROSA):
    - Placas brasileiras (ex: TYU-0E16, ABC-1234, BRA2E19) são códigos alfanuméricos identificadores de veículos.
    - NUNCA anteceda placas com sinal de menos (-) e NUNCA as divida de forma a parecerem valores negativos. Escreva a placa normalmente (ex: TYU-0E16 ou ABC-1234).
 
-4. ANÁLISE DE FOTOS, ARQUIVOS E DOCUMENTOS ANEXADOS:
-   - O usuário pode anexar imagens, comprovantes, notas fiscais, fotos de painéis/odômetros, relatórios, PDFs, arquivos CSV e tabelas.
-   - Analise visualmente e detalhadamente qualquer anexo recebido.
+4. ANÁLISE DE FOTOS, ÁUDIOS, ARQUIVOS E DOCUMENTOS ANEXADOS:
+   - O usuário pode enviar mensagens de ÁUDIO (voz gravada no microfone ou arquivos de áudio), imagens, comprovantes, notas fiscais, fotos de painéis/odômetros, relatórios, PDFs, arquivos CSV e tabelas.
+   - Ouça e compreenda integralmente qualquer áudio enviado pelo usuário, executando os comandos solicitados por voz com a mesma precisão de comandos em texto.
+   - Analise visualmente e detalhadamente qualquer imagem ou documento recebido.
    - Se o usuário enviar foto do painel de um carro para aferir quilometragem, identifique o valor exibido no odômetro e invoque 'update_vehicle_mileage' para registrar a km e notas no veículo correto.
    - Se o usuário enviar nota fiscal, recibo ou comprovante de pagamento, extraia os valores, data, descrição e veículo associado e lance via 'add_transaction' (classificando como Financiamento ou Manutenção).
 
-5. ECONOMIA DE MARCAÇÃO E ESTRUTURA:
+5. EMISSÃO DE RELATÓRIOS EM PDF E OUTROS FORMATOS PARA DOWNLOAD:
+   - Sempre que o usuário solicitar a emissão, exportação ou geração de um relatório em PDF, CSV, planilha, TXT ou JSON (ex: "gere um PDF", "emita um relatório em PDF", "exporte para CSV/planilha", "baixe o extrato"), invoque a ferramenta 'generate_downloadable_report' preenchendo o título, formato ('pdf', 'csv', 'txt' ou 'json'), resumo executivo, cabeçalhos da tabela (headers) e linhas de dados (rows), além de apresentar o resumo formatado no chat.
+
+6. ECONOMIA DE MARCAÇÃO E ESTRUTURA:
    - Use formatação Markdown (negrito em títulos/cabeçalhos e colunas). Evite excesso de asteriscos sem propósito.
    - Organize com títulos curtos, tabelas limpas e, quando usar listas, marcadores simples (-).
    - Conclua sempre com um resumo sintético dos totais (Total de Receitas [+], Total de Despesas [-] e Saldo Líquido [+/-]).
@@ -233,7 +237,8 @@ DIRETRIZES FUNDAMENTAIS DO SISTEMA:
    - Métricas globais (saldo em caixa real, receitas totais, despesas totais, caução retido).
 5. EXECUÇÃO DE FUNÇÕES / FERRAMENTAS:
    - Você pode usar todas as funções que um usuário desenvolvedor/administrador possui.
-   - Quando o usuário solicitar criação, alteração ou navegação, invoque a ferramenta correspondente:
+   - Quando o usuário solicitar criação, alteração, emissão de arquivo ou navegação, invoque a ferramenta correspondente:
+     * generate_downloadable_report: Emite e disponibiliza para download imediato um relatório em PDF, CSV, TXT ou JSON com tabelas e resumo executivo.
      * add_transaction: Lança receita, despesa ou caução no extrato (use categoria 'Financiamento' para parcelas de veículos e 'Manutenção' para reparos).
      * delete_transaction: Exclui um lançamento do extrato.
      * update_vehicle_status: Atualiza status do veículo (available, rented, maintenance).
@@ -507,6 +512,45 @@ ${dataSnapshot}
               }
             },
             required: ["transactionId"]
+          }
+        },
+        {
+          name: "generate_downloadable_report",
+          description: "Emite um relatório corporativo em PDF, CSV, TXT ou JSON para download imediato pelo usuário.",
+          parameters: {
+            type: Type.OBJECT,
+            properties: {
+              title: {
+                type: Type.STRING,
+                description: "Título principal do relatório (ex: Relatório Financeiro e Frota Eletroflow)"
+              },
+              format: {
+                type: Type.STRING,
+                description: "Formato do arquivo: 'pdf', 'csv', 'txt' ou 'json'"
+              },
+              filename: {
+                type: Type.STRING,
+                description: "Nome base do arquivo sem extensão (ex: relatorio_financeiro_eletroflow)"
+              },
+              summary: {
+                type: Type.STRING,
+                description: "Resumo executivo com os principais indicadores e conclusões do relatório"
+              },
+              headers: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: "Cabeçalhos das colunas da tabela principal (ex: ['Data', 'Descrição', 'Categoria', 'Placa', 'Valor'])"
+              },
+              rows: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING }
+                },
+                description: "Linhas de dados da tabela principal (cada linha deve ter o mesmo número de itens que headers)"
+              }
+            },
+            required: ["title", "format", "summary"]
           }
         }
       ];
