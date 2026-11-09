@@ -1,11 +1,47 @@
 import { Transaction } from '../types';
 
 /**
- * Checks if a transaction is a vehicle financing / loan installment.
+ * Checks if a transaction is an occasional capital outlay / withdrawal that should NOT enter
+ * recurring business profitability (e.g. freight/cegonha, vehicle purchase/down payment,
+ * occasional consortium adhesion/installment payoff, or technical cash adjustments).
+ */
+export function isOccasionalAcquisitionTransaction(t?: Partial<Transaction> | null): boolean {
+  if (!t || typeof t !== 'object' || t.type !== 'despesa') return false;
+  const cat = (t.category || '').toLowerCase().trim();
+  const desc = (t.description || '').toLowerCase().trim();
+  return (
+    cat.includes('consórcio') ||
+    cat.includes('consorcio') ||
+    cat.includes('aquisição') ||
+    cat.includes('aquisicao') ||
+    cat.includes('frete') ||
+    cat.includes('compra de veículo') ||
+    cat.includes('compra veiculo') ||
+    cat.includes('ajuste de caixa') ||
+    desc.includes('consórcio') ||
+    desc.includes('consorcio') ||
+    desc.includes('aquisição') ||
+    desc.includes('aquisicao') ||
+    desc === 'frete' ||
+    desc.includes('frete ') ||
+    desc.includes(' frete') ||
+    desc.includes('cegonha') ||
+    desc.includes('compra de veículo') ||
+    desc.includes('compra do veículo') ||
+    desc.includes('quitação de consórcio') ||
+    desc.includes('lance de consórcio') ||
+    desc.includes('sgdb sobrescreveu')
+  );
+}
+
+/**
+ * Checks if a transaction is a fixed recurring vehicle/equipment financing installment.
+ * Strictly excludes occasional consortium/freight/purchase outlays.
  * Fully defensive against null, undefined, or malformed objects.
  */
 export function isFinancingTransaction(t?: Partial<Transaction> | null): boolean {
   if (!t || typeof t !== 'object' || t.type !== 'despesa') return false;
+  if (isOccasionalAcquisitionTransaction(t)) return false;
   const cat = (t.category || '').toLowerCase();
   const desc = (t.description || '').toLowerCase();
   return (
@@ -13,9 +49,7 @@ export function isFinancingTransaction(t?: Partial<Transaction> | null): boolean
     cat.includes('financiamento') ||
     desc.includes('financiamento') ||
     desc.includes('leasing') ||
-    desc.includes('cdc banco') ||
-    desc.includes('consórcio - aquisição') ||
-    desc.includes('adesão ao consórcio')
+    desc.includes('cdc banco')
   );
 }
 

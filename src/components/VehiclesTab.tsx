@@ -9,7 +9,7 @@ import {
   Edit3, Download
 } from 'lucide-react';
 import { exportVehicleCSV } from '../utils/exportUtils';
-import { isMaintenanceTransaction } from '../utils/transactions';
+import { isMaintenanceTransaction, isOccasionalAcquisitionTransaction } from '../utils/transactions';
 
 interface VehiclesTabProps {
   vehicles: Vehicle[];
@@ -220,6 +220,7 @@ export default function VehiclesTab({
   const [monthlyNoteDrafts, setMonthlyNoteDrafts] = useState<Record<string, string>>({});
   const [quickKmInput, setQuickKmInput] = useState<string>('');
   const [quickKmDate, setQuickKmDate] = useState<string>(getBrasiliaDateStr());
+  const [considerVehicleFinancing, setConsiderVehicleFinancing] = useState<boolean>(true);
 
   const openEditVehicleModal = (v: Vehicle) => {
     setEditVehId(v.id);
@@ -293,16 +294,12 @@ export default function VehiclesTab({
 
   // Helper classifiers for vehicle expenses (strictly mutually exclusive, read-only)
   const isVehFinancingExpense = (t: Transaction) => {
-    if (!t || t.type !== 'despesa') return false;
+    if (!t || t.type !== 'despesa' || isOccasionalAcquisitionTransaction(t)) return false;
     const cat = (t.category || '').toLowerCase();
     const desc = (t.description || '').toLowerCase();
     return (
       cat.includes('financiamento') ||
-      cat.includes('consórcio') ||
-      cat.includes('consorcio') ||
       desc.includes('financiamento') ||
-      desc.includes('consórcio') ||
-      desc.includes('consorcio') ||
       desc.includes('leasing') ||
       desc.includes('cdc banco')
     );
@@ -396,9 +393,16 @@ export default function VehiclesTab({
       .filter(t => t.type === 'receita')
       .reduce((sum, t) => sum + t.value, 0);
 
-    const totalExpenses = effectiveVehicleTransactions
+    const allRecordedExpenses = effectiveVehicleTransactions
       .filter(t => t.type === 'despesa')
       .reduce((sum, t) => sum + t.value, 0);
+
+    const occasionalOutlayExpenses = effectiveVehicleTransactions
+      .filter(t => isOccasionalAcquisitionTransaction(t))
+      .reduce((sum, t) => sum + t.value, 0);
+
+    // Recurring expenses of the vehicle (excluding occasional freight/purchase/consortium withdrawals)
+    const totalExpenses = Math.max(0, allRecordedExpenses - occasionalOutlayExpenses);
 
     const depositsReceived = effectiveVehicleTransactions
       .filter(t => t.type === 'caucao_recebido')
@@ -416,15 +420,15 @@ export default function VehiclesTab({
       .reduce((sum, t) => sum + t.value, 0);
 
     const insuranceExpenses = effectiveVehicleTransactions
-      .filter(isVehInsuranceExpense)
+      .filter(t => !isOccasionalAcquisitionTransaction(t) && isVehInsuranceExpense(t))
       .reduce((sum, t) => sum + t.value, 0);
 
     const taxExpenses = effectiveVehicleTransactions
-      .filter(isVehTaxExpense)
+      .filter(t => !isOccasionalAcquisitionTransaction(t) && isVehTaxExpense(t))
       .reduce((sum, t) => sum + t.value, 0);
 
     const mechanicalExpenses = effectiveVehicleTransactions
-      .filter(isVehMechanicalExpense)
+      .filter(t => !isOccasionalAcquisitionTransaction(t) && isVehMechanicalExpense(t))
       .reduce((sum, t) => sum + t.value, 0);
 
     const otherExpenses = Math.max(
@@ -442,6 +446,7 @@ export default function VehiclesTab({
       vehicleTransactions,
       totalRevenues,
       totalExpenses,
+      occasionalOutlayExpenses,
       netDepositInHand,
       netProfit,
       operationalProfit,
@@ -478,11 +483,16 @@ export default function VehiclesTab({
 
     const netMarginPct = totalRevenues > 0 ? (netProfit / totalRevenues) * 100 : 0;
     const operationalMarginPct = totalRevenues > 0 ? (operationalProfit / totalRevenues) * 100 : 0;
+    const displayedProfit = considerVehicleFinancing ? netProfit : operationalProfit;
+    const displayedMarginPct = considerVehicleFinancing ? netMarginPct : operationalMarginPct;
+    const alternateProfit = considerVehicleFinancing ? operationalProfit : netProfit;
+    const alternateMarginPct = considerVehicleFinancing ? operationalMarginPct : netMarginPct;
     const mechanicalPct = totalRevenues > 0 ? (mechanicalExpenses / totalRevenues) * 100 : 0;
     const financingPct = totalRevenues > 0 ? (financingExpenses / totalRevenues) * 100 : 0;
     const fixedAndOtherExpenses = insuranceExpenses + taxExpenses + otherExpenses;
     const fixedAndOtherPct = totalRevenues > 0 ? (fixedAndOtherExpenses / totalRevenues) * 100 : 0;
-    const totalExpensesPct = totalRevenues > 0 ? (totalExpenses / totalRevenues) * 100 : 0;
+    const consideredExpensesTotal = considerVehicleFinancing ? totalExpenses : Math.max(0, totalExpenses - financingExpenses);
+    const totalExpensesPct = totalRevenues > 0 ? (consideredExpensesTotal / totalRevenues) * 100 : 0;
 
     // Calculate days left in active rent if any
     let daysLeft: number | null = null;
@@ -724,40 +734,52 @@ export default function VehiclesTab({
               </p>
             </div>
 
-            {/* HIGHLIGHT BOX: MARGEM LÍQUIDA DO VEÍCULO */}
+            {/* HIGHLIGHT BOX: MARGEM LÍQUIDA DO VEÍCULO + CHECKBOX FINANCIAMENTO */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
-              <div className="px-4 py-3 rounded-xl bg-slate-800/80 border border-slate-700/80 text-left sm:text-right">
-                <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 block">
-                  Margem Operacional (Sem Financ.)
-                </span>
-                <div className="flex items-baseline sm:justify-end gap-2 mt-0.5">
-                  <span className={`font-mono text-base sm:text-lg font-extrabold ${operationalProfit >= 0 ? 'text-indigo-300' : 'text-rose-400'}`}>
-                    {operationalMarginPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+              <label
+                htmlFor="toggle-vehicle-financing"
+                className={`px-3.5 py-2.5 rounded-xl border flex items-center gap-2.5 cursor-pointer select-none transition-all ${
+                  considerVehicleFinancing
+                    ? 'bg-indigo-950/70 border-indigo-400/50 text-indigo-100'
+                    : 'bg-slate-800/80 border-slate-700 text-slate-300'
+                }`}
+              >
+                <input
+                  id="toggle-vehicle-financing"
+                  type="checkbox"
+                  checked={considerVehicleFinancing}
+                  onChange={(e) => setConsiderVehicleFinancing(e.target.checked)}
+                  className="h-4 w-4 rounded accent-indigo-500 cursor-pointer"
+                />
+                <div className="text-left">
+                  <span className="text-xs font-bold block text-white leading-tight">
+                    Considerar Financiamentos
                   </span>
-                  <span className="text-xs font-mono text-slate-300">
-                    ({formatCurrency(operationalProfit)})
+                  <span className="text-[10px] font-mono text-slate-300">
+                    {considerVehicleFinancing ? 'Ref. s/ financ.: ' : 'Ref. c/ financ.: '}
+                    {alternateMarginPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}% ({formatCurrency(alternateProfit)})
                   </span>
                 </div>
-              </div>
+              </label>
 
               <div className={`px-5 py-3 rounded-xl border-2 shadow-lg text-left sm:text-right ${
-                netProfit >= 0
+                displayedProfit >= 0
                   ? 'bg-emerald-500/15 border-emerald-400/60 shadow-emerald-950/50'
                   : 'bg-rose-500/15 border-rose-400/60 shadow-rose-950/50'
               }`}>
                 <span className="text-[10px] uppercase tracking-widest font-extrabold text-emerald-200 block">
-                  ★ Margem Líquida do Veículo
+                  ★ {considerVehicleFinancing ? 'Margem Líquida (C/ Financ.)' : 'Margem Operacional (S/ Financ.)'}
                 </span>
                 <div className="flex items-baseline sm:justify-end gap-2.5 mt-0.5">
                   <span className={`font-mono text-2xl sm:text-3xl font-black tracking-tight ${
-                    netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                    displayedProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'
                   }`}>
-                    {netProfit >= 0 ? '+' : ''}{netMarginPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+                    {displayedProfit >= 0 ? '+' : ''}{displayedMarginPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
                   </span>
                   <span className={`font-mono text-sm font-bold px-2 py-0.5 rounded ${
-                    netProfit >= 0 ? 'bg-emerald-500/20 text-emerald-200' : 'bg-rose-500/20 text-rose-200'
+                    displayedProfit >= 0 ? 'bg-emerald-500/20 text-emerald-200' : 'bg-rose-500/20 text-rose-200'
                   }`}>
-                    {formatCurrency(netProfit)}
+                    {formatCurrency(displayedProfit)}
                   </span>
                 </div>
               </div>
@@ -803,7 +825,9 @@ export default function VehiclesTab({
             </div>
 
             {/* 3. Financiamento (Aquisição) */}
-            <div className="bg-slate-800/50 border border-indigo-500/30 rounded-xl p-3.5 flex flex-col justify-between">
+            <div className={`bg-slate-800/50 border rounded-xl p-3.5 flex flex-col justify-between ${
+              considerVehicleFinancing ? 'border-indigo-500/30' : 'border-slate-700/50 opacity-60'
+            }`}>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[11px] font-bold text-indigo-200 uppercase tracking-wider">3. Financiamento</span>
                 <span className="text-xs font-mono font-extrabold px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
@@ -815,7 +839,7 @@ export default function VehiclesTab({
                   -{formatCurrency(financingExpenses)}
                 </span>
                 <span className="text-[10px] text-slate-400 block mt-0.5">
-                  Parcelas de aquisição pagas
+                  {considerVehicleFinancing ? 'Parcelas fixas consideradas' : 'Desconsiderado na margem atual'}
                 </span>
               </div>
             </div>
@@ -840,28 +864,30 @@ export default function VehiclesTab({
 
             {/* 5. Resultado Líquido & Margem Líquida */}
             <div className={`rounded-xl p-3.5 flex flex-col justify-between border ${
-              netProfit >= 0
+              displayedProfit >= 0
                 ? 'bg-emerald-950/60 border-emerald-500/50'
                 : 'bg-rose-950/60 border-rose-500/50'
             }`}>
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-extrabold text-white uppercase tracking-wider">5. Margem Líquida</span>
+                <span className="text-[11px] font-extrabold text-white uppercase tracking-wider">
+                  5. {considerVehicleFinancing ? 'Margem C/ Financ.' : 'Margem S/ Financ.'}
+                </span>
                 <span className={`text-xs font-mono font-black px-2 py-0.5 rounded ${
-                  netProfit >= 0
+                  displayedProfit >= 0
                     ? 'bg-emerald-400 text-slate-950'
                     : 'bg-rose-400 text-slate-950'
                 }`}>
-                  {netProfit >= 0 ? '+' : ''}{netMarginPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+                  {displayedProfit >= 0 ? '+' : ''}{displayedMarginPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
                 </span>
               </div>
               <div className="mt-2">
                 <span className={`font-mono text-base sm:text-lg font-black block ${
-                  netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                  displayedProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'
                 }`}>
-                  {netProfit >= 0 ? '+' : ''}{formatCurrency(netProfit)}
+                  {displayedProfit >= 0 ? '+' : ''}{formatCurrency(displayedProfit)}
                 </span>
                 <span className="text-[10px] text-slate-300 block mt-0.5">
-                  Custos Totais: {formatCurrency(totalExpenses)} ({totalExpensesPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%)
+                  Custos Considerados: {formatCurrency(consideredExpensesTotal)} ({totalExpensesPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%)
                 </span>
               </div>
             </div>

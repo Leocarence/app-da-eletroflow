@@ -19,11 +19,12 @@ import {
   Filter,
   DollarSign,
   Coins,
-  Scale
+  Scale,
+  Percent
 } from 'lucide-react';
 import { Vehicle, FutureExpense, Transaction, Rental } from '../types';
 import { getBrasiliaDateStr } from '../utils/dateUtils';
-import { isFinancingTransaction, isMaintenanceTransaction } from '../utils/transactions';
+import { isFinancingTransaction, isMaintenanceTransaction, isOccasionalAcquisitionTransaction } from '../utils/transactions';
 import { getEffectiveRentalPaymentWeekday, getWeekdayName } from './RentalsTab';
 import { ProjectedRevenueItem, ProjectedExpenseItem } from './FutureExpensesForecastModal';
 
@@ -65,6 +66,7 @@ export const PeriodFilterAutonomousView: React.FC<PeriodFilterAutonomousViewProp
   const [endDate, setEndDate] = useState<string>(defaultEnd);
   const [viewMode, setViewMode] = useState<'split' | 'timeline'>('split');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [considerFinancingInMargin, setConsiderFinancingInMargin] = useState<boolean>(true);
 
   // 1. Array of all operating months (March 2026 onwards to next 12 months)
   const allOperationalMonths = useMemo(() => {
@@ -419,21 +421,31 @@ export const PeriodFilterAutonomousView: React.FC<PeriodFilterAutonomousViewProp
       ? expenseCategories.join(', ')
       : 'Sem despesas na seleção';
 
+    // Occasional outlays (frete, compra, consórcio ocasional / quitação de parcelas de consórcio, ajuste de caixa)
+    const expensesOccasionalOutlaysTotal = expensesItems
+      .filter(it => isOccasionalAcquisitionTransaction({ type: 'despesa', category: it.category, description: `${it.title || ''} ${it.description || ''}` }))
+      .reduce((sum, it) => sum + it.value, 0);
+
+    // Fixed financing installments (parcelas fixas de financiamento)
     const expensesFinancingTotal = expensesItems
-      .filter(it => isFinancingTransaction({ type: 'despesa', category: it.category, description: it.title || it.category }))
+      .filter(it => isFinancingTransaction({ type: 'despesa', category: it.category, description: `${it.title || ''} ${it.description || ''}` }))
       .reduce((sum, it) => sum + it.value, 0);
 
     const expensesMaintenanceTotal = expensesItems
-      .filter(it => isMaintenanceTransaction({ type: 'despesa', category: it.category, description: it.title || it.category }))
+      .filter(it => isMaintenanceTransaction({ type: 'despesa', category: it.category, description: `${it.title || ''} ${it.description || ''}` }))
       .reduce((sum, it) => sum + it.value, 0);
 
-    const expensesOtherTotal = Math.max(0, expensesTotal - expensesFinancingTotal - expensesMaintenanceTotal);
+    // Recurring operational expenses (excluding occasional outlays & fixed financing)
+    const expensesOperationalTotal = Math.max(0, expensesTotal - expensesOccasionalOutlaysTotal - expensesFinancingTotal);
+    const expensesOtherTotal = Math.max(0, expensesOperationalTotal - expensesMaintenanceTotal);
 
     return {
       revenuesTotal,
       revenuesItems,
       expensesTotal,
+      expensesOperationalTotal,
       expensesFinancingTotal,
+      expensesOccasionalOutlaysTotal,
       expensesMaintenanceTotal,
       expensesOtherTotal,
       expensesItems,
@@ -544,6 +556,163 @@ export const PeriodFilterAutonomousView: React.FC<PeriodFilterAutonomousViewProp
   const expectedCashBalanceAtEnd = useMemo(() => {
     return cashAtPeriodStart + resultData.revenuesTotal - resultData.expensesTotal;
   }, [cashAtPeriodStart, resultData.revenuesTotal, resultData.expensesTotal]);
+
+  // 3.6. RENTABILIDADE DO NEGÓCIO (COM OU SEM FINANCIAMENTOS FIXOS; SEMPRE EXCLUINDO SAQUES OCASIONAIS DE FRETE/COMPRA/CONSÓRCIO)
+  const periodProfitabilityMetrics = useMemo(() => {
+    const rev = resultData.revenuesTotal;
+    const operationalExp = resultData.expensesOperationalTotal; // Manutenção + Seguros + Taxas + Outras operacionais
+    const fin = resultData.expensesFinancingTotal; // Parcelas fixas de financiamento
+    const occasionalOutlays = resultData.expensesOccasionalOutlaysTotal; // Saques ocasionais (Frete, Compra, Consórcio) — nunca entram na rentabilidade
+    const maint = resultData.expensesMaintenanceTotal;
+    const other = resultData.expensesOtherTotal;
+
+    const expWithFinancing = operationalExp + fin;
+    const expWithoutFinancing = operationalExp;
+
+    const netWithFinancing = rev - expWithFinancing;
+    const netWithoutFinancing = rev - expWithoutFinancing;
+
+    const marginWithFinancingPct = rev > 0 ? (netWithFinancing / rev) * 100 : (expWithFinancing > 0 ? -100 : 0);
+    const marginWithoutFinancingPct = rev > 0 ? (netWithoutFinancing / rev) * 100 : (expWithoutFinancing > 0 ? -100 : 0);
+
+    const activeMarginPct = considerFinancingInMargin ? marginWithFinancingPct : marginWithoutFinancingPct;
+    const activeNetValue = considerFinancingInMargin ? netWithFinancing : netWithoutFinancing;
+    const activeExpenseTotal = considerFinancingInMargin ? expWithFinancing : expWithoutFinancing;
+    const activeExpensePct = rev > 0 ? (activeExpenseTotal / rev) * 100 : 0;
+
+    const alternateMarginPct = considerFinancingInMargin ? marginWithoutFinancingPct : marginWithFinancingPct;
+    const alternateNetValue = considerFinancingInMargin ? netWithoutFinancing : netWithFinancing;
+
+    const financingPct = rev > 0 ? (fin / rev) * 100 : 0;
+    const maintenancePct = rev > 0 ? (maint / rev) * 100 : 0;
+    const otherExpPct = rev > 0 ? (other / rev) * 100 : 0;
+
+    return {
+      activeMarginPct,
+      activeNetValue,
+      activeExpensePct,
+      alternateMarginPct,
+      alternateNetValue,
+      marginWithFinancingPct,
+      marginWithoutFinancingPct,
+      netWithFinancing,
+      netWithoutFinancing,
+      financingPct,
+      maintenancePct,
+      otherExpPct,
+      fin,
+      occasionalOutlays
+    };
+  }, [resultData, considerFinancingInMargin]);
+
+  const generalBusinessMetrics = useMemo(() => {
+    const effectiveTx = (transactions || []).filter(t => t && typeof t === 'object' && t.date && t.date <= todayStr);
+
+    let firstDate = '2026-03-01';
+    effectiveTx.forEach(t => {
+      if (t.date && t.date < firstDate) firstDate = t.date;
+    });
+
+    const revTotal = effectiveTx
+      .filter(t => t.type === 'receita')
+      .reduce((sum, t) => sum + (Number(t.value) || 0), 0);
+
+    const expTransactions = effectiveTx.filter(t => t.type === 'despesa');
+    const expTotal = expTransactions.reduce((sum, t) => sum + (Number(t.value) || 0), 0);
+
+    // Occasional outlays (Frete, Compra, Quitação/Adesão de Consórcio, Ajuste técnico) — never enter recurring margin
+    const occasionalOutlaysTotal = expTransactions
+      .filter(t => isOccasionalAcquisitionTransaction(t))
+      .reduce((sum, t) => sum + (Number(t.value) || 0), 0);
+
+    // Fixed financing installments
+    const financingTotal = expTransactions
+      .filter(t => isFinancingTransaction(t))
+      .reduce((sum, t) => sum + (Number(t.value) || 0), 0);
+
+    const maintenanceTotal = expTransactions
+      .filter(t => isMaintenanceTransaction(t))
+      .reduce((sum, t) => sum + (Number(t.value) || 0), 0);
+
+    // Pure recurring operational expenses (excluding occasional outlays & fixed financing)
+    const operationalExpTotal = Math.max(0, expTotal - occasionalOutlaysTotal - financingTotal);
+    const otherExpTotal = Math.max(0, operationalExpTotal - maintenanceTotal);
+
+    const expWithFinancingTotal = operationalExpTotal + financingTotal;
+    const expWithoutFinancingTotal = operationalExpTotal;
+
+    const netWithFinancing = revTotal - expWithFinancingTotal;
+    const netWithoutFinancing = revTotal - expWithoutFinancingTotal;
+
+    const marginWithFinancingPct = revTotal > 0 ? (netWithFinancing / revTotal) * 100 : (expWithFinancingTotal > 0 ? -100 : 0);
+    const marginWithoutFinancingPct = revTotal > 0 ? (netWithoutFinancing / revTotal) * 100 : (expWithoutFinancingTotal > 0 ? -100 : 0);
+
+    const activeMarginPct = considerFinancingInMargin ? marginWithFinancingPct : marginWithoutFinancingPct;
+    const activeNetValue = considerFinancingInMargin ? netWithFinancing : netWithoutFinancing;
+    const activeExpenseTotal = considerFinancingInMargin ? expWithFinancingTotal : expWithoutFinancingTotal;
+    const activeExpensePct = revTotal > 0 ? (activeExpenseTotal / revTotal) * 100 : 0;
+
+    const alternateMarginPct = considerFinancingInMargin ? marginWithoutFinancingPct : marginWithFinancingPct;
+    const alternateNetValue = considerFinancingInMargin ? netWithoutFinancing : netWithFinancing;
+
+    const financingPct = revTotal > 0 ? (financingTotal / revTotal) * 100 : 0;
+    const maintenancePct = revTotal > 0 ? (maintenanceTotal / revTotal) * 100 : 0;
+    const otherExpPct = revTotal > 0 ? (otherExpTotal / revTotal) * 100 : 0;
+
+    // Per-vehicle margins (using the exact same criteria: excluding occasional freight/consortium/purchase outlays)
+    const activeVehiclesSummary = (vehicles || [])
+      .filter(v => !v.isDeleted && v.status !== 'vendido')
+      .map(v => {
+        const vRev = effectiveTx
+          .filter(t => t.type === 'receita' && t.vehicleId === v.id)
+          .reduce((s, t) => s + (Number(t.value) || 0), 0);
+        const vExpTx = effectiveTx.filter(t => t.type === 'despesa' && t.vehicleId === v.id);
+        const vExpAll = vExpTx.reduce((s, t) => s + (Number(t.value) || 0), 0);
+        const vOccasional = vExpTx.filter(t => isOccasionalAcquisitionTransaction(t)).reduce((s, t) => s + (Number(t.value) || 0), 0);
+        const vFin = vExpTx.filter(t => isFinancingTransaction(t)).reduce((s, t) => s + (Number(t.value) || 0), 0);
+        const vOperExp = Math.max(0, vExpAll - vOccasional - vFin);
+        const vNetWithoutFin = vRev - vOperExp;
+        const vNetWithFin = vRev - (vOperExp + vFin);
+        const marginWithFinPct = vRev > 0 ? (vNetWithFin / vRev) * 100 : 0;
+        const marginWithoutFinPct = vRev > 0 ? (vNetWithoutFin / vRev) * 100 : 0;
+        return {
+          id: v.id,
+          plate: v.plate,
+          activeMarginPct: considerFinancingInMargin ? marginWithFinPct : marginWithoutFinPct,
+          marginWithFinPct,
+          marginWithoutFinPct
+        };
+      });
+
+    const [fY, fM, fD] = firstDate.split('-');
+    const [tY, tM, tD] = todayStr.split('-');
+
+    return {
+      firstDate,
+      firstDateFormatted: `${fD}/${fM}/${fY}`,
+      todayFormatted: `${tD}/${tM}/${tY}`,
+      revTotal,
+      expTotal,
+      operationalExpTotal,
+      financingTotal,
+      occasionalOutlaysTotal,
+      maintenanceTotal,
+      otherExpTotal,
+      activeMarginPct,
+      activeNetValue,
+      activeExpensePct,
+      alternateMarginPct,
+      alternateNetValue,
+      marginWithFinancingPct,
+      marginWithoutFinancingPct,
+      netWithFinancing,
+      netWithoutFinancing,
+      financingPct,
+      maintenancePct,
+      otherExpPct,
+      activeVehiclesSummary
+    };
+  }, [transactions, vehicles, todayStr, considerFinancingInMargin]);
 
   // 4. Breakdown by Month in Range (Evolução Consolidada Mês a Mês)
   const crossMonthBreakdown = useMemo(() => {
@@ -1117,139 +1286,310 @@ export const PeriodFilterAutonomousView: React.FC<PeriodFilterAutonomousViewProp
           </div>
         </div>
 
-        {/* HERO EXECUTIVE STANDALONE BOX: EXPECTATIVA DE SALDO EM CAIXA */}
+        {/* BOX RENTABILIDADE DO NEGÓCIO (PERÍODO SELECIONADO + PERÍODO GERAL DO NEGÓCIO) */}
         <div 
-          id="box-expectativa-saldo-caixa"
-          className="relative z-10 mt-4 rounded-2xl bg-gradient-to-r from-slate-950 via-indigo-950/90 to-slate-900 border-2 border-indigo-400/50 p-4 sm:p-6 shadow-2xl overflow-hidden group"
+          id="box-rentabilidade-negocio"
+          className="relative z-10 mt-4 rounded-2xl bg-gradient-to-r from-slate-950 via-indigo-950/90 to-slate-900 border-2 border-indigo-400/50 p-4 sm:p-5 shadow-2xl overflow-hidden"
         >
-          {/* Ambient glow effect */}
-          <div className="absolute -right-8 -bottom-8 w-48 h-48 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none group-hover:scale-125 transition-transform duration-700" />
-          <div className="absolute left-1/3 -top-12 w-40 h-40 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
-
-          <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-indigo-500/30 pb-4">
-            <div className="space-y-1.5">
+          <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 border-b border-indigo-500/30 pb-3.5">
+            <div className="space-y-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="p-1.5 rounded-lg bg-indigo-500/30 text-indigo-300 border border-indigo-400/40 shrink-0">
-                  <Coins className="h-4 w-4" />
+                  <Percent className="h-4 w-4" />
                 </span>
                 <span className="text-[10px] font-mono font-black uppercase tracking-widest text-indigo-300 bg-indigo-900/60 px-2.5 py-0.5 rounded-full border border-indigo-500/40">
-                  PROJEÇÃO DE CAIXA • RESULTADO DO PERÍODO
+                  {considerFinancingInMargin
+                    ? 'MARGEM LÍQUIDA (COM FINANCIAMENTOS FIXOS)'
+                    : 'MARGEM OPERACIONAL (SEM FINANCIAMENTOS)'}
                 </span>
-                <span className={`text-[10px] font-mono font-black px-2.5 py-0.5 rounded-full border ${
-                  expectedCashBalanceAtEnd >= 0
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                    : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                }`}>
-                  {expectedCashBalanceAtEnd >= 0 ? '✓ Saldo Projetado Positivo' : '⚠ Atenção: Projeção de Caixa Descoberto'}
-                </span>
+                {(() => {
+                  const diffPp = periodProfitabilityMetrics.activeMarginPct - generalBusinessMetrics.activeMarginPct;
+                  return (
+                    <span className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full border ${
+                      diffPp >= 0
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                        : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                    }`}>
+                      {diffPp >= 0 ? `+${diffPp.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} p.p. acima` : `${diffPp.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} p.p. vs.`} média geral
+                    </span>
+                  );
+                })()}
               </div>
-              <h3 className="text-base sm:text-lg font-black font-display text-white tracking-tight flex items-center gap-2">
-                <span>EXPECTATIVA DE SALDO EM CAIXA</span>
+              <h3 className="text-base sm:text-lg font-black font-display text-white tracking-tight">
+                Rentabilidade do Negócio
               </h3>
-              <p className="text-xs text-indigo-200/90 font-sans max-w-2xl leading-relaxed">
-                Projeção de que, seguindo o prognóstico entre receitas contratadas e despesas programadas, quanto haverá em caixa acumulado ao término do período filtrado (<strong className="text-white font-mono">{selectionMeta.formattedEnd}</strong>).
+              <p className="text-xs text-indigo-200/90 font-sans leading-relaxed">
+                Saques ocasionais para frete, compra e quitação/adesão de consórcio não entram neste cálculo. Use a opção ao lado para incluir ou desconsiderar o custo fixo dos financiamentos.
               </p>
             </div>
 
-            {/* BIG PROMINENT VALUE DISPLAY */}
-            <div className="text-left lg:text-right shrink-0 bg-white/5 lg:bg-transparent p-3.5 lg:p-0 rounded-xl border border-white/10 lg:border-none">
-              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-indigo-300 block mb-0.5">
-                Saldo Projetado em Caixa:
-              </span>
-              <div className={`font-mono text-2xl xs:text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight select-all ${
-                expectedCashBalanceAtEnd >= 0
-                  ? 'text-emerald-400 drop-shadow-[0_2px_10px_rgba(52,211,153,0.35)]'
-                  : 'text-rose-400 drop-shadow-[0_2px_10px_rgba(244,63,94,0.35)]'
-              }`}>
-                {formatBRL(expectedCashBalanceAtEnd)}
+            {/* CHECKBOX INTERATIVO: CONSIDERAR FINANCIAMENTOS OU NÃO */}
+            <label
+              htmlFor="toggle-consider-financing"
+              className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border cursor-pointer transition-all select-none shrink-0 ${
+                considerFinancingInMargin
+                  ? 'bg-purple-950/80 border-purple-400/60 text-purple-100 shadow-sm'
+                  : 'bg-slate-900/90 border-slate-700 text-slate-300 hover:border-indigo-400/50'
+              }`}
+            >
+              <input
+                id="toggle-consider-financing"
+                type="checkbox"
+                checked={considerFinancingInMargin}
+                onChange={(e) => setConsiderFinancingInMargin(e.target.checked)}
+                className="h-4 w-4 rounded border-purple-400 text-purple-600 focus:ring-purple-500 cursor-pointer accent-purple-500"
+              />
+              <div className="flex flex-col">
+                <span className="text-xs font-bold font-sans leading-tight text-white">
+                  Considerar Financiamentos
+                </span>
+                <span className="text-[10px] font-mono text-indigo-200/80">
+                  {considerFinancingInMargin
+                    ? 'Ativo: Descontando parcelas fixas'
+                    : 'Inativo: Exibindo margem sem financ.'}
+                </span>
               </div>
-              <span className="text-[11px] text-slate-300 font-medium">
-                Conciliação prevista para {selectionMeta.formattedEnd}
-              </span>
-            </div>
+            </label>
           </div>
 
-          {/* DETAILED FORMULA & FINANCIAL BRIDGING BREAKDOWN */}
-          <div className="relative z-10 pt-4">
-            <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-300 mb-2 flex items-center gap-1.5">
-              <Scale className="h-3.5 w-3.5 text-indigo-400" />
-              <span>Memória de Cálculo do Prognóstico (Conciliação de Caixa):</span>
+          <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-4 pt-4">
+            {/* LADO 1: RENTABILIDADE NO PERÍODO SELECIONADO (FILTRO ATIVO) */}
+            <div className={`rounded-xl p-4 border shadow-inner flex flex-col justify-between ${
+              periodProfitabilityMetrics.activeMarginPct >= 0
+                ? 'bg-slate-900/90 border-indigo-500/50'
+                : 'bg-rose-950/60 border-rose-500/50'
+            }`}>
+              <div>
+                <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
+                    <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-indigo-200">
+                      Rentabilidade no Período Filtrado
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono font-semibold text-slate-300 bg-slate-800 px-2 py-0.5 rounded border border-slate-700 truncate max-w-full">
+                    {selectionMeta.selectionTitle}
+                  </span>
+                </div>
+
+                <div className="flex items-baseline justify-between gap-3 flex-wrap my-2">
+                  <div>
+                    <span className="text-[10px] font-mono uppercase text-slate-300 block">
+                      {considerFinancingInMargin
+                        ? 'Margem Líquida do Período (C/ Financ.)'
+                        : 'Margem Líquida do Período (S/ Financ.)'}
+                    </span>
+                    <div className={`font-mono text-3xl sm:text-4xl font-black tracking-tight ${
+                      periodProfitabilityMetrics.activeMarginPct >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                    }`}>
+                      {periodProfitabilityMetrics.activeMarginPct >= 0 ? '+' : ''}
+                      {periodProfitabilityMetrics.activeMarginPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+                    </div>
+                    <span className="text-[11px] font-mono text-emerald-300/90 block mt-0.5">
+                      Resultado: {periodProfitabilityMetrics.activeNetValue >= 0 ? '+' : ''}{formatBRL(periodProfitabilityMetrics.activeNetValue)}
+                    </span>
+                  </div>
+
+                  <div className="text-left sm:text-right bg-slate-950/70 px-3 py-2 rounded-lg border border-slate-800">
+                    <span className="text-[10px] font-mono uppercase text-slate-400 block">
+                      {considerFinancingInMargin
+                        ? 'Referência Sem Financiamentos'
+                        : 'Referência Com Financiamentos'}
+                    </span>
+                    <span className={`font-mono text-sm sm:text-base font-black ${
+                      periodProfitabilityMetrics.alternateMarginPct >= 0 ? 'text-indigo-300' : 'text-rose-300'
+                    }`}>
+                      {periodProfitabilityMetrics.alternateMarginPct >= 0 ? '+' : ''}
+                      {periodProfitabilityMetrics.alternateMarginPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-400 block">
+                      ({formatBRL(periodProfitabilityMetrics.alternateNetValue)})
+                    </span>
+                  </div>
+                </div>
+
+                {/* Barra de Composição Percentual do Período */}
+                <div className="mt-3 space-y-1.5">
+                  <div className="flex items-center justify-between text-[10px] font-mono text-slate-300">
+                    <span>Despesas Consideradas: <strong className="text-rose-300">{periodProfitabilityMetrics.activeExpensePct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</strong></span>
+                    <span>Retorno Líquido: <strong className={periodProfitabilityMetrics.activeMarginPct >= 0 ? 'text-emerald-300' : 'text-rose-300'}>{periodProfitabilityMetrics.activeMarginPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</strong></span>
+                  </div>
+                  <div className="h-2.5 w-full bg-slate-800 rounded-full overflow-hidden flex">
+                    {considerFinancingInMargin && (
+                      <div
+                        style={{ width: `${Math.min(100, Math.max(0, periodProfitabilityMetrics.financingPct))}%` }}
+                        className="bg-purple-500 h-full transition-all duration-500"
+                        title={`Financiamentos Fixos: ${periodProfitabilityMetrics.financingPct.toFixed(1)}%`}
+                      />
+                    )}
+                    <div
+                      style={{ width: `${Math.min(100, Math.max(0, periodProfitabilityMetrics.maintenancePct))}%` }}
+                      className="bg-amber-500 h-full transition-all duration-500"
+                      title={`Manutenção: ${periodProfitabilityMetrics.maintenancePct.toFixed(1)}%`}
+                    />
+                    <div
+                      style={{ width: `${Math.min(100, Math.max(0, periodProfitabilityMetrics.otherExpPct))}%` }}
+                      className="bg-rose-500 h-full transition-all duration-500"
+                      title={`Outras Despesas Operacionais: ${periodProfitabilityMetrics.otherExpPct.toFixed(1)}%`}
+                    />
+                    {periodProfitabilityMetrics.activeMarginPct > 0 && (
+                      <div
+                        style={{ width: `${Math.min(100, Math.max(0, periodProfitabilityMetrics.activeMarginPct))}%` }}
+                        className="bg-emerald-400 h-full transition-all duration-500"
+                        title={`Rentabilidade Líquida: ${periodProfitabilityMetrics.activeMarginPct.toFixed(1)}%`}
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 pt-2.5 border-t border-slate-800 flex flex-wrap items-center justify-between gap-1.5 text-[10px] font-mono text-slate-300">
+                <span className={`px-2 py-0.5 rounded border ${
+                  considerFinancingInMargin
+                    ? 'bg-purple-950/70 text-purple-300 border-purple-500/30'
+                    : 'bg-slate-900/50 text-slate-500 border-slate-800 line-through'
+                }`}>
+                  Financ: {periodProfitabilityMetrics.financingPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+                </span>
+                <span className="px-2 py-0.5 rounded bg-amber-950/70 text-amber-300 border border-amber-500/30">
+                  Manut: {periodProfitabilityMetrics.maintenancePct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+                </span>
+                <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                  Outras Oper.: {periodProfitabilityMetrics.otherExpPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+                </span>
+                {periodProfitabilityMetrics.occasionalOutlays > 0 && (
+                  <span className="px-2 py-0.5 rounded bg-slate-950 text-slate-400 border border-slate-800" title="Saques ocasionais (frete, compra, consórcio) ignorados na margem">
+                    Saques Ocasionais (Ignorados): {formatBRL(periodProfitabilityMetrics.occasionalOutlays)}
+                  </span>
+                )}
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-              {/* 1. Saldo de Abertura */}
-              <div className="bg-slate-900/90 rounded-xl p-2.5 border border-slate-700/80">
-                <span className="text-[10px] font-mono text-slate-400 uppercase block truncate">
-                  1. Saldo de Partida ({selectionMeta.formattedStart})
-                </span>
-                <span className="font-mono text-xs sm:text-sm font-bold text-slate-200 block mt-0.5">
-                  {formatBRL(cashAtPeriodStart)}
-                </span>
-                <span className="text-[9px] text-slate-400 block truncate mt-0.5">
-                  Posição inicial da base
-                </span>
+            {/* LADO 2: RENTABILIDADE DO PERÍODO GERAL DO NEGÓCIO (SEMPRE EXIBIDA) */}
+            <div className={`rounded-xl p-4 border shadow-inner flex flex-col justify-between ${
+              generalBusinessMetrics.activeMarginPct >= 0
+                ? 'bg-emerald-950/40 border-emerald-500/50'
+                : 'bg-rose-950/60 border-rose-500/50'
+            }`}>
+              <div>
+                <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-emerald-200">
+                      Rentabilidade do Período Geral do Negócio
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono font-semibold text-emerald-200 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-500/40">
+                    Acumulado ({generalBusinessMetrics.firstDateFormatted} a {generalBusinessMetrics.todayFormatted})
+                  </span>
+                </div>
+
+                <div className="flex items-baseline justify-between gap-3 flex-wrap my-2">
+                  <div>
+                    <span className="text-[10px] font-mono uppercase text-slate-300 block">
+                      {considerFinancingInMargin
+                        ? 'Margem Líquida Geral (C/ Financ.)'
+                        : 'Margem Líquida Geral (S/ Financ.)'}
+                    </span>
+                    <div className={`font-mono text-3xl sm:text-4xl font-black tracking-tight ${
+                      generalBusinessMetrics.activeMarginPct >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                    }`}>
+                      {generalBusinessMetrics.activeMarginPct >= 0 ? '+' : ''}
+                      {generalBusinessMetrics.activeMarginPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+                    </div>
+                    <span className="text-[11px] font-mono text-emerald-300/90 block mt-0.5">
+                      Líq. Geral: {generalBusinessMetrics.activeNetValue >= 0 ? '+' : ''}{formatBRL(generalBusinessMetrics.activeNetValue)} / Fat.: {formatBRL(generalBusinessMetrics.revTotal)}
+                    </span>
+                  </div>
+
+                  <div className="text-left sm:text-right bg-slate-950/70 px-3 py-2 rounded-lg border border-slate-800">
+                    <span className="text-[10px] font-mono uppercase text-slate-400 block">
+                      {considerFinancingInMargin
+                        ? 'Referência Sem Financiamentos'
+                        : 'Referência Com Financiamentos'}
+                    </span>
+                    <span className={`font-mono text-sm sm:text-base font-black ${
+                      generalBusinessMetrics.alternateMarginPct >= 0 ? 'text-emerald-300' : 'text-rose-300'
+                    }`}>
+                      {generalBusinessMetrics.alternateMarginPct >= 0 ? '+' : ''}
+                      {generalBusinessMetrics.alternateMarginPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-400 block">
+                      ({formatBRL(generalBusinessMetrics.alternateNetValue)})
+                    </span>
+                  </div>
+                </div>
+
+                {/* Referência Individual dos Carros da Frota */}
+                {generalBusinessMetrics.activeVehiclesSummary.length > 0 && (
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    {generalBusinessMetrics.activeVehiclesSummary.map(v => (
+                      <span
+                        key={v.id}
+                        className="text-[10px] font-mono bg-slate-900/90 text-slate-200 px-2 py-0.5 rounded border border-emerald-500/30"
+                      >
+                        <strong className="text-emerald-300">{v.plate}</strong>:{' '}
+                        {v.activeMarginPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%{' '}
+                        {considerFinancingInMargin ? 'c/ financ.' : 's/ financ.'}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Barra de Composição Percentual Geral */}
+                <div className="mt-3 space-y-1.5">
+                  <div className="flex items-center justify-between text-[10px] font-mono text-slate-300">
+                    <span>Despesas Consideradas: <strong className="text-rose-300">{generalBusinessMetrics.activeExpensePct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</strong></span>
+                    <span>Retorno Geral: <strong className={generalBusinessMetrics.activeMarginPct >= 0 ? 'text-emerald-300' : 'text-rose-300'}>{generalBusinessMetrics.activeMarginPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</strong></span>
+                  </div>
+                  <div className="h-2.5 w-full bg-slate-800 rounded-full overflow-hidden flex">
+                    {considerFinancingInMargin && (
+                      <div
+                        style={{ width: `${Math.min(100, Math.max(0, generalBusinessMetrics.financingPct))}%` }}
+                        className="bg-purple-500 h-full transition-all duration-500"
+                        title={`Financiamentos Fixos Gerais: ${generalBusinessMetrics.financingPct.toFixed(1)}%`}
+                      />
+                    )}
+                    <div
+                      style={{ width: `${Math.min(100, Math.max(0, generalBusinessMetrics.maintenancePct))}%` }}
+                      className="bg-amber-500 h-full transition-all duration-500"
+                      title={`Manutenção Geral: ${generalBusinessMetrics.maintenancePct.toFixed(1)}%`}
+                    />
+                    <div
+                      style={{ width: `${Math.min(100, Math.max(0, generalBusinessMetrics.otherExpPct))}%` }}
+                      className="bg-rose-500 h-full transition-all duration-500"
+                      title={`Outras Despesas Operacionais Gerais: ${generalBusinessMetrics.otherExpPct.toFixed(1)}%`}
+                    />
+                    {generalBusinessMetrics.activeMarginPct > 0 && (
+                      <div
+                        style={{ width: `${Math.min(100, Math.max(0, generalBusinessMetrics.activeMarginPct))}%` }}
+                        className="bg-emerald-400 h-full transition-all duration-500"
+                        title={`Rentabilidade Líquida Geral: ${generalBusinessMetrics.activeMarginPct.toFixed(1)}%`}
+                      />
+                    )}
+                  </div>
+                </div>
               </div>
 
-              {/* 2. (+) Receitas */}
-              <div className="bg-slate-900/90 rounded-xl p-2.5 border border-emerald-500/30">
-                <span className="text-[10px] font-mono text-emerald-400 uppercase block truncate">
-                  2. (+) Receitas no Período
-                </span>
-                <span className="font-mono text-xs sm:text-sm font-bold text-emerald-300 block mt-0.5">
-                  + {formatBRL(resultData.revenuesTotal)}
-                </span>
-                <span className="text-[9px] text-slate-400 block truncate mt-0.5">
-                  {resultData.revenuesItems.length} entradas previstas
-                </span>
-              </div>
-
-              {/* 3. (-) Despesas */}
-              <div className="bg-slate-900/90 rounded-xl p-2.5 border border-rose-500/30">
-                <span className="text-[10px] font-mono text-rose-400 uppercase block truncate">
-                  3. (-) Despesas no Período
-                </span>
-                <span className="font-mono text-xs sm:text-sm font-bold text-rose-300 block mt-0.5">
-                  - {formatBRL(resultData.expensesTotal)}
-                </span>
-                <span className="text-[9px] text-slate-400 block truncate mt-0.5">
-                  {resultData.expensesItems.length} saídas programadas
-                </span>
-              </div>
-
-              {/* 4. (=) Resultado Líquido do Período */}
-              <div className="bg-slate-900/90 rounded-xl p-2.5 border border-indigo-500/40">
-                <span className="text-[10px] font-mono text-indigo-300 uppercase block truncate">
-                  4. (=) Variação Líquida
-                </span>
-                <span className={`font-mono text-xs sm:text-sm font-bold block mt-0.5 ${
-                  resultData.balance >= 0 ? 'text-indigo-200' : 'text-rose-300'
+              <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-1.5 text-[10px] font-mono text-slate-300">
+                <span className={`px-2 py-0.5 rounded border ${
+                  considerFinancingInMargin
+                    ? 'bg-purple-950/70 text-purple-300 border-purple-500/30'
+                    : 'bg-slate-900/50 text-slate-500 border-slate-800 line-through'
                 }`}>
-                  {resultData.balance >= 0 ? '+ ' : ''}{formatBRL(resultData.balance)}
+                  Financ Geral: {generalBusinessMetrics.financingPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
                 </span>
-                <span className="text-[9px] text-slate-400 block truncate mt-0.5">
-                  {resultData.balance >= 0 ? 'Superávit no período' : 'Déficit no período'}
+                <span className="px-2 py-0.5 rounded bg-amber-950/70 text-amber-300 border border-amber-500/30">
+                  Manut Geral: {generalBusinessMetrics.maintenancePct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
                 </span>
-              </div>
-
-              {/* 5. (=) Expectativa Final em Caixa */}
-              <div className={`col-span-2 sm:col-span-1 rounded-xl p-2.5 border shadow-inner ${
-                expectedCashBalanceAtEnd >= 0
-                  ? 'bg-emerald-950/70 border-emerald-500/60'
-                  : 'bg-rose-950/70 border-rose-500/60'
-              }`}>
-                <span className={`text-[10px] font-mono font-black uppercase block truncate ${
-                  expectedCashBalanceAtEnd >= 0 ? 'text-emerald-300' : 'text-rose-300'
-                }`}>
-                  5. (=) Saldo Projetado
+                <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                  Outras Oper.: {generalBusinessMetrics.otherExpPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
                 </span>
-                <span className={`font-mono text-xs sm:text-sm font-black block mt-0.5 ${
-                  expectedCashBalanceAtEnd >= 0 ? 'text-emerald-300' : 'text-rose-300'
-                }`}>
-                  {formatBRL(expectedCashBalanceAtEnd)}
-                </span>
-                <span className="text-[9px] text-slate-300 block truncate mt-0.5">
-                  Expectativa em caixa
-                </span>
+                {generalBusinessMetrics.occasionalOutlaysTotal > 0 && (
+                  <span className="px-2 py-0.5 rounded bg-slate-950 text-slate-400 border border-slate-800" title="Frete, compra e quitação/adesão de consórcio ignorados na rentabilidade">
+                    Saques Ocasionais (Ignorados): {formatBRL(generalBusinessMetrics.occasionalOutlaysTotal)}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -1340,54 +1680,144 @@ export const PeriodFilterAutonomousView: React.FC<PeriodFilterAutonomousViewProp
         </div>
       )}
 
-      {/* 5. DIAS COM ATIVIDADE FINANCEIRA (CHIPS INTERATIVOS) */}
+      {/* 5. DIAS COM MOVIMENTAÇÃO NO PERÍODO (TABELA EM COLUNAS DEVIDAMENTE ALINHADAS) */}
       {activeDaysList.length > 0 && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider font-mono flex items-center gap-1.5">
-              <Calendar className="h-4 w-4 text-indigo-600" />
-              <span>Dias com Movimentação no Período ({activeDaysList.length} dias):</span>
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-slate-100 pb-2.5">
+            <span className="text-xs sm:text-sm font-bold text-slate-800 uppercase tracking-wider font-mono flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-indigo-600 shrink-0" />
+              <span>Dias com Movimentação no Período ({activeDaysList.length} dias)</span>
             </span>
-            <span className="text-[11px] text-slate-400 font-sans hidden sm:inline">
-              Clique em qualquer dia para filtrar apenas aquela data
+            <span className="text-[11px] text-slate-500 font-sans">
+              Clique em qualquer linha para filtrar individualmente a data (ou clique novamente para voltar ao mês)
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
-            {activeDaysList.map((d) => {
-              const isExactSingleDay = startDate === d.dateStr && endDate === d.dateStr;
-              const isInActiveSet = selectionMeta.selectedDateSet.has(d.dateStr);
+          <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+            <div className="max-h-[420px] overflow-y-auto overflow-x-hidden">
+              <table className="w-full table-fixed border-collapse text-left">
+                <thead className="sticky top-0 z-10 bg-slate-100 border-b border-slate-200 text-[10px] sm:text-[11px] font-mono font-bold uppercase tracking-wider text-slate-600">
+                  <tr>
+                    <th className="w-[37%] sm:w-[40%] py-2.5 px-3 sm:px-4 text-left">
+                      Data / Dia da Semana
+                    </th>
+                    <th className="w-[21%] sm:w-[20%] py-2.5 px-2 sm:px-4 text-right text-emerald-800">
+                      Receitas (+)
+                    </th>
+                    <th className="w-[21%] sm:w-[20%] py-2.5 px-2 sm:px-4 text-right text-rose-800">
+                      Despesas (-)
+                    </th>
+                    <th className="w-[21%] sm:w-[20%] py-2.5 px-3 sm:px-4 text-right text-slate-800">
+                      Saldo do Dia
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs font-mono tabular-nums">
+                  {activeDaysList.map((d) => {
+                    const isExactSingleDay = startDate === d.dateStr && endDate === d.dateStr;
+                    const isDayPositive = d.balance >= 0;
 
-              return (
-                <button
-                  key={d.dateStr}
-                  type="button"
-                  onClick={() => handleSelectDay(d.dateStr)}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-mono transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
-                    isExactSingleDay
-                      ? 'bg-indigo-700 text-white font-bold shadow-xs ring-2 ring-indigo-300'
-                      : isInActiveSet
-                        ? 'bg-indigo-50 text-indigo-900 border border-indigo-300 font-bold'
-                        : 'bg-white text-slate-600 hover:bg-indigo-50/50 border border-slate-200 opacity-70'
-                  }`}
-                  title={`${d.formattedDate} (${d.dayName}) - Rec: ${formatBRL(d.revTotal)} | Desp: ${formatBRL(d.expTotal)}`}
-                >
-                  <span className="font-bold">
-                    {d.shortFormattedDate} ({d.shortDayName})
-                  </span>
-                  {d.revTotal > 0 && (
-                    <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800">
-                      +{formatBRL(d.revTotal)}
-                    </span>
-                  )}
-                  {d.expTotal > 0 && (
-                    <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-rose-100 text-rose-700">
-                      -{formatBRL(d.expTotal)}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+                    return (
+                      <tr
+                        key={d.dateStr}
+                        onClick={() => handleSelectDay(d.dateStr)}
+                        className={`transition-colors cursor-pointer ${
+                          isExactSingleDay
+                            ? 'bg-indigo-700 text-white font-semibold'
+                            : 'bg-white hover:bg-indigo-50/70 text-slate-800'
+                        }`}
+                      >
+                        {/* COLUNA 1: DATA E DIA DA SEMANA */}
+                        <td className="py-2.5 px-3 sm:px-4 align-middle">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`px-2 py-0.5 rounded text-[11px] sm:text-xs font-mono font-bold shrink-0 ${
+                              isExactSingleDay
+                                ? 'bg-indigo-900 text-indigo-100 border border-indigo-400/40'
+                                : 'bg-indigo-50 text-indigo-800 border border-indigo-200/80'
+                            }`}>
+                              {d.formattedDate}
+                            </span>
+                            <span className={`text-xs font-sans truncate ${
+                              isExactSingleDay ? 'text-indigo-100 font-semibold' : 'text-slate-600 font-medium'
+                            }`}>
+                              {d.dayName}
+                            </span>
+                            {isExactSingleDay && (
+                              <span className="text-[9px] font-mono uppercase bg-white/20 text-white px-1.5 py-0.5 rounded">
+                                Filtro Ativo
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* COLUNA 2: RECEITAS */}
+                        <td className="py-2.5 px-2 sm:px-4 text-right align-middle whitespace-nowrap">
+                          {d.revTotal > 0 ? (
+                            <span className={`inline-block px-2 py-0.5 rounded font-bold text-[11px] sm:text-xs ${
+                              isExactSingleDay
+                                ? 'bg-emerald-900/80 text-emerald-200 border border-emerald-400/40'
+                                : 'bg-emerald-50 text-emerald-700 border border-emerald-200/80'
+                            }`}>
+                              + {formatBRL(d.revTotal)}
+                            </span>
+                          ) : (
+                            <span className={isExactSingleDay ? 'text-indigo-300/60' : 'text-slate-300'}>
+                              —
+                            </span>
+                          )}
+                        </td>
+
+                        {/* COLUNA 3: DESPESAS */}
+                        <td className="py-2.5 px-2 sm:px-4 text-right align-middle whitespace-nowrap">
+                          {d.expTotal > 0 ? (
+                            <span className={`inline-block px-2 py-0.5 rounded font-bold text-[11px] sm:text-xs ${
+                              isExactSingleDay
+                                ? 'bg-rose-900/80 text-rose-200 border border-rose-400/40'
+                                : 'bg-rose-50 text-rose-700 border border-rose-200/80'
+                            }`}>
+                              - {formatBRL(d.expTotal)}
+                            </span>
+                          ) : (
+                            <span className={isExactSingleDay ? 'text-indigo-300/60' : 'text-slate-300'}>
+                              —
+                            </span>
+                          )}
+                        </td>
+
+                        {/* COLUNA 4: SALDO DO DIA */}
+                        <td className={`py-2.5 px-3 sm:px-4 text-right align-middle whitespace-nowrap font-black text-[11px] sm:text-xs ${
+                          isExactSingleDay
+                            ? 'text-white'
+                            : isDayPositive
+                              ? 'text-emerald-700'
+                              : 'text-rose-600'
+                        }`}>
+                          {isDayPositive ? '+ ' : ''}{formatBRL(d.balance)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot className="bg-slate-50 border-t-2 border-slate-200 text-[11px] sm:text-xs font-mono font-bold tabular-nums">
+                  <tr>
+                    <td className="py-2.5 px-3 sm:px-4 text-slate-700 uppercase">
+                      Total do Período ({activeDaysList.length} dias)
+                    </td>
+                    <td className="py-2.5 px-2 sm:px-4 text-right text-emerald-700 whitespace-nowrap">
+                      + {formatBRL(resultData.revenuesTotal)}
+                    </td>
+                    <td className="py-2.5 px-2 sm:px-4 text-right text-rose-600 whitespace-nowrap">
+                      - {formatBRL(resultData.expensesTotal)}
+                    </td>
+                    <td className={`py-2.5 px-3 sm:px-4 text-right font-black whitespace-nowrap ${
+                      resultData.balance >= 0 ? 'text-emerald-700' : 'text-rose-600'
+                    }`}>
+                      {resultData.balance >= 0 ? '+ ' : ''}{formatBRL(resultData.balance)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </div>
         </div>
       )}
